@@ -1,0 +1,115 @@
+const { DatabaseSync } = require('node:sqlite');
+const path = require('path');
+const fs = require('fs');
+
+const DB_PATH = path.join(__dirname, 'attendance.db');
+const db = new DatabaseSync(DB_PATH);
+
+// Optimize database for reliability and speed
+db.exec('PRAGMA journal_mode = WAL;');
+db.exec('PRAGMA foreign_keys = ON;');
+
+// Initialize Tables
+function initDatabase() {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS employees (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_code TEXT UNIQUE,
+      name TEXT NOT NULL,
+      phone TEXT,
+      role TEXT,
+      daily_wage REAL NOT NULL DEFAULT 0.0,
+      standard_hours REAL NOT NULL DEFAULT 8.0,
+      default_ot_multiplier REAL NOT NULL DEFAULT 1.5,
+      status TEXT NOT NULL DEFAULT 'ACTIVE',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      notes TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS attendance (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_id INTEGER NOT NULL,
+      date TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'PRESENT',
+      standard_hours REAL NOT NULL DEFAULT 8.0,
+      daily_wage_snapshot REAL NOT NULL DEFAULT 0.0,
+      base_pay REAL NOT NULL DEFAULT 0.0,
+      overtime_hours REAL NOT NULL DEFAULT 0.0,
+      overtime_multiplier REAL NOT NULL DEFAULT 1.5,
+      overtime_pay REAL NOT NULL DEFAULT 0.0,
+      bonus_allowance REAL NOT NULL DEFAULT 0.0,
+      deduction REAL NOT NULL DEFAULT 0.0,
+      total_pay REAL NOT NULL DEFAULT 0.0,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
+      UNIQUE(employee_id, date)
+    );
+
+    CREATE TABLE IF NOT EXISTS payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_id INTEGER NOT NULL,
+      date TEXT NOT NULL,
+      amount REAL NOT NULL,
+      type TEXT NOT NULL DEFAULT 'ADVANCE',
+      payment_method TEXT DEFAULT 'CASH',
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date);
+    CREATE INDEX IF NOT EXISTS idx_attendance_emp_date ON attendance(employee_id, date);
+    CREATE INDEX IF NOT EXISTS idx_payments_emp ON payments(employee_id);
+    CREATE INDEX IF NOT EXISTS idx_payments_date ON payments(date);
+  `);
+
+  // Initialize Default Settings if not present
+  const defaultSettings = [
+    { key: 'admin_pin', value: '1234' },
+    { key: 'business_name', value: 'Daily Wage Attendance & Payroll' },
+    { key: 'currency_symbol', value: '₹' },
+    { key: 'default_standard_hours', value: '8' },
+    { key: 'default_ot_multiplier', value: '1.5' },
+    { key: 'site_location', value: 'Main Work Site' }
+  ];
+
+  const checkSettingStmt = db.prepare('SELECT value FROM settings WHERE key = ?');
+  const insertSettingStmt = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
+
+  for (const s of defaultSettings) {
+    if (!checkSettingStmt.get(s.key)) {
+      insertSettingStmt.run(s.key, s.value);
+    }
+  }
+
+  // Seed sample workers if table is empty
+  const countEmp = db.prepare('SELECT COUNT(*) as count FROM employees').get();
+  if (countEmp && countEmp.count === 0) {
+    const seedEmp = db.prepare(`
+      INSERT INTO employees (employee_code, name, phone, role, daily_wage, standard_hours, default_ot_multiplier, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    seedEmp.run('EMP001', 'Ramesh Kumar', '9876543210', 'Head Mason', 750.0, 8.0, 1.5, 'Experienced brick layer');
+    seedEmp.run('EMP002', 'Suresh Singh', '9876543211', 'Carpenter', 700.0, 8.0, 1.5, 'Formwork and finishing');
+    seedEmp.run('EMP003', 'Rajesh Sharma', '9876543212', 'Welder / Fabricator', 800.0, 8.0, 2.0, 'Heavy metal works - 2x OT rate');
+    seedEmp.run('EMP004', 'Amit Patel', '9876543213', 'General Helper', 500.0, 8.0, 1.5, 'Loading and site support');
+    seedEmp.run('EMP005', 'Vikram Yadav', '9876543214', 'Electrician', 750.0, 8.0, 1.5, 'Wiring and power setup');
+
+    console.log('🌱 Seeded 5 sample daily wage workers for initial setup.');
+  }
+}
+
+initDatabase();
+
+module.exports = {
+  db,
+  DB_PATH
+};

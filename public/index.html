@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Daily Wage Attendance & Overtime Tracker</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Top App Bar -->
+  <header class="top-nav">
+    <div class="nav-brand">
+      <div class="brand-icon">⏱️</div>
+      <div class="brand-info">
+        <h1 id="appBusinessName">Daily Wage Attendance</h1>
+        <span class="brand-sub">Employer Admin Portal</span>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <button id="btnConnectMobile" class="btn-chip btn-mobile-qr" title="Connect Phone via QR Code">
+        <span>📱</span> <span class="hide-mobile">Connect Phone</span>
+      </button>
+      <button id="btnAdminLock" class="btn-chip btn-lock" title="Lock Admin Access">
+        <span id="lockIcon">🔒</span> <span class="hide-mobile" id="lockLabel">Unlocked</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Navigation Bar (Tabs) -->
+  <nav class="main-tabs" id="mainTabs">
+    <button class="tab-btn active" data-tab="tabAttendance">
+      <span class="tab-icon">📋</span>
+      <span class="tab-label">Attendance</span>
+    </button>
+    <button class="tab-btn" data-tab="tabWorkers">
+      <span class="tab-icon">👷</span>
+      <span class="tab-label">Workers</span>
+    </button>
+    <button class="tab-btn" data-tab="tabPayroll">
+      <span class="tab-icon">💰</span>
+      <span class="tab-label">Payroll</span>
+    </button>
+    <button class="tab-btn" data-tab="tabPayments">
+      <span class="tab-icon">💵</span>
+      <span class="tab-label">Advances</span>
+    </button>
+    <button class="tab-btn" data-tab="tabSettings">
+      <span class="tab-icon">⚙️</span>
+      <span class="tab-label">Settings</span>
+    </button>
+  </nav>
+
+  <!-- Main Content Area -->
+  <main class="content-container">
+
+    <!-- ======================================================== -->
+    <!-- TAB 1: DAILY ATTENDANCE & OVERTIME                       -->
+    <!-- ======================================================== -->
+    <section id="tabAttendance" class="tab-pane active">
+      <!-- Date Bar & Controls -->
+      <div class="date-bar">
+        <div class="date-stepper">
+          <button id="btnPrevDate" class="btn-icon" title="Previous Day">◀</button>
+          <div class="date-picker-wrap">
+            <input type="date" id="attendanceDatePicker" class="date-input">
+            <div id="dateDisplayLabel" class="date-display-label">Today</div>
+          </div>
+          <button id="btnNextDate" class="btn-icon" title="Next Day">▶</button>
+        </div>
+        <div class="date-actions">
+          <button id="btnToday" class="btn btn-secondary btn-sm">Today</button>
+          <button id="btnMarkAllPresent" class="btn btn-primary btn-sm">
+            <span>⚡</span> Mark All Present
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Metrics Ribbon -->
+      <div class="stats-ribbon">
+        <div class="stat-pill present">
+          <span class="stat-num" id="statPresentCount">0</span>
+          <span class="stat-text">Present</span>
+        </div>
+        <div class="stat-pill half-day">
+          <span class="stat-num" id="statHalfDayCount">0</span>
+          <span class="stat-text">Half Day</span>
+        </div>
+        <div class="stat-pill absent">
+          <span class="stat-num" id="statAbsentCount">0</span>
+          <span class="stat-text">Absent</span>
+        </div>
+        <div class="stat-pill ot">
+          <span class="stat-num" id="statOtHours">0.0h</span>
+          <span class="stat-text">Total OT</span>
+        </div>
+        <div class="stat-pill wages">
+          <span class="stat-num" id="statTotalWages">₹0</span>
+          <span class="stat-text">Est. Wages</span>
+        </div>
+      </div>
+
+      <!-- Search & Filter Filter Toolbar -->
+      <div class="filter-toolbar">
+        <div class="search-input-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="attendanceSearch" placeholder="Search worker or role...">
+        </div>
+        <div class="filter-pills">
+          <button class="pill-btn active" data-filter="ALL">All (<span id="countAll">0</span>)</button>
+          <button class="pill-btn" data-filter="UNMARKED">Unmarked (<span id="countUnmarked">0</span>)</button>
+          <button class="pill-btn" data-filter="PRESENT">Present</button>
+          <button class="pill-btn" data-filter="OT">Overtime</button>
+        </div>
+      </div>
+
+      <!-- Attendance Worker Cards List -->
+      <div id="attendanceList" class="cards-list">
+        <div class="loader-wrap">
+          <div class="spinner"></div>
+          <p>Loading attendance sheet...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================== -->
+    <!-- TAB 2: WORKER MANAGEMENT                                 -->
+    <!-- ======================================================== -->
+    <section id="tabWorkers" class="tab-pane">
+      <div class="pane-header">
+        <div>
+          <h2>Daily Wage Workers</h2>
+          <p class="text-muted">Manage workforce, daily wage rates, and standard hours</p>
+        </div>
+        <button id="btnOpenAddWorker" class="btn btn-primary">
+          <span>➕</span> Add Worker
+        </button>
+      </div>
+
+      <div class="search-input-wrap mb-3">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="workerSearch" placeholder="Search by name, role, phone...">
+      </div>
+
+      <div id="workersList" class="workers-grid">
+        <div class="loader-wrap"><div class="spinner"></div></div>
+      </div>
+    </section>
+
+    <!-- ======================================================== -->
+    <!-- TAB 3: PAYROLL & REPORTS                                 -->
+    <!-- ======================================================== -->
+    <section id="tabPayroll" class="tab-pane">
+      <div class="pane-header">
+        <div>
+          <h2>Payroll & Wage Calculation</h2>
+          <p class="text-muted">Accurate wage settlements with 1.5x & 2x overtime and advance deductions</p>
+        </div>
+        <div class="header-actions">
+          <button id="btnExportCsv" class="btn btn-secondary btn-sm">
+            <span>📥</span> Export CSV
+          </button>
+          <button id="btnPrintPayroll" class="btn btn-secondary btn-sm">
+            <span>🖨️</span> Print / PDF
+          </button>
+        </div>
+      </div>
+
+      <!-- Date Range Filter -->
+      <div class="payroll-filter-bar">
+        <div class="quick-ranges">
+          <button class="range-btn active" data-range="this-month">This Month</button>
+          <button class="range-btn" data-range="this-week">This Week</button>
+          <button class="range-btn" data-range="last-month">Last Month</button>
+          <button class="range-btn" data-range="custom">Custom</button>
+        </div>
+        <div class="custom-range-inputs" id="customRangeWrap" style="display: none;">
+          <input type="date" id="payrollStart" class="date-input-sm">
+          <span>to</span>
+          <input type="date" id="payrollEnd" class="date-input-sm">
+          <button id="btnApplyPayrollFilter" class="btn btn-primary btn-sm">Apply</button>
+        </div>
+      </div>
+
+      <!-- Grand Summary Cards -->
+      <div class="grand-cards-grid">
+        <div class="grand-card">
+          <span class="grand-label">Gross Wages Earned</span>
+          <span class="grand-value text-primary" id="grandGrossPay">₹0</span>
+          <span class="grand-sub" id="grandBaseOtSplit">Base: ₹0 | OT: ₹0</span>
+        </div>
+        <div class="grand-card">
+          <span class="grand-label">Total Overtime Hours</span>
+          <span class="grand-value text-amber" id="grandOtHours">0.0h</span>
+          <span class="grand-sub" id="grandOtBreakdown">1.5x: 0h | 2.0x: 0h</span>
+        </div>
+        <div class="grand-card">
+          <span class="grand-label">Advances & Paid Out</span>
+          <span class="grand-value text-rose" id="grandAdvances">₹0</span>
+          <span class="grand-sub">Deducted from gross</span>
+        </div>
+        <div class="grand-card highlight">
+          <span class="grand-label">Net Balance Payable</span>
+          <span class="grand-value text-success" id="grandNetPayable">₹0</span>
+          <span class="grand-sub">Current pending liability</span>
+        </div>
+      </div>
+
+      <!-- Detailed Workers Payroll Table -->
+      <div class="table-container">
+        <table class="payroll-table" id="payrollTable">
+          <thead>
+            <tr>
+              <th>Worker</th>
+              <th>Rate / Day</th>
+              <th>Days Worked</th>
+              <th>1.5x OT</th>
+              <th>2.0x OT</th>
+              <th>Base Wage</th>
+              <th>OT Wage</th>
+              <th>Gross Wage</th>
+              <th>Advances</th>
+              <th>Net Due</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="payrollTableBody">
+            <tr><td colspan="11" class="text-center">Loading payroll data...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ======================================================== -->
+    <!-- TAB 4: ADVANCES & PAYOUTS                                -->
+    <!-- ======================================================== -->
+    <section id="tabPayments" class="tab-pane">
+      <div class="pane-header">
+        <div>
+          <h2>Advances & Payouts</h2>
+          <p class="text-muted">Track cash advances, weekly draws, and final wage settlements</p>
+        </div>
+        <button id="btnOpenAddPayment" class="btn btn-primary">
+          <span>➕</span> Record Advance / Payment
+        </button>
+      </div>
+
+      <div class="payments-filter-bar">
+        <select id="paymentWorkerFilter" class="select-input">
+          <option value="">All Workers</option>
+        </select>
+        <span class="text-muted" id="paymentsCountLabel">0 records</span>
+      </div>
+
+      <div id="paymentsList" class="payments-list">
+        <div class="loader-wrap"><div class="spinner"></div></div>
+      </div>
+    </section>
+
+    <!-- ======================================================== -->
+    <!-- TAB 5: SETTINGS & SERVER STORAGE                         -->
+    <!-- ======================================================== -->
+    <section id="tabSettings" class="tab-pane">
+      <div class="pane-header">
+        <div>
+          <h2>System Settings</h2>
+          <p class="text-muted">Manage laptop server storage, PIN security, and overtime defaults</p>
+        </div>
+      </div>
+
+      <div class="settings-grid">
+        <!-- Business / Site Details -->
+        <div class="settings-card">
+          <h3>🏢 Site & Business Details</h3>
+          <form id="settingsGeneralForm">
+            <div class="form-group">
+              <label>Business / Site Name</label>
+              <input type="text" id="settingBusinessName" required>
+            </div>
+            <div class="form-group">
+              <label>Site Location / Department</label>
+              <input type="text" id="settingSiteLocation">
+            </div>
+            <div class="form-group">
+              <label>Currency Symbol</label>
+              <select id="settingCurrency">
+                <option value="₹">₹ (Indian Rupee - INR)</option>
+                <option value="$">$ (US Dollar - USD)</option>
+                <option value="€">€ (Euro - EUR)</option>
+                <option value="£">£ (British Pound - GBP)</option>
+                <option value="AED">AED (UAE Dirham)</option>
+                <option value="SAR">SAR (Saudi Riyal)</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Save Settings</button>
+          </form>
+        </div>
+
+        <!-- Overtime & Standard Working Hours Defaults -->
+        <div class="settings-card">
+          <h3>⏱️ Standard Hours & Overtime</h3>
+          <p class="text-muted text-sm mb-3">Daily workers earn hourly rate = Daily Wage ÷ Standard Hours. Overtime multiplier applies to this hourly rate.</p>
+          <form id="settingsOtForm">
+            <div class="form-group">
+              <label>Standard Workday Hours</label>
+              <input type="number" id="settingStandardHours" min="1" max="24" step="0.5" required>
+              <span class="helper-text">Standard hours in a regular workday (usually 8 hours)</span>
+            </div>
+            <div class="form-group">
+              <label>Default Overtime Multiplier</label>
+              <select id="settingDefaultOtMult">
+                <option value="1.5">1.5x (Time and a half - standard)</option>
+                <option value="2.0">2.0x (Double time)</option>
+              </select>
+              <span class="helper-text">Can also be overridden per worker or individual day</span>
+            </div>
+            <button type="submit" class="btn btn-primary">Save Overtime Defaults</button>
+          </form>
+        </div>
+
+        <!-- Admin PIN Lock -->
+        <div class="settings-card">
+          <h3>🔒 Admin Security PIN</h3>
+          <p class="text-muted text-sm mb-3">Ensure only you as employer can view wages and mark attendance from mobile or laptop.</p>
+          <form id="changePinForm">
+            <div class="form-group">
+              <label>Current Admin PIN</label>
+              <input type="password" id="currentPinInput" placeholder="Default: 1234" required>
+            </div>
+            <div class="form-group">
+              <label>New Admin PIN (4+ digits)</label>
+              <input type="password" id="newPinInput" placeholder="Enter new PIN" minlength="4" required>
+            </div>
+            <button type="submit" class="btn btn-secondary">Update Admin PIN</button>
+          </form>
+        </div>
+
+        <!-- Laptop Server & Database Backup -->
+        <div class="settings-card">
+          <h3>💻 Laptop Server & Database</h3>
+          <p class="text-muted text-sm mb-3">All attendance, wage, and worker records are stored locally in the SQLite database on your laptop.</p>
+          <div class="server-status-box">
+            <div><strong>Storage Engine:</strong> SQLite Local Database</div>
+            <div><strong>Laptop Server Status:</strong> <span class="badge-online">Active 🟢</span></div>
+            <div><strong>Local Storage Path:</strong> <code class="code-pill">attendance.db</code></div>
+          </div>
+          <div class="mt-3">
+            <a href="/api/backup" class="btn btn-secondary btn-sm" download>
+              <span>💾</span> Download Database Backup (.db)
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ======================================================== -->
+  <!-- MODAL: ADMIN PIN UNLOCK                                  -->
+  <!-- ======================================================== -->
+  <div id="pinModal" class="modal-backdrop">
+    <div class="modal-card modal-pin">
+      <div class="modal-header-center">
+        <div class="lock-avatar">🔐</div>
+        <h2>Admin Authentication</h2>
+        <p class="text-muted">Enter Employer Admin PIN to access attendance tracker</p>
+      </div>
+      <form id="pinForm">
+        <div class="pin-display">
+          <input type="password" id="modalPinInput" class="pin-input" maxlength="8" placeholder="••••" autofocus required>
+        </div>
+        <div id="pinErrorMsg" class="error-msg" style="display: none;"></div>
+        <!-- Quick Pin Keypad for Mobile -->
+        <div class="keypad-grid">
+          <button type="button" class="key-btn" data-key="1">1</button>
+          <button type="button" class="key-btn" data-key="2">2</button>
+          <button type="button" class="key-btn" data-key="3">3</button>
+          <button type="button" class="key-btn" data-key="4">4</button>
+          <button type="button" class="key-btn" data-key="5">5</button>
+          <button type="button" class="key-btn" data-key="6">6</button>
+          <button type="button" class="key-btn" data-key="7">7</button>
+          <button type="button" class="key-btn" data-key="8">8</button>
+          <button type="button" class="key-btn" data-key="9">9</button>
+          <button type="button" class="key-btn clear" data-key="CLEAR">C</button>
+          <button type="button" class="key-btn" data-key="0">0</button>
+          <button type="button" class="key-btn backspace" data-key="BACK">⌫</button>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block mt-3">Unlock System</button>
+        <p class="text-center text-muted text-xs mt-2">Default PIN is <strong>1234</strong></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL: CONNECT MOBILE (QR CODE)                          -->
+  <!-- ======================================================== -->
+  <div id="mobileConnectModal" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>📱 Connect Mobile to Laptop Server</h3>
+        <button class="modal-close" data-close="mobileConnectModal">&times;</button>
+      </div>
+      <div class="modal-body text-center">
+        <p class="text-muted text-sm mb-3">Scan this QR code with your phone camera to open the attendance tracker instantly on mobile:</p>
+        <div class="qr-preview-wrap">
+          <img id="qrCodeImg" alt="QR Code" src="" class="qr-code-img">
+        </div>
+        <div class="url-copy-box">
+          <code id="mobileUrlDisplay">http://...</code>
+          <button id="btnCopyUrl" class="btn-copy">Copy</button>
+        </div>
+        <div class="connection-guide">
+          <h4>💡 Quick Instructions:</h4>
+          <ol>
+            <li>Ensure your <strong>Phone and Laptop</strong> are on the <strong>same Wi-Fi network</strong>.</li>
+            <li><em>No Wi-Fi at site?</em> Turn on your <strong>Phone Hotspot</strong> and connect your laptop to it!</li>
+            <li>Point your phone camera at the QR code above or type the link in mobile browser.</li>
+            <li>Add to Phone Home Screen for full app experience.</li>
+          </ol>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close="mobileConnectModal">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL: ADD / EDIT WORKER                                 -->
+  <!-- ======================================================== -->
+  <div id="workerModal" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="workerModalTitle">Add New Worker</h3>
+        <button class="modal-close" data-close="workerModal">&times;</button>
+      </div>
+      <form id="workerForm">
+        <input type="hidden" id="workerId">
+        <div class="modal-body">
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label>Full Name *</label>
+              <input type="text" id="workerName" placeholder="e.g. Ramesh Kumar" required>
+            </div>
+            <div class="form-group flex-1">
+              <label>Worker Code / ID</label>
+              <input type="text" id="workerCode" placeholder="Auto-generated if blank (e.g. EMP006)">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label>Daily Wage Rate (<span class="currency-tag">₹</span>) *</label>
+              <input type="number" id="workerDailyWage" min="0" step="10" placeholder="e.g. 700" required>
+            </div>
+            <div class="form-group flex-1">
+              <label>Standard Work Hours</label>
+              <input type="number" id="workerStandardHours" min="1" max="24" step="0.5" value="8" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label>Role / Trade</label>
+              <input type="text" id="workerRole" placeholder="e.g. Mason, Welder, Helper, Carpenter">
+            </div>
+            <div class="form-group flex-1">
+              <label>Default Overtime Rate</label>
+              <select id="workerDefaultOt">
+                <option value="1.5">1.5x Hourly Rate</option>
+                <option value="2.0">2.0x Hourly Rate</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label>Phone Number</label>
+              <input type="tel" id="workerPhone" placeholder="Mobile number">
+            </div>
+            <div class="form-group flex-1">
+              <label>Status</label>
+              <select id="workerStatus">
+                <option value="ACTIVE">Active (Working)</option>
+                <option value="INACTIVE">Inactive (Deactivated)</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Notes / Skills</label>
+            <textarea id="workerNotes" rows="2" placeholder="Special skills, site preference, emergency contact..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-close="workerModal">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveWorker">Save Worker</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL: RECORD ADVANCE / PAYMENT                          -->
+  <!-- ======================================================== -->
+  <div id="paymentModal" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Record Advance / Wage Payment</h3>
+        <button class="modal-close" data-close="paymentModal">&times;</button>
+      </div>
+      <form id="paymentForm">
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Worker *</label>
+            <select id="paymentWorkerSelect" required>
+              <option value="">Select Worker...</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label>Date *</label>
+              <input type="date" id="paymentDate" required>
+            </div>
+            <div class="form-group flex-1">
+              <label>Amount (<span class="currency-tag">₹</span>) *</label>
+              <input type="number" id="paymentAmount" min="1" step="10" placeholder="e.g. 1000" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label>Payment Type</label>
+              <select id="paymentType">
+                <option value="ADVANCE">Advance (Mid-week draw)</option>
+                <option value="PAYOUT">Wage Settlement (Payout)</option>
+                <option value="BONUS">Bonus / Reward</option>
+              </select>
+            </div>
+            <div class="form-group flex-1">
+              <label>Payment Method</label>
+              <select id="paymentMethod">
+                <option value="CASH">Cash</option>
+                <option value="UPI">UPI / PhonePe / GPay</option>
+                <option value="BANK_TRANSFER">Bank Transfer</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Notes / Reason</label>
+            <input type="text" id="paymentNotes" placeholder="e.g. Emergency advance, Festival draw">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-close="paymentModal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Payment</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Scripts -->
+  <script src="/js/api.js"></script>
+  <script src="/js/attendance.js"></script>
+  <script src="/js/employees.js"></script>
+  <script src="/js/payroll.js"></script>
+  <script src="/js/payments.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
