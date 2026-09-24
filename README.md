@@ -17,24 +17,32 @@ Your **laptop serves as the central server and database engine**, allowing you t
   - Protected by an Admin PIN lock (Default PIN: `1234`).
   - Employees have **no access** — only you as the employer can view wages, record attendance, and manage payouts.
 
-- **💰 Daily Wage & Overtime Calculations**:
-  - **Daily Wage Base**: Full day (1.0x daily wage) and Half day (0.5x daily wage).
-  - **Overtime Tracking**: Dedicated stepper to log OT hours (+0.5h, +1.0h, etc.).
-  - **1.5x and 2.0x Multipliers**: Toggle between `1.5x` (time-and-a-half) and `2.0x` (double time) overtime rates with a single tap.
-  - **Automatic Hourly Conversion**: Hourly rate = `Daily Wage ÷ Standard Working Hours` (e.g. `₹800 ÷ 8 = ₹100/hr`).
-  - **Overtime Formula**: `OT Pay = OT Hours × Hourly Rate × Overtime Multiplier`.
+- **💰 Strictly Day-Wise Wage & Overtime Calculations**:
+  - **Day-Wise Base Wage**: Full Day (1.0x daily wage) and Half Day (0.5x daily wage). No hourly rates or conversions.
+  - **Overtime in Days**: Stepper allows logging extra work in days (+0.25d, +0.5d, +1.0d, etc.).
+  - **Flexible Overtime Multipliers**: Adjustable from `0.00` to `3.00` in float with up to 2 decimal places (presets for `1.0x`, `1.5x`, `2.0x` + custom input).
+  - **Overtime Formula**: `OT Pay = Overtime Days × Daily Wage × Multiplier`.
+  - **Total Day Formula**: `Total Pay = Base Pay + OT Pay`.
+
+- **🌴 Tuesday Automatic Paid Weekly Off**:
+  - Every Tuesday is recognized automatically as a paid weekly off (workers get their full daily wage).
+  - If a worker works on Tuesday, it counts as **Overtime** on top of their base pay!
+
+- **🗓️ Configurable Paid Holidays**:
+  - Employer can add any calendar date as an official Paid Holiday (e.g. Diwali, Holi, Eid, National Holidays).
+  - Working on a holiday adds full Overtime pay.
 
 - **⚡ Fast On-Site Attendance**:
-  - "⚡ Mark All Present" button records the entire active crew in one tap.
-  - Easily adjust individual workers who left early (Half Day) or worked late (Overtime).
-  - Live earning calculation updates dynamically per worker as you type.
+  - "⚡ Mark All Present" (or "🌴 Mark All Paid Leave" on Tuesdays) records the entire crew in one tap.
+  - Easily adjust individual workers who worked extra or took half days.
+  - Live earning calculation updates dynamically per worker as you adjust.
 
 - **💵 Advances & Draw Tracking**:
   - Record cash advances or weekly wage draws given to workers.
   - Automatically deducted from total gross earnings to calculate exact **Net Balance Due**.
 
 - **📊 Comprehensive Payroll Reports & Export**:
-  - View gross earnings, total OT hours (split by 1.5x vs 2.0x), advances, and net liability.
+  - View gross earnings, total OT days (split by multipliers), paid off days, advances, and net liability.
   - Filter by This Month, This Week, Last Month, or Custom Date Range.
   - **Export to CSV / Excel** and clean printable summary.
 
@@ -81,13 +89,15 @@ node server.js
 
 ---
 
-## 🧮 Wage & Overtime Calculation Example
+## 🧮 Wage & Overtime Calculation Example (Day-Based)
 
-| Worker | Daily Wage | Std Hours | Hourly Rate | Status | OT Hours | OT Multiplier | Base Pay | OT Pay | Total Day Earning |
-|---|---|---|---|---|---|---|---|---|---|
-| **Ramesh Kumar** | ₹750 | 8 hrs | ₹93.75 | Present | 2.0 hrs | **1.5x** | ₹750.00 | ₹281.25 | **₹1,031.25** |
-| **Rajesh Sharma** | ₹800 | 8 hrs | ₹100.00 | Present | 3.0 hrs | **2.0x** | ₹800.00 | ₹600.00 | **₹1,400.00** |
-| **Amit Patel** | ₹500 | 8 hrs | ₹62.50 | Half Day | 0.0 hrs | 1.5x | ₹250.00 | ₹0.00 | **₹250.00** |
+| Worker | Daily Wage | Status | OT Days | OT Multiplier | Base Pay | OT Pay Formula | Total Day Earning |
+|---|---|---|---|---|---|---|---|
+| **Ramesh Kumar** | ₹750 | Full Day (1.0d) | 0.50d | **1.50x** | ₹750.00 | 0.50d × ₹750 × 1.50x = ₹562.50 | **₹1,312.50** |
+| **Rajesh Sharma** | ₹800 | Full Day (1.0d) | 1.00d | **2.00x** | ₹800.00 | 1.00d × ₹800 × 2.00x = ₹1,600.00 | **₹2,400.00** |
+| **Amit Patel** | ₹500 | Half Day (0.5d) | 0.00d | 1.50x | ₹250.00 | 0.00d = ₹0.00 | **₹250.00** |
+| **Suresh Singh** | ₹700 | Tue Off (Stayed Home) | 0.00d | 1.50x | ₹700.00 | Paid Day Off = ₹0.00 OT | **₹700.00** |
+| **Vikram Yadav** | ₹750 | Tue Worked (+OT) | 1.00d | **1.75x** | ₹750.00 | 1.00d × ₹750 × 1.75x = ₹1,312.50 | **₹2,062.50** |
 
 ---
 

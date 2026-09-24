@@ -24,7 +24,7 @@ function initDatabase() {
       phone TEXT,
       role TEXT,
       daily_wage REAL NOT NULL DEFAULT 0.0,
-      standard_hours REAL NOT NULL DEFAULT 8.0,
+      standard_hours REAL DEFAULT 8.0,
       default_ot_multiplier REAL NOT NULL DEFAULT 1.5,
       status TEXT NOT NULL DEFAULT 'ACTIVE',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -36,12 +36,14 @@ function initDatabase() {
       employee_id INTEGER NOT NULL,
       date TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'PRESENT',
-      standard_hours REAL NOT NULL DEFAULT 8.0,
+      standard_hours REAL DEFAULT 8.0,
       daily_wage_snapshot REAL NOT NULL DEFAULT 0.0,
       base_pay REAL NOT NULL DEFAULT 0.0,
-      overtime_hours REAL NOT NULL DEFAULT 0.0,
+      overtime_hours REAL DEFAULT 0.0,
+      overtime_days REAL NOT NULL DEFAULT 0.0,
       overtime_multiplier REAL NOT NULL DEFAULT 1.5,
       overtime_pay REAL NOT NULL DEFAULT 0.0,
+      is_holiday_work INTEGER NOT NULL DEFAULT 0,
       bonus_allowance REAL NOT NULL DEFAULT 0.0,
       deduction REAL NOT NULL DEFAULT 0.0,
       total_pay REAL NOT NULL DEFAULT 0.0,
@@ -79,7 +81,7 @@ function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_holidays_date ON holidays(date);
   `);
 
-  // Migrate attendance table for day-wise overtime and holiday work
+  // Migrate attendance table for day-wise overtime and holiday work if upgrading
   try {
     db.exec('ALTER TABLE attendance ADD COLUMN overtime_days REAL NOT NULL DEFAULT 0.0;');
   } catch (e) {}
@@ -121,15 +123,15 @@ function initDatabase() {
   const countEmp = db.prepare('SELECT COUNT(*) as count FROM employees').get();
   if (countEmp && countEmp.count === 0) {
     const seedEmp = db.prepare(`
-      INSERT INTO employees (employee_code, name, phone, role, daily_wage, standard_hours, default_ot_multiplier, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO employees (employee_code, name, phone, role, daily_wage, default_ot_multiplier, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
 
-    seedEmp.run('EMP001', 'Ramesh Kumar', '9876543210', 'Head Mason', 750.0, 8.0, 1.5, 'Experienced brick layer');
-    seedEmp.run('EMP002', 'Suresh Singh', '9876543211', 'Carpenter', 700.0, 8.0, 1.5, 'Formwork and finishing');
-    seedEmp.run('EMP003', 'Rajesh Sharma', '9876543212', 'Welder / Fabricator', 800.0, 8.0, 2.0, 'Heavy metal works - 2x OT rate');
-    seedEmp.run('EMP004', 'Amit Patel', '9876543213', 'General Helper', 500.0, 8.0, 1.5, 'Loading and site support');
-    seedEmp.run('EMP005', 'Vikram Yadav', '9876543214', 'Electrician', 750.0, 8.0, 1.5, 'Wiring and power setup');
+    seedEmp.run('EMP001', 'Ramesh Kumar', '9876543210', 'Head Mason', 750.0, 1.5, 'Experienced brick layer');
+    seedEmp.run('EMP002', 'Suresh Singh', '9876543211', 'Carpenter', 700.0, 1.5, 'Formwork and finishing');
+    seedEmp.run('EMP003', 'Rajesh Sharma', '9876543212', 'Welder / Fabricator', 800.0, 2.0, 'Heavy metal works - 2x OT rate');
+    seedEmp.run('EMP004', 'Amit Patel', '9876543213', 'General Helper', 500.0, 1.5, 'Loading and site support');
+    seedEmp.run('EMP005', 'Vikram Yadav', '9876543214', 'Electrician', 750.0, 1.5, 'Wiring and power setup');
 
     console.log('🌱 Seeded 5 sample daily wage workers for initial setup.');
   }

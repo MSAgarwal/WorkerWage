@@ -253,16 +253,14 @@ const App = {
 
     otForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const stdH = document.getElementById('settingStandardHours').value;
       const otM = document.getElementById('settingDefaultOtMult').value;
 
       try {
         const res = await API.updateSettings({
-          default_standard_hours: stdH,
           default_ot_multiplier: otM
         });
         if (res.success) {
-          this.showToast('Overtime defaults updated', 'success');
+          this.showToast('Overtime multiplier defaults updated', 'success');
         }
       } catch (err) {
         this.showToast(`Error: ${err.message}`, 'error');
@@ -300,7 +298,6 @@ const App = {
           document.getElementById('settingCurrency').value = s.currency_symbol;
           document.querySelectorAll('.currency-tag').forEach(el => el.textContent = s.currency_symbol);
         }
-        if (s.default_standard_hours) document.getElementById('settingStandardHours').value = s.default_standard_hours;
         if (s.default_ot_multiplier) document.getElementById('settingDefaultOtMult').value = s.default_ot_multiplier;
       }
     } catch (e) {

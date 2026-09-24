@@ -132,7 +132,8 @@ const AttendanceModule = {
     const paidLeaveEl = document.getElementById('statPaidLeaveCount');
     if (paidLeaveEl) paidLeaveEl.textContent = summary.totalPaidLeave || 0;
     document.getElementById('statAbsentCount').textContent = summary.totalAbsent || 0;
-    document.getElementById('statOtHours').textContent = `${(summary.totalOtDays !== undefined ? summary.totalOtDays : (summary.totalOtHours || 0))}d`;
+    const otDaysEl = document.getElementById('statOtDays');
+    if (otDaysEl) otDaysEl.textContent = `${(summary.totalOtDays || 0)}d`;
     document.getElementById('statTotalWages').textContent = API.formatMoney(summary.totalWagesToday);
 
     // Update filter counts
@@ -161,7 +162,7 @@ const AttendanceModule = {
     } else if (this.activeFilter === 'PAID_OFF') {
       filtered = filtered.filter(r => r.status === 'PAID_LEAVE' || r.status === 'PAID_HOLIDAY');
     } else if (this.activeFilter === 'OT') {
-      filtered = filtered.filter(r => (r.overtime_days || r.overtime_hours || 0) > 0 || r.is_holiday_work);
+      filtered = filtered.filter(r => (r.overtime_days || 0) > 0 || r.is_holiday_work);
     }
 
     if (filtered.length === 0) {
@@ -186,7 +187,7 @@ const AttendanceModule = {
     const isAbsent = r.status === 'ABSENT';
 
     const otMult = Number(r.overtime_multiplier !== undefined ? r.overtime_multiplier : 1.5);
-    const otDays = Number(r.overtime_days !== undefined ? r.overtime_days : (r.overtime_hours || 0));
+    const otDays = Number(r.overtime_days || 0);
 
     // Live calculation breakdown preview (Day-Wise)
     let basePayDisplay = 0;
@@ -483,7 +484,7 @@ const AttendanceModule = {
         employee_id: record.employee_id,
         date: this.currentDate,
         status: record.status,
-        overtime_days: record.overtime_days !== undefined ? record.overtime_days : (record.overtime_hours || 0),
+        overtime_days: parseFloat(record.overtime_days || 0),
         overtime_multiplier: record.overtime_multiplier,
         is_holiday_work: record.is_holiday_work ? 1 : 0,
         bonus_allowance: record.bonus_allowance || 0,
@@ -528,7 +529,7 @@ const AttendanceModule = {
     });
 
     const otMult = Number(record.overtime_multiplier !== undefined ? record.overtime_multiplier : 1.5);
-    const otDays = Number(record.overtime_days !== undefined ? record.overtime_days : (record.overtime_hours || 0));
+    const otDays = Number(record.overtime_days || 0);
 
     // Update multiplier preset chips
     const chipBtns = card.querySelectorAll('.ot-chip-btn');
@@ -596,7 +597,7 @@ const AttendanceModule = {
         base = item.daily_wage * 0.5;
       }
 
-      const otDays = (item.overtime_days !== undefined ? item.overtime_days : (item.overtime_hours || 0));
+      const otDays = Number(item.overtime_days || 0);
       const ot = otDays * item.daily_wage * (item.overtime_multiplier || 1.5);
       totalOtDays += otDays;
       totalWagesToday += (base + ot);

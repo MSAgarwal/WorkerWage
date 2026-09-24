@@ -67,8 +67,9 @@ const EmployeesModule = {
     }
 
     container.innerHTML = filtered.map(w => {
-      const hourlyRate = (w.daily_wage / (w.standard_hours || 8.0)).toFixed(2);
       const isActive = w.status === 'ACTIVE';
+      const otMultiplier = parseFloat(w.default_ot_multiplier || 1.5);
+      const otDayRate = w.daily_wage * otMultiplier;
 
       return `
         <div class="emp-card ${isActive ? '' : 'inactive'}" style="${!isActive ? 'opacity: 0.6; background: #f8fafc;' : ''}">
@@ -90,13 +91,12 @@ const EmployeesModule = {
 
             <div class="emp-rate-banner">
               <span>Daily Base Wage:</span>
-              <span class="emp-rate-val">${API.formatMoney(w.daily_wage)}</span>
+              <span class="emp-rate-val">${API.formatMoney(w.daily_wage)}/day</span>
             </div>
 
             <div class="text-xs text-muted">
-              Standard: <strong>${w.standard_hours || 8} hrs/day</strong> (${API.currency}${hourlyRate}/hr)<br>
-              Overtime Multiplier: <strong>${w.default_ot_multiplier || 1.5}x</strong>
-              (${API.currency}${(hourlyRate * (w.default_ot_multiplier || 1.5)).toFixed(2)}/hr OT)
+              Default OT Multiplier: <strong>${otMultiplier.toFixed(2)}x</strong>
+              (${API.formatMoney(otDayRate)}/day OT rate)
             </div>
 
             ${w.notes ? `<div class="text-xs text-muted mt-2" style="font-style: italic;">"${this.escapeHtml(w.notes)}"</div>` : ''}
@@ -131,7 +131,6 @@ const EmployeesModule = {
       document.getElementById('workerName').value = worker.name;
       document.getElementById('workerCode').value = worker.employee_code || '';
       document.getElementById('workerDailyWage').value = worker.daily_wage;
-      document.getElementById('workerStandardHours').value = worker.standard_hours || 8;
       document.getElementById('workerRole').value = worker.role || '';
       document.getElementById('workerDefaultOt').value = parseFloat(worker.default_ot_multiplier || 1.5).toFixed(2);
       document.getElementById('workerPhone').value = worker.phone || '';
@@ -140,7 +139,6 @@ const EmployeesModule = {
     } else {
       titleEl.textContent = 'Add New Daily Wage Worker';
       idInput.value = '';
-      document.getElementById('workerStandardHours').value = API.standardHours || 8;
       document.getElementById('workerDefaultOt').value = parseFloat(API.defaultOtMult || 1.5).toFixed(2);
       document.getElementById('workerStatus').value = 'ACTIVE';
     }
@@ -153,7 +151,6 @@ const EmployeesModule = {
     const name = document.getElementById('workerName').value.trim();
     const code = document.getElementById('workerCode').value.trim();
     const dailyWage = parseFloat(document.getElementById('workerDailyWage').value);
-    const standardHours = parseFloat(document.getElementById('workerStandardHours').value) || 8;
     const role = document.getElementById('workerRole').value.trim();
     let defaultOt = parseFloat(document.getElementById('workerDefaultOt').value);
     if (isNaN(defaultOt)) defaultOt = 1.5;
@@ -171,7 +168,6 @@ const EmployeesModule = {
       name,
       employee_code: code,
       daily_wage: dailyWage,
-      standard_hours: standardHours,
       role,
       default_ot_multiplier: defaultOt,
       phone,

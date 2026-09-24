@@ -107,7 +107,7 @@
           <span class="stat-text">Absent</span>
         </div>
         <div class="stat-pill ot">
-          <span class="stat-num" id="statOtHours">0.0d</span>
+          <span class="stat-num" id="statOtDays">0.0d</span>
           <span class="stat-text">Total OT</span>
         </div>
         <div class="stat-pill wages">
@@ -146,7 +146,7 @@
       <div class="pane-header">
         <div>
           <h2>Daily Wage Workers</h2>
-          <p class="text-muted">Manage workforce, daily wage rates, and standard hours</p>
+          <p class="text-muted">Manage workforce, daily wage rates, and overtime rates</p>
         </div>
         <button id="btnOpenAddWorker" class="btn btn-primary">
           <span>➕</span> Add Worker
@@ -207,7 +207,7 @@
         </div>
         <div class="grand-card">
           <span class="grand-label">Total Overtime (Days)</span>
-          <span class="grand-value text-amber" id="grandOtHours">0.0d</span>
+          <span class="grand-value text-amber" id="grandOtDays">0.0d</span>
           <span class="grand-sub" id="grandOtBreakdown">OT wages</span>
         </div>
         <div class="grand-card">
@@ -314,16 +314,11 @@
           </form>
         </div>
 
-        <!-- Overtime & Standard Working Hours Defaults -->
+        <!-- Day-Wise Overtime Defaults -->
         <div class="settings-card">
-          <h3>⏱️ Standard Hours & Overtime</h3>
-          <p class="text-muted text-sm mb-3">Daily workers earn hourly rate = Daily Wage ÷ Standard Hours. Overtime multiplier applies to this hourly rate.</p>
+          <h3>⏱️ Day-Wise Overtime Settings</h3>
+          <p class="text-muted text-sm mb-3">All wages & overtime are strictly day-based: Full Day (1.0d), Half Day (0.5d), and Overtime (in Days). OT Pay = Overtime Days × Daily Wage × Multiplier.</p>
           <form id="settingsOtForm">
-            <div class="form-group">
-              <label>Standard Workday Hours</label>
-              <input type="number" id="settingStandardHours" min="1" max="24" step="0.5" required>
-              <span class="helper-text">Standard hours in a regular workday (usually 8 hours)</span>
-            </div>
             <div class="form-group">
               <label>Default Overtime Multiplier (0.00 to 3.00)</label>
               <div class="input-with-addons">
@@ -471,16 +466,6 @@
               <input type="number" id="workerDailyWage" min="0" step="10" placeholder="e.g. 700" required>
             </div>
             <div class="form-group flex-1">
-              <label>Standard Work Hours</label>
-              <input type="number" id="workerStandardHours" min="1" max="24" step="0.5" value="8" required>
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group flex-1">
-              <label>Role / Trade</label>
-              <input type="text" id="workerRole" placeholder="e.g. Mason, Welder, Helper, Carpenter">
-            </div>
-            <div class="form-group flex-1">
               <label>Default Overtime Multiplier (0 to 3.00)</label>
               <div class="input-with-addons">
                 <input type="number" id="workerDefaultOt" min="0" max="3" step="0.01" value="1.50" placeholder="1.50" required>
@@ -490,16 +475,20 @@
           </div>
           <div class="form-row">
             <div class="form-group flex-1">
+              <label>Role / Trade</label>
+              <input type="text" id="workerRole" placeholder="e.g. Mason, Welder, Helper, Carpenter">
+            </div>
+            <div class="form-group flex-1">
               <label>Phone Number</label>
               <input type="tel" id="workerPhone" placeholder="Mobile number">
             </div>
-            <div class="form-group flex-1">
-              <label>Status</label>
-              <select id="workerStatus">
-                <option value="ACTIVE">Active (Working)</option>
-                <option value="INACTIVE">Inactive (Deactivated)</option>
-              </select>
-            </div>
+          </div>
+          <div class="form-group">
+            <label>Status</label>
+            <select id="workerStatus">
+              <option value="ACTIVE">Active (Working)</option>
+              <option value="INACTIVE">Inactive (Deactivated)</option>
+            </select>
           </div>
           <div class="form-group">
             <label>Notes / Skills</label>

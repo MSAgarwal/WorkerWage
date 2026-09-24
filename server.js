@@ -54,7 +54,7 @@ function getDateMeta(dateStr) {
   };
 }
 
-// Helper: Day-wise wage calculation (worker wage is based on DAY, not hour)
+// Helper: Day-wise wage calculation (strictly day-based worker wages)
 function calculateWage(dailyWage, status, otDays, otMultiplier, isHolidayWork = false, bonus = 0, deduction = 0) {
   dailyWage = Number(dailyWage) || 0;
   otDays = Number(otDays) || 0;
@@ -190,7 +190,7 @@ app.get('/api/settings', (req, res) => {
 });
 
 app.put('/api/settings', (req, res) => {
-  const allowedKeys = ['business_name', 'currency_symbol', 'default_standard_hours', 'default_ot_multiplier', 'site_location'];
+  const allowedKeys = ['business_name', 'currency_symbol', 'default_ot_multiplier', 'site_location'];
   const updateStmt = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value');
 
   for (const key of allowedKeys) {
@@ -221,7 +221,7 @@ app.get('/api/employees', (req, res) => {
 });
 
 app.post('/api/employees', (req, res) => {
-  const { name, phone, role, daily_wage, standard_hours, default_ot_multiplier, notes } = req.body;
+  const { name, phone, role, daily_wage, default_ot_multiplier, notes } = req.body;
 
   if (!name || name.trim() === '') {
     return res.status(400).json({ error: 'Worker name is required' });
@@ -242,8 +242,8 @@ app.post('/api/employees', (req, res) => {
 
   try {
     const stmt = db.prepare(`
-      INSERT INTO employees (employee_code, name, phone, role, daily_wage, standard_hours, default_ot_multiplier, notes, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+      INSERT INTO employees (employee_code, name, phone, role, daily_wage, default_ot_multiplier, notes, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
     `);
 
     const result = stmt.run(
@@ -252,7 +252,6 @@ app.post('/api/employees', (req, res) => {
       phone ? phone.trim() : '',
       role ? role.trim() : 'Worker',
       wage,
-      parseFloat(standard_hours) || 8.0,
       parseFloat(default_ot_multiplier) || 1.5,
       notes ? notes.trim() : ''
     );
@@ -266,7 +265,7 @@ app.post('/api/employees', (req, res) => {
 
 app.put('/api/employees/:id', (req, res) => {
   const { id } = req.params;
-  const { name, phone, role, daily_wage, standard_hours, default_ot_multiplier, notes, status } = req.body;
+  const { name, phone, role, daily_wage, default_ot_multiplier, notes, status } = req.body;
 
   const existing = db.prepare('SELECT * FROM employees WHERE id = ?').get(id);
   if (!existing) {
@@ -276,7 +275,7 @@ app.put('/api/employees/:id', (req, res) => {
   try {
     const stmt = db.prepare(`
       UPDATE employees
-      SET name = ?, phone = ?, role = ?, daily_wage = ?, standard_hours = ?, default_ot_multiplier = ?, notes = ?, status = ?
+      SET name = ?, phone = ?, role = ?, daily_wage = ?, default_ot_multiplier = ?, notes = ?, status = ?
       WHERE id = ?
     `);
 
@@ -285,7 +284,6 @@ app.put('/api/employees/:id', (req, res) => {
       phone !== undefined ? phone.trim() : existing.phone,
       role !== undefined ? role.trim() : existing.role,
       daily_wage !== undefined ? parseFloat(daily_wage) : existing.daily_wage,
-      standard_hours !== undefined ? parseFloat(standard_hours) : existing.standard_hours,
       default_ot_multiplier !== undefined ? parseFloat(default_ot_multiplier) : existing.default_ot_multiplier,
       notes !== undefined ? notes.trim() : existing.notes,
       status !== undefined ? status : existing.status,
@@ -380,7 +378,7 @@ app.get('/api/attendance', (req, res) => {
     const result = activeWorkers.map(w => {
       const rec = attMap[w.id];
       if (rec) {
-        const otDays = rec.overtime_days !== undefined && rec.overtime_days !== null ? rec.overtime_days : (rec.overtime_hours || 0);
+        const otDays = rec.overtime_days || 0;
         return {
           id: rec.id,
           employee_id: w.id,
@@ -506,7 +504,6 @@ app.post('/api/attendance', (req, res) => {
     date,
     status,
     overtime_days,
-    overtime_hours,
     overtime_multiplier,
     is_holiday_work,
     bonus_allowance,
@@ -523,8 +520,7 @@ app.post('/api/attendance', (req, res) => {
     return res.status(404).json({ error: 'Worker not found' });
   }
 
-  // Support both overtime_days and legacy overtime_hours seamlessly
-  const otDays = overtime_days !== undefined ? parseFloat(overtime_days) : (overtime_hours !== undefined ? parseFloat(overtime_hours) : 0);
+  const otDays = parseFloat(overtime_days || 0);
   const holidayWork = is_holiday_work ? 1 : 0;
 
   const calc = calculateWage(
@@ -540,15 +536,14 @@ app.post('/api/attendance', (req, res) => {
   try {
     const upsertStmt = db.prepare(`
       INSERT INTO attendance (
-        employee_id, date, status, standard_hours, daily_wage_snapshot,
-        base_pay, overtime_hours, overtime_days, overtime_multiplier, overtime_pay,
+        employee_id, date, status, daily_wage_snapshot,
+        base_pay, overtime_days, overtime_multiplier, overtime_pay,
         is_holiday_work, bonus_allowance, deduction, total_pay, notes, updated_at
-      ) VALUES (?, ?, ?, 8.0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       ON CONFLICT(employee_id, date) DO UPDATE SET
         status = excluded.status,
         daily_wage_snapshot = excluded.daily_wage_snapshot,
         base_pay = excluded.base_pay,
-        overtime_hours = excluded.overtime_hours,
         overtime_days = excluded.overtime_days,
         overtime_multiplier = excluded.overtime_multiplier,
         overtime_pay = excluded.overtime_pay,
@@ -566,7 +561,6 @@ app.post('/api/attendance', (req, res) => {
       status,
       calc.dailyWage,
       calc.basePay,
-      calc.overtimeDays, // store days in both fields for backward compatibility
       calc.overtimeDays,
       calc.overtimeMultiplier,
       calc.overtimePay,
@@ -593,15 +587,14 @@ app.post('/api/attendance/batch', (req, res) => {
 
   const upsertStmt = db.prepare(`
     INSERT INTO attendance (
-      employee_id, date, status, standard_hours, daily_wage_snapshot,
-      base_pay, overtime_hours, overtime_days, overtime_multiplier, overtime_pay,
+      employee_id, date, status, daily_wage_snapshot,
+      base_pay, overtime_days, overtime_multiplier, overtime_pay,
       is_holiday_work, bonus_allowance, deduction, total_pay, notes, updated_at
-    ) VALUES (?, ?, ?, 8.0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(employee_id, date) DO UPDATE SET
       status = excluded.status,
       daily_wage_snapshot = excluded.daily_wage_snapshot,
       base_pay = excluded.base_pay,
-      overtime_hours = excluded.overtime_hours,
       overtime_days = excluded.overtime_days,
       overtime_multiplier = excluded.overtime_multiplier,
       overtime_pay = excluded.overtime_pay,
@@ -619,7 +612,7 @@ app.post('/api/attendance/batch', (req, res) => {
       const worker = db.prepare('SELECT * FROM employees WHERE id = ?').get(r.employee_id);
       if (!worker) continue;
 
-      const otDays = r.overtime_days !== undefined ? parseFloat(r.overtime_days) : (r.overtime_hours !== undefined ? parseFloat(r.overtime_hours) : 0);
+      const otDays = parseFloat(r.overtime_days || 0);
       const holidayWork = r.is_holiday_work ? 1 : 0;
 
       const calc = calculateWage(
@@ -638,7 +631,6 @@ app.post('/api/attendance/batch', (req, res) => {
         r.status || 'PRESENT',
         calc.dailyWage,
         calc.basePay,
-        calc.overtimeDays,
         calc.overtimeDays,
         calc.overtimeMultiplier,
         calc.overtimePay,
@@ -772,7 +764,7 @@ app.get('/api/reports/payroll', (req, res) => {
 
     const report = [];
     let grandBasePay = 0;
-    let grandOtHours = 0;
+    let grandOtDays = 0;
     let grandOtPay = 0;
     let grandGrossPay = 0;
     let grandAdvances = 0;
@@ -803,7 +795,7 @@ app.get('/api/reports/payroll', (req, res) => {
 
         if (a.is_holiday_work) holidayWorkDays++;
 
-        const otDays = a.overtime_days !== undefined && a.overtime_days !== null ? a.overtime_days : (a.overtime_hours || 0);
+        const otDays = a.overtime_days || 0;
         if (otDays > 0) {
           totalOtDays += otDays;
           const multKey = Number(a.overtime_multiplier || 1.5).toFixed(2);
@@ -837,7 +829,7 @@ app.get('/api/reports/payroll', (req, res) => {
       const netPayable = Math.max(0, grossPayTotal - totalAdvances - totalSettlements);
 
       grandBasePay += basePayTotal;
-      grandOtHours += totalOtDays; // grandOtHours alias for grandOtDays
+      grandOtDays += totalOtDays;
       grandOtPay += otPayTotal;
       grandGrossPay += grossPayTotal;
       grandAdvances += totalAdvances;
@@ -879,8 +871,7 @@ app.get('/api/reports/payroll', (req, res) => {
       grandTotals: {
         totalWorkers: workers.length,
         grandBasePay: Math.round(grandBasePay * 100) / 100,
-        grandOtDays: Math.round(grandOtHours * 100) / 100,
-        grandOtHours: Math.round(grandOtHours * 100) / 100,
+        grandOtDays: Math.round(grandOtDays * 100) / 100,
         grandOtPay: Math.round(grandOtPay * 100) / 100,
         grandGrossPay: Math.round(grandGrossPay * 100) / 100,
         grandAdvances: Math.round(grandAdvances * 100) / 100,
@@ -919,7 +910,7 @@ app.get('/api/reports/export-csv', (req, res) => {
         else if (a.status === 'PAID_LEAVE' || a.status === 'PAID_HOLIDAY') paidLeave++;
         else if (a.status === 'ABSENT') absent++;
 
-        const otDays = a.overtime_days !== undefined && a.overtime_days !== null ? a.overtime_days : (a.overtime_hours || 0);
+        const otDays = a.overtime_days || 0;
         if (otDays > 0) {
           totalOt += otDays;
           const k = Number(a.overtime_multiplier || 1.5).toFixed(2);

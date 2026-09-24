@@ -96,8 +96,9 @@ const PayrollModule = {
     if (!totals) return;
     document.getElementById('grandGrossPay').textContent = API.formatMoney(totals.grandGrossPay);
     document.getElementById('grandBaseOtSplit').textContent = `Base: ${API.formatMoney(totals.grandBasePay)} | OT: ${API.formatMoney(totals.grandOtPay)}`;
-    const otDays = totals.grandOtDays !== undefined ? totals.grandOtDays : (totals.grandOtHours || 0);
-    document.getElementById('grandOtHours').textContent = `${otDays}d`;
+    const otDays = totals.grandOtDays || 0;
+    const otEl = document.getElementById('grandOtDays');
+    if (otEl) otEl.textContent = `${otDays}d`;
     document.getElementById('grandAdvances').textContent = API.formatMoney(totals.grandAdvances);
     document.getElementById('grandNetPayable').textContent = API.formatMoney(totals.grandNetPayable);
 
