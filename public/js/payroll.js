@@ -78,7 +78,7 @@ const PayrollModule = {
 
   async loadReport() {
     const tbody = document.getElementById('payrollTableBody');
-    tbody.innerHTML = '<tr><td colspan="11" class="text-center"><div class="spinner" style="margin: 20px auto;"></div>Calculating wages...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="13" class="text-center"><div class="spinner" style="margin: 20px auto;"></div>Calculating wages...</td></tr>';
 
     try {
       const res = await API.getPayrollReport(this.startDate, this.endDate);
@@ -88,7 +88,7 @@ const PayrollModule = {
         this.renderTable(res.workers);
       }
     } catch (err) {
-      tbody.innerHTML = `<tr><td colspan="11" class="text-center text-rose">Error calculating payroll: ${err.message}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="13" class="text-center text-rose">Error calculating payroll: ${err.message}</td></tr>`;
     }
   },
 
@@ -96,11 +96,12 @@ const PayrollModule = {
     if (!totals) return;
     document.getElementById('grandGrossPay').textContent = API.formatMoney(totals.grandGrossPay);
     document.getElementById('grandBaseOtSplit').textContent = `Base: ${API.formatMoney(totals.grandBasePay)} | OT: ${API.formatMoney(totals.grandOtPay)}`;
-    document.getElementById('grandOtHours').textContent = `${totals.grandOtHours}h`;
+    const otDays = totals.grandOtDays !== undefined ? totals.grandOtDays : (totals.grandOtHours || 0);
+    document.getElementById('grandOtHours').textContent = `${otDays}d`;
     document.getElementById('grandAdvances').textContent = API.formatMoney(totals.grandAdvances);
     document.getElementById('grandNetPayable').textContent = API.formatMoney(totals.grandNetPayable);
 
-    document.getElementById('grandOtBreakdown').textContent = totals.grandOtHours > 0 
+    document.getElementById('grandOtBreakdown').textContent = otDays > 0 
       ? `OT Wages: ${API.formatMoney(totals.grandOtPay)}` 
       : 'No overtime in period';
   },
@@ -108,11 +109,12 @@ const PayrollModule = {
   renderTable(workers) {
     const tbody = document.getElementById('payrollTableBody');
     if (!workers || workers.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="11" class="text-center">No active workers found for this range.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="13" class="text-center">No active workers found for this range.</td></tr>';
       return;
     }
 
     tbody.innerHTML = workers.map(w => {
+      const workedDays = Math.round((w.presentDays + (w.halfDays * 0.5)) * 10) / 10;
       return `
         <tr>
           <td>
@@ -121,10 +123,17 @@ const PayrollModule = {
           </td>
           <td><strong>${API.formatMoney(w.daily_wage)}</strong></td>
           <td>
-            <span style="font-weight: 700;">${w.effectiveDays}</span> days
-            <div class="text-xs text-muted">P:${w.presentDays} | H:${w.halfDays} | A:${w.absentDays}</div>
+            <span style="font-weight: 700;">${workedDays}d</span>
+            <div class="text-xs text-muted">P:${w.presentDays} | H:${w.halfDays}</div>
           </td>
-          <td>${w.totalOtHours > 0 ? `<strong>${w.totalOtHours}h</strong>` : '-'}</td>
+          <td>
+            <span style="font-weight: 600; color: #0284c7;">${w.paidLeaveDays}d</span>
+            ${w.holidayWorkDays > 0 ? `<div class="text-xs text-purple">(${w.holidayWorkDays} worked)</div>` : ''}
+          </td>
+          <td>
+            <strong style="font-size: 0.92rem;">${w.effectiveDays}d</strong>
+          </td>
+          <td>${w.totalOtDays > 0 ? `<strong>${w.totalOtDays}d</strong>` : '-'}</td>
           <td><span class="text-xs">${w.otSummaryText || '-'}</span></td>
           <td>${API.formatMoney(w.basePayTotal)}</td>
           <td>${w.otPayTotal > 0 ? `<strong class="text-primary">${API.formatMoney(w.otPayTotal)}</strong>` : '-'}</td>

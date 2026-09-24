@@ -64,19 +64,36 @@ function initDatabase() {
       FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS holidays (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date TEXT UNIQUE NOT NULL,
+      title TEXT NOT NULL,
+      is_paid INTEGER NOT NULL DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance(date);
     CREATE INDEX IF NOT EXISTS idx_attendance_emp_date ON attendance(employee_id, date);
     CREATE INDEX IF NOT EXISTS idx_payments_emp ON payments(employee_id);
     CREATE INDEX IF NOT EXISTS idx_payments_date ON payments(date);
+    CREATE INDEX IF NOT EXISTS idx_holidays_date ON holidays(date);
   `);
+
+  // Migrate attendance table for day-wise overtime and holiday work
+  try {
+    db.exec('ALTER TABLE attendance ADD COLUMN overtime_days REAL NOT NULL DEFAULT 0.0;');
+  } catch (e) {}
+  try {
+    db.exec('ALTER TABLE attendance ADD COLUMN is_holiday_work INTEGER NOT NULL DEFAULT 0;');
+  } catch (e) {}
 
   // Initialize Default Settings if not present
   const defaultSettings = [
     { key: 'admin_pin', value: '1234' },
     { key: 'business_name', value: 'Daily Wage Attendance & Payroll' },
     { key: 'currency_symbol', value: '₹' },
-    { key: 'default_standard_hours', value: '8' },
     { key: 'default_ot_multiplier', value: '1.5' },
+    { key: 'weekly_paid_off_day', value: 'Tuesday' },
     { key: 'site_location', value: 'Main Work Site' }
   ];
 
@@ -87,6 +104,17 @@ function initDatabase() {
     if (!checkSettingStmt.get(s.key)) {
       insertSettingStmt.run(s.key, s.value);
     }
+  }
+
+  // Seed sample holidays if table is empty
+  const countHol = db.prepare('SELECT COUNT(*) as count FROM holidays').get();
+  if (countHol && countHol.count === 0) {
+    const seedHoliday = db.prepare('INSERT OR IGNORE INTO holidays (date, title, is_paid) VALUES (?, ?, ?)');
+    seedHoliday.run('2026-10-02', 'Gandhi Jayanti', 1);
+    seedHoliday.run('2026-11-08', 'Diwali', 1);
+    seedHoliday.run('2026-12-25', 'Christmas', 1);
+    seedHoliday.run('2026-01-26', 'Republic Day', 1);
+    seedHoliday.run('2026-08-15', 'Independence Day', 1);
   }
 
   // Seed sample workers if table is empty

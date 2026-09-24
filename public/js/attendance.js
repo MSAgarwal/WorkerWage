@@ -1,6 +1,7 @@
-// Daily Attendance & Overtime Module
+// Daily Attendance & Overtime Module (Day-Wise with Tuesday & Paid Holiday rules)
 const AttendanceModule = {
   currentDate: new Date().toISOString().split('T')[0],
+  dateMeta: null,
   records: [],
   activeFilter: 'ALL',
   searchQuery: '',
@@ -39,7 +40,7 @@ const AttendanceModule = {
     });
 
     btnMarkAll.addEventListener('click', () => {
-      this.markAllPresent();
+      this.markAllDefault();
     });
 
     searchInput.addEventListener('input', (e) => {
@@ -86,6 +87,8 @@ const AttendanceModule = {
       const res = await API.getAttendance(this.currentDate);
       if (res.success) {
         this.records = res.records || [];
+        this.dateMeta = res.meta || {};
+        this.updateHolidayBanner(this.dateMeta);
         this.updateStats(res.summary);
         this.render();
       }
@@ -94,17 +97,47 @@ const AttendanceModule = {
     }
   },
 
+  updateHolidayBanner(meta) {
+    const banner = document.getElementById('holidayBanner');
+    const btnMarkAll = document.getElementById('btnMarkAllPresent');
+    if (!banner) return;
+
+    if (meta && meta.isPaidDayOff) {
+      banner.style.display = 'flex';
+      banner.className = `holiday-banner ${meta.isTuesday ? 'tuesday-off' : 'custom-holiday'}`;
+      banner.innerHTML = `
+        <div class="holiday-banner-icon">${meta.isTuesday ? '🌴' : '🎉'}</div>
+        <div class="holiday-banner-text">
+          <div class="holiday-banner-title">${meta.dayOffReason}</div>
+          <div class="holiday-banner-desc">
+            Every worker receives their full day's paid wage today. If any worker came to work on this day, click <strong>"Worked on Holiday"</strong> on their card to calculate extra Overtime Pay!
+          </div>
+        </div>
+      `;
+      if (btnMarkAll) {
+        btnMarkAll.innerHTML = `<span>🌴</span> Mark All Paid Leave`;
+      }
+    } else {
+      banner.style.display = 'none';
+      if (btnMarkAll) {
+        btnMarkAll.innerHTML = `<span>⚡</span> Mark All Present`;
+      }
+    }
+  },
+
   updateStats(summary) {
     if (!summary) return;
-    document.getElementById('statPresentCount').textContent = summary.totalPresent;
-    document.getElementById('statHalfDayCount').textContent = summary.totalHalfDay;
-    document.getElementById('statAbsentCount').textContent = summary.totalAbsent;
-    document.getElementById('statOtHours').textContent = `${summary.totalOtHours}h`;
+    document.getElementById('statPresentCount').textContent = summary.totalPresent || 0;
+    document.getElementById('statHalfDayCount').textContent = summary.totalHalfDay || 0;
+    const paidLeaveEl = document.getElementById('statPaidLeaveCount');
+    if (paidLeaveEl) paidLeaveEl.textContent = summary.totalPaidLeave || 0;
+    document.getElementById('statAbsentCount').textContent = summary.totalAbsent || 0;
+    document.getElementById('statOtHours').textContent = `${(summary.totalOtDays !== undefined ? summary.totalOtDays : (summary.totalOtHours || 0))}d`;
     document.getElementById('statTotalWages').textContent = API.formatMoney(summary.totalWagesToday);
 
     // Update filter counts
     document.getElementById('countAll').textContent = this.records.length;
-    document.getElementById('countUnmarked').textContent = summary.totalUnmarked;
+    document.getElementById('countUnmarked').textContent = summary.totalUnmarked || 0;
   },
 
   render() {
@@ -125,8 +158,10 @@ const AttendanceModule = {
       filtered = filtered.filter(r => r.status === 'NOT_MARKED');
     } else if (this.activeFilter === 'PRESENT') {
       filtered = filtered.filter(r => r.status === 'PRESENT' || r.status === 'HALF_DAY');
+    } else if (this.activeFilter === 'PAID_OFF') {
+      filtered = filtered.filter(r => r.status === 'PAID_LEAVE' || r.status === 'PAID_HOLIDAY');
     } else if (this.activeFilter === 'OT') {
-      filtered = filtered.filter(r => r.overtime_hours > 0);
+      filtered = filtered.filter(r => (r.overtime_days || r.overtime_hours || 0) > 0 || r.is_holiday_work);
     }
 
     if (filtered.length === 0) {
@@ -143,23 +178,112 @@ const AttendanceModule = {
   },
 
   createWorkerCardHtml(r) {
+    const isPaidDayOff = !!(this.dateMeta && this.dateMeta.isPaidDayOff);
+    const isHolidayWork = !!r.is_holiday_work;
     const isPresent = r.status === 'PRESENT';
     const isHalfDay = r.status === 'HALF_DAY';
+    const isPaidLeave = r.status === 'PAID_LEAVE' || r.status === 'PAID_HOLIDAY';
     const isAbsent = r.status === 'ABSENT';
-    const isUnmarked = r.status === 'NOT_MARKED';
 
-    const hourlyRate = (r.daily_wage / (r.standard_hours || 8.0)).toFixed(2);
-    const otMult = r.overtime_multiplier || 1.5;
-    const otHours = r.overtime_hours || 0;
-    
-    // Live calculation breakdown preview
+    const otMult = Number(r.overtime_multiplier !== undefined ? r.overtime_multiplier : 1.5);
+    const otDays = Number(r.overtime_days !== undefined ? r.overtime_days : (r.overtime_hours || 0));
+
+    // Live calculation breakdown preview (Day-Wise)
     let basePayDisplay = 0;
-    if (isPresent) basePayDisplay = r.daily_wage;
-    else if (isHalfDay) basePayDisplay = r.daily_wage * 0.5;
+    if (isPresent || isPaidLeave) {
+      basePayDisplay = r.daily_wage;
+    } else if (isHalfDay) {
+      basePayDisplay = r.daily_wage * 0.5;
+    }
 
-    const otPayDisplay = otHours * (r.daily_wage / (r.standard_hours || 8.0)) * otMult;
+    const otPayDisplay = otDays * r.daily_wage * otMult;
     const totalDayEst = basePayDisplay + otPayDisplay;
 
+    // Special Layout for Tuesdays / Paid Holidays
+    if (isPaidDayOff) {
+      return `
+        <div class="worker-card holiday-mode status-${r.status}" data-emp-id="${r.employee_id}" id="worker-card-${r.employee_id}">
+          <div class="worker-header">
+            <div class="worker-info">
+              <div class="worker-name">
+                <span>${this.escapeHtml(r.name)}</span>
+                <span class="worker-badge">${this.escapeHtml(r.role || 'Worker')}</span>
+                <span class="badge-holiday-tag">🌴 ${this.dateMeta.isTuesday ? 'Tue Off' : 'Holiday'}</span>
+              </div>
+              <div class="worker-wage-tag">
+                Daily Rate: <span class="worker-wage-rate">${API.formatMoney(r.daily_wage)}/day</span>
+              </div>
+            </div>
+            <div class="today-earnings-badge highlight-pay">
+              <div class="text-xs text-muted">Day Total</div>
+              <span class="earning-val" id="earning-${r.employee_id}">${API.formatMoney(totalDayEst)}</span>
+            </div>
+          </div>
+
+          <!-- Holiday Status Action Segment -->
+          <div class="holiday-status-segment">
+            <button type="button" class="status-btn btn-paid-leave ${(!isHolidayWork && isPaidLeave) ? 'selected' : ''}" data-status="PAID_LEAVE" data-holiday-work="0" data-emp-id="${r.employee_id}">
+              <span>🌴</span> Off (Paid Full Day)
+            </button>
+            <button type="button" class="status-btn btn-worked-holiday ${isHolidayWork ? 'selected' : ''}" data-status="PAID_LEAVE" data-holiday-work="1" data-emp-id="${r.employee_id}">
+              <span>👷</span> Worked Today (+Overtime)
+            </button>
+            <button type="button" class="status-btn btn-absent ${isAbsent ? 'selected' : ''}" data-status="ABSENT" data-holiday-work="0" data-emp-id="${r.employee_id}" title="Unexcused Unpaid Absence">
+              <span>❌</span> Absent
+            </button>
+          </div>
+
+          <!-- Overtime Section (active when worked holiday or custom OT days) -->
+          <div class="overtime-panel ${isHolidayWork ? 'holiday-active' : ''}">
+            <div class="ot-controls-row">
+              <div class="ot-label-group">
+                <span>⏱️ Overtime Work (in Days)</span>
+              </div>
+
+              <!-- Stepper: - 0.5d + -->
+              <div class="ot-stepper-wrap">
+                <button type="button" class="ot-step-btn btn-step-minus" data-emp-id="${r.employee_id}">-</button>
+                <input type="number" step="0.25" min="0" max="5" class="ot-input" id="ot-input-${r.employee_id}" value="${otDays}" data-emp-id="${r.employee_id}">
+                <span class="text-xs text-muted">days</span>
+                <button type="button" class="ot-step-btn btn-step-plus" data-emp-id="${r.employee_id}">+</button>
+              </div>
+            </div>
+
+            <!-- Multiplier Control: 0 to 3 in float up to 2 decimals -->
+            <div class="ot-mult-row">
+              <div class="ot-mult-label">
+                <span>Overtime Multiplier:</span>
+              </div>
+              <div class="ot-chips-wrap">
+                <button type="button" class="ot-chip-btn ${Math.abs(otMult - 1.0) < 0.001 ? 'selected' : ''}" data-mult="1.00" data-emp-id="${r.employee_id}">1.0x</button>
+                <button type="button" class="ot-chip-btn ${Math.abs(otMult - 1.5) < 0.001 ? 'selected' : ''}" data-mult="1.50" data-emp-id="${r.employee_id}">1.5x</button>
+                <button type="button" class="ot-chip-btn ${Math.abs(otMult - 2.0) < 0.001 ? 'selected' : ''}" data-mult="2.00" data-emp-id="${r.employee_id}">2.0x</button>
+              </div>
+              <div class="ot-custom-mult-wrap">
+                <input type="number" min="0" max="3" step="0.01" class="ot-mult-input" id="ot-mult-${r.employee_id}" value="${otMult.toFixed(2)}" data-emp-id="${r.employee_id}" title="Multiplier 0.00 to 3.00">
+                <span class="ot-mult-suffix">x</span>
+              </div>
+            </div>
+
+            <!-- Formula preview -->
+            <div class="ot-calc-preview" id="ot-preview-${r.employee_id}">
+              <span>Paid Day: ${API.formatMoney(basePayDisplay)}</span>
+              <span>OT: ${otDays > 0 ? `${otDays}d @ ${otMult.toFixed(2)}x = <strong>${API.formatMoney(otPayDisplay)}</strong>` : '0d'}</span>
+            </div>
+
+            <!-- Quick Notes -->
+            <input type="text" class="notes-input-mini" placeholder="Notes (e.g. Came for urgent site work)..." value="${this.escapeHtml(r.notes || '')}" data-emp-id="${r.employee_id}" id="notes-${r.employee_id}">
+          </div>
+
+          <!-- Visual Save Feedback -->
+          <div class="card-save-status" id="save-status-${r.employee_id}">
+            <span>✓ Saved</span>
+          </div>
+        </div>
+      `;
+    }
+
+    // Regular Working Day Layout (Day-Wise)
     return `
       <div class="worker-card status-${r.status}" data-emp-id="${r.employee_id}" id="worker-card-${r.employee_id}">
         <div class="worker-header">
@@ -169,41 +293,43 @@ const AttendanceModule = {
               <span class="worker-badge">${this.escapeHtml(r.role || 'Worker')}</span>
             </div>
             <div class="worker-wage-tag">
-              Rate: <span class="worker-wage-rate">${API.formatMoney(r.daily_wage)}/day</span>
-              (${r.standard_hours || 8}h @ ${API.currency}${hourlyRate}/h)
+              Daily Rate: <span class="worker-wage-rate">${API.formatMoney(r.daily_wage)}/day</span>
             </div>
           </div>
           <div class="today-earnings-badge">
-            <div class="text-xs text-muted">Day Earning</div>
+            <div class="text-xs text-muted">Day Total</div>
             <span class="earning-val" id="earning-${r.employee_id}">${API.formatMoney(totalDayEst)}</span>
           </div>
         </div>
 
-        <!-- 3-Button Status Segment (Thumb-friendly touch) -->
-        <div class="status-segment">
-          <button type="button" class="status-btn btn-present ${isPresent ? 'selected' : ''}" data-status="PRESENT" data-emp-id="${r.employee_id}">
-            <span>✅</span> Present
+        <!-- 4-Button Day Status Segment -->
+        <div class="status-segment four-cols">
+          <button type="button" class="status-btn btn-present ${isPresent ? 'selected' : ''}" data-status="PRESENT" data-holiday-work="0" data-emp-id="${r.employee_id}">
+            <span>✅</span> Full (1d)
           </button>
-          <button type="button" class="status-btn btn-half ${isHalfDay ? 'selected' : ''}" data-status="HALF_DAY" data-emp-id="${r.employee_id}">
-            <span>🌓</span> Half Day
+          <button type="button" class="status-btn btn-half ${isHalfDay ? 'selected' : ''}" data-status="HALF_DAY" data-holiday-work="0" data-emp-id="${r.employee_id}">
+            <span>🌓</span> Half (0.5d)
           </button>
-          <button type="button" class="status-btn btn-absent ${isAbsent ? 'selected' : ''}" data-status="ABSENT" data-emp-id="${r.employee_id}">
+          <button type="button" class="status-btn btn-absent ${isAbsent ? 'selected' : ''}" data-status="ABSENT" data-holiday-work="0" data-emp-id="${r.employee_id}">
             <span>❌</span> Absent
+          </button>
+          <button type="button" class="status-btn btn-paid-leave ${isPaidLeave ? 'selected' : ''}" data-status="PAID_LEAVE" data-holiday-work="0" data-emp-id="${r.employee_id}">
+            <span>🌴</span> Paid Leave
           </button>
         </div>
 
-        <!-- Overtime Panel -->
+        <!-- Overtime Panel (Day-Wise) -->
         <div class="overtime-panel">
           <div class="ot-controls-row">
             <div class="ot-label-group">
-              <span>⏱️ Overtime Hours</span>
+              <span>⏱️ Overtime (in Days)</span>
             </div>
 
-            <!-- Stepper: - 0.5h + -->
+            <!-- Stepper: - 0.25d / 0.5d + -->
             <div class="ot-stepper-wrap">
               <button type="button" class="ot-step-btn btn-step-minus" data-emp-id="${r.employee_id}">-</button>
-              <input type="number" step="0.5" min="0" max="16" class="ot-input" id="ot-input-${r.employee_id}" value="${otHours}" data-emp-id="${r.employee_id}">
-              <span class="text-xs text-muted">hrs</span>
+              <input type="number" step="0.25" min="0" max="5" class="ot-input" id="ot-input-${r.employee_id}" value="${otDays}" data-emp-id="${r.employee_id}">
+              <span class="text-xs text-muted">days</span>
               <button type="button" class="ot-step-btn btn-step-plus" data-emp-id="${r.employee_id}">+</button>
             </div>
           </div>
@@ -211,7 +337,7 @@ const AttendanceModule = {
           <!-- Multiplier Control: 0 to 3 in float up to 2 decimals -->
           <div class="ot-mult-row">
             <div class="ot-mult-label">
-              <span>Rate Multiplier:</span>
+              <span>OT Multiplier:</span>
             </div>
             <div class="ot-chips-wrap">
               <button type="button" class="ot-chip-btn ${Math.abs(otMult - 1.0) < 0.001 ? 'selected' : ''}" data-mult="1.00" data-emp-id="${r.employee_id}">1.0x</button>
@@ -219,19 +345,19 @@ const AttendanceModule = {
               <button type="button" class="ot-chip-btn ${Math.abs(otMult - 2.0) < 0.001 ? 'selected' : ''}" data-mult="2.00" data-emp-id="${r.employee_id}">2.0x</button>
             </div>
             <div class="ot-custom-mult-wrap">
-              <input type="number" min="0" max="3" step="0.01" class="ot-mult-input" id="ot-mult-${r.employee_id}" value="${Number(otMult).toFixed(2)}" data-emp-id="${r.employee_id}" title="Enter custom multiplier from 0.00 to 3.00">
+              <input type="number" min="0" max="3" step="0.01" class="ot-mult-input" id="ot-mult-${r.employee_id}" value="${otMult.toFixed(2)}" data-emp-id="${r.employee_id}" title="Multiplier 0.00 to 3.00">
               <span class="ot-mult-suffix">x</span>
             </div>
           </div>
 
-          <!-- Formula preview -->
+          <!-- Formula preview (Day-Wise) -->
           <div class="ot-calc-preview" id="ot-preview-${r.employee_id}">
-            <span>OT Rate: ${API.currency}${(hourlyRate * otMult).toFixed(2)}/h (${Number(otMult).toFixed(2)}x)</span>
-            <span>OT Pay: <strong>${API.formatMoney(otPayDisplay)}</strong></span>
+            <span>Base Wage: ${API.formatMoney(basePayDisplay)}</span>
+            <span>OT: ${otDays > 0 ? `${otDays}d @ ${otMult.toFixed(2)}x = <strong>${API.formatMoney(otPayDisplay)}</strong>` : '0d'}</span>
           </div>
 
           <!-- Quick Notes -->
-          <input type="text" class="notes-input-mini" placeholder="Notes (e.g. Site B, Late 30m)..." value="${this.escapeHtml(r.notes || '')}" data-emp-id="${r.employee_id}" id="notes-${r.employee_id}">
+          <input type="text" class="notes-input-mini" placeholder="Notes (e.g. Worked extra half day)..." value="${this.escapeHtml(r.notes || '')}" data-emp-id="${r.employee_id}" id="notes-${r.employee_id}">
         </div>
 
         <!-- Visual Save Feedback -->
@@ -243,12 +369,27 @@ const AttendanceModule = {
   },
 
   attachCardEventListeners() {
-    // Status button clicks
+    // Status button clicks (handles both regular and holiday segments)
     document.querySelectorAll('.status-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const empId = parseInt(btn.dataset.empId);
         const status = btn.dataset.status;
-        this.updateWorkerAttendance(empId, { status });
+        const holidayWork = btn.dataset.holidayWork === '1';
+
+        const updates = { status, is_holiday_work: holidayWork };
+
+        // If clicking "Worked on Holiday", default overtime_days to 1.0 if currently 0
+        if (holidayWork) {
+          const rec = this.records.find(r => r.employee_id === empId);
+          if (rec && (!rec.overtime_days || rec.overtime_days === 0)) {
+            updates.overtime_days = 1.0;
+          }
+        } else if (btn.dataset.holidayWork === '0' && this.dateMeta && this.dateMeta.isPaidDayOff) {
+          // If tapping "Off (Paid Leave)", reset OT days to 0
+          updates.overtime_days = 0;
+        }
+
+        this.updateWorkerAttendance(empId, updates);
       });
     });
 
@@ -273,15 +414,15 @@ const AttendanceModule = {
       });
     });
 
-    // Overtime step plus/minus
+    // Overtime step plus/minus (Day-Wise: step by 0.25d or 0.5d)
     document.querySelectorAll('.btn-step-plus').forEach(btn => {
       btn.addEventListener('click', () => {
         const empId = parseInt(btn.dataset.empId);
         const input = document.getElementById(`ot-input-${empId}`);
         let val = (parseFloat(input.value) || 0) + 0.5;
-        if (val > 16) val = 16;
+        if (val > 5) val = 5;
         input.value = val;
-        this.updateWorkerAttendance(empId, { overtime_hours: val });
+        this.updateWorkerAttendance(empId, { overtime_days: val });
       });
     });
 
@@ -292,7 +433,7 @@ const AttendanceModule = {
         let val = (parseFloat(input.value) || 0) - 0.5;
         if (val < 0) val = 0;
         input.value = val;
-        this.updateWorkerAttendance(empId, { overtime_hours: val });
+        this.updateWorkerAttendance(empId, { overtime_days: val });
       });
     });
 
@@ -302,8 +443,9 @@ const AttendanceModule = {
         const empId = parseInt(input.dataset.empId);
         let val = parseFloat(input.value) || 0;
         if (val < 0) val = 0;
+        if (val > 5) val = 5;
         input.value = val;
-        this.updateWorkerAttendance(empId, { overtime_hours: val });
+        this.updateWorkerAttendance(empId, { overtime_days: val });
       });
     });
 
@@ -328,9 +470,9 @@ const AttendanceModule = {
       record.overtime_multiplier = Math.max(0, Math.min(3.0, Math.round(Number(record.overtime_multiplier) * 100) / 100));
     }
 
-    // If status wasn't chosen yet and OT was touched, default status to PRESENT
+    // Default status if not marked
     if (record.status === 'NOT_MARKED') {
-      record.status = 'PRESENT';
+      record.status = (this.dateMeta && this.dateMeta.isPaidDayOff) ? 'PAID_LEAVE' : 'PRESENT';
     }
 
     // Refresh card UI visually
@@ -341,8 +483,9 @@ const AttendanceModule = {
         employee_id: record.employee_id,
         date: this.currentDate,
         status: record.status,
-        overtime_hours: record.overtime_hours,
+        overtime_days: record.overtime_days !== undefined ? record.overtime_days : (record.overtime_hours || 0),
         overtime_multiplier: record.overtime_multiplier,
+        is_holiday_work: record.is_holiday_work ? 1 : 0,
         bonus_allowance: record.bonus_allowance || 0,
         deduction: record.deduction || 0,
         notes: record.notes || ''
@@ -369,29 +512,29 @@ const AttendanceModule = {
     if (!card) return;
 
     // Update card classes
-    card.className = `worker-card status-${record.status}`;
+    card.className = `worker-card status-${record.status} ${record.is_holiday_work ? 'holiday-worked' : ''}`;
 
     // Update status buttons
     const btns = card.querySelectorAll('.status-btn');
     btns.forEach(b => {
-      if (b.dataset.status === record.status) {
-        b.classList.add('selected');
+      const isWorkedHolidayBtn = b.dataset.holidayWork === '1';
+      if (isWorkedHolidayBtn) {
+        b.classList.toggle('selected', !!record.is_holiday_work);
+      } else if (b.dataset.holidayWork === '0' && this.dateMeta && this.dateMeta.isPaidDayOff && b.dataset.status === 'PAID_LEAVE') {
+        b.classList.toggle('selected', !record.is_holiday_work && (record.status === 'PAID_LEAVE' || record.status === 'PAID_HOLIDAY'));
       } else {
-        b.classList.remove('selected');
+        b.classList.toggle('selected', b.dataset.status === record.status && !record.is_holiday_work);
       }
     });
 
     const otMult = Number(record.overtime_multiplier !== undefined ? record.overtime_multiplier : 1.5);
+    const otDays = Number(record.overtime_days !== undefined ? record.overtime_days : (record.overtime_hours || 0));
 
     // Update multiplier preset chips
     const chipBtns = card.querySelectorAll('.ot-chip-btn');
     chipBtns.forEach(b => {
       const chipVal = parseFloat(b.dataset.mult);
-      if (Math.abs(chipVal - otMult) < 0.001) {
-        b.classList.add('selected');
-      } else {
-        b.classList.remove('selected');
-      }
+      b.classList.toggle('selected', Math.abs(chipVal - otMult) < 0.001);
     });
 
     // Update custom multiplier input
@@ -400,19 +543,19 @@ const AttendanceModule = {
       multInput.value = otMult.toFixed(2);
     }
 
-    // Update OT input
+    // Update OT days input
     const otInput = document.getElementById(`ot-input-${record.employee_id}`);
-    if (otInput) otInput.value = record.overtime_hours || 0;
+    if (otInput) otInput.value = otDays;
 
-    // Recalculate local display earnings
-    const hourlyRate = record.daily_wage / (record.standard_hours || 8.0);
-    const otHours = record.overtime_hours || 0;
-
+    // Recalculate local display earnings (Day-Wise)
     let basePay = 0;
-    if (record.status === 'PRESENT') basePay = record.daily_wage;
-    else if (record.status === 'HALF_DAY') basePay = record.daily_wage * 0.5;
+    if (record.status === 'PRESENT' || record.status === 'PAID_LEAVE' || record.status === 'PAID_HOLIDAY') {
+      basePay = record.daily_wage;
+    } else if (record.status === 'HALF_DAY') {
+      basePay = record.daily_wage * 0.5;
+    }
 
-    const otPay = otHours * hourlyRate * otMult;
+    const otPay = otDays * record.daily_wage * otMult;
     const totalDay = basePay + otPay;
 
     const earningEl = document.getElementById(`earning-${record.employee_id}`);
@@ -421,8 +564,8 @@ const AttendanceModule = {
     const otPreviewEl = document.getElementById(`ot-preview-${record.employee_id}`);
     if (otPreviewEl) {
       otPreviewEl.innerHTML = `
-        <span>OT Rate: ${API.currency}${(hourlyRate * otMult).toFixed(2)}/h (${otMult.toFixed(2)}x)</span>
-        <span>OT Pay: <strong>${API.formatMoney(otPay)}</strong></span>
+        <span>Base: ${API.formatMoney(basePay)}</span>
+        <span>OT: ${otDays > 0 ? `${otDays}d @ ${otMult.toFixed(2)}x = <strong>${API.formatMoney(otPay)}</strong>` : '0d'}</span>
       `;
     }
   },
@@ -430,55 +573,70 @@ const AttendanceModule = {
   recalculateDailyTotals() {
     let totalPresent = 0;
     let totalHalfDay = 0;
+    let totalPaidLeave = 0;
     let totalAbsent = 0;
     let totalUnmarked = 0;
-    let totalOtHours = 0;
+    let totalOtDays = 0;
+    let totalHolidayWorkers = 0;
     let totalWagesToday = 0;
 
     for (const item of this.records) {
       if (item.status === 'PRESENT') totalPresent++;
       else if (item.status === 'HALF_DAY') totalHalfDay++;
+      else if (item.status === 'PAID_LEAVE' || item.status === 'PAID_HOLIDAY') totalPaidLeave++;
       else if (item.status === 'ABSENT') totalAbsent++;
       else totalUnmarked++;
 
-      const hourlyRate = item.daily_wage / (item.standard_hours || 8.0);
-      let base = 0;
-      if (item.status === 'PRESENT') base = item.daily_wage;
-      else if (item.status === 'HALF_DAY') base = item.daily_wage * 0.5;
+      if (item.is_holiday_work) totalHolidayWorkers++;
 
-      const ot = (item.overtime_hours || 0) * hourlyRate * (item.overtime_multiplier || 1.5);
-      totalOtHours += (item.overtime_hours || 0);
+      let base = 0;
+      if (item.status === 'PRESENT' || item.status === 'PAID_LEAVE' || item.status === 'PAID_HOLIDAY') {
+        base = item.daily_wage;
+      } else if (item.status === 'HALF_DAY') {
+        base = item.daily_wage * 0.5;
+      }
+
+      const otDays = (item.overtime_days !== undefined ? item.overtime_days : (item.overtime_hours || 0));
+      const ot = otDays * item.daily_wage * (item.overtime_multiplier || 1.5);
+      totalOtDays += otDays;
       totalWagesToday += (base + ot);
     }
 
     this.updateStats({
       totalPresent,
       totalHalfDay,
+      totalPaidLeave,
       totalAbsent,
       totalUnmarked,
-      totalOtHours: Math.round(totalOtHours * 10) / 10,
+      totalOtDays: Math.round(totalOtDays * 100) / 100,
+      totalHolidayWorkers,
       totalWagesToday: Math.round(totalWagesToday * 100) / 100
     });
   },
 
-  async markAllPresent() {
+  async markAllDefault() {
     if (this.records.length === 0) return;
 
-    const confirmed = confirm(`Mark all ${this.records.length} workers as PRESENT for ${this.currentDate}?`);
+    const isDayOff = !!(this.dateMeta && this.dateMeta.isPaidDayOff);
+    const targetStatus = isDayOff ? 'PAID_LEAVE' : 'PRESENT';
+    const actionLabel = isDayOff ? 'PAID LEAVE (Weekly Off / Holiday)' : 'PRESENT (Full Day)';
+
+    const confirmed = confirm(`Mark all ${this.records.length} workers as ${actionLabel} for ${this.currentDate}?`);
     if (!confirmed) return;
 
     const batchRecords = this.records.map(r => ({
       employee_id: r.employee_id,
-      status: 'PRESENT',
-      overtime_hours: r.overtime_hours || 0,
+      status: targetStatus,
+      overtime_days: 0,
       overtime_multiplier: r.overtime_multiplier || 1.5,
-      notes: r.notes || ''
+      is_holiday_work: 0,
+      notes: isDayOff ? (this.dateMeta.dayOffReason || 'Paid Leave') : ''
     }));
 
     try {
       const res = await API.batchMarkAttendance(this.currentDate, batchRecords);
       if (res.success) {
-        App.showToast(`Marked all workers Present!`, 'success');
+        App.showToast(`Marked all workers as ${targetStatus}!`, 'success');
         await this.loadAttendance();
       }
     } catch (err) {

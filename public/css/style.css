@@ -127,6 +127,16 @@ body {
   border-color: #bbf7d0;
 }
 
+.btn-holiday-chip {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fde68a;
+}
+
+.btn-holiday-chip:hover {
+  background: #fde68a;
+}
+
 .btn-lock {
   background: #f8fafc;
 }
@@ -303,6 +313,49 @@ body {
 }
 
 /* ========================================================= */
+/* Tuesday Weekly Off & Paid Holiday Banner                  */
+/* ========================================================= */
+.holiday-banner {
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: var(--shadow-sm);
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+.holiday-banner.tuesday-off {
+  background: #f0fdfa;
+  border: 1px solid #99f6e4;
+  color: #115e59;
+}
+
+.holiday-banner.custom-holiday {
+  background: #fefce8;
+  border: 1px solid #fef08a;
+  color: #854d0e;
+}
+
+.holiday-banner-icon {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.holiday-banner-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  margin-bottom: 2px;
+}
+
+.holiday-banner-desc {
+  font-size: 0.8rem;
+  line-height: 1.35;
+  opacity: 0.9;
+}
+
+/* ========================================================= */
 /* Stats Ribbon                                              */
 /* ========================================================= */
 .stats-ribbon {
@@ -337,6 +390,7 @@ body {
 
 .stat-pill.present .stat-num { color: var(--success); }
 .stat-pill.half-day .stat-num { color: var(--warning); }
+.stat-pill.paid-leave .stat-num { color: #0284c7; }
 .stat-pill.absent .stat-num { color: var(--danger); }
 .stat-pill.ot .stat-num { color: var(--purple); }
 .stat-pill.wages .stat-num { color: var(--primary); }
@@ -508,6 +562,16 @@ body {
   margin-bottom: 10px;
 }
 
+.status-segment.four-cols {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media (max-width: 480px) {
+  .status-segment.four-cols {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 .status-btn {
   padding: 10px 4px;
   border: 1px solid var(--border);
@@ -546,6 +610,52 @@ body {
   box-shadow: 0 2px 4px rgba(239, 68, 68, 0.25);
 }
 
+.status-btn.btn-paid-leave.selected {
+  background: #0284c7;
+  color: #fff;
+  border-color: #0284c7;
+  box-shadow: 0 2px 4px rgba(2, 132, 199, 0.25);
+}
+
+.status-btn.btn-worked-holiday {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.status-btn.btn-worked-holiday.selected {
+  background: #7c3aed;
+  color: #fff;
+  border-color: #7c3aed;
+  box-shadow: 0 2px 4px rgba(124, 58, 237, 0.25);
+}
+
+/* Badge for Tuesday / Holiday on worker card */
+.badge-holiday-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  border-radius: var(--radius-full);
+  background: #ccfbf1;
+  color: #0f766e;
+  border: 1px solid #99f6e4;
+}
+
+/* Holiday Status Segment (Off / Worked / Absent) */
+.holiday-status-segment {
+  display: grid;
+  grid-template-columns: 1.1fr 1.4fr 0.8fr;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+@media (max-width: 480px) {
+  .holiday-status-segment {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Overtime Section */
 .overtime-panel {
   background: #f8fafc;
@@ -553,6 +663,11 @@ body {
   border-radius: var(--radius-sm);
   padding: 8px 10px;
   margin-top: 8px;
+}
+
+.overtime-panel.holiday-active {
+  background: #f5f3ff;
+  border: 1px solid #ddd6fe;
 }
 
 .ot-controls-row {
@@ -1311,6 +1426,66 @@ body {
 .connection-guide ol {
   padding-left: 18px;
   line-height: 1.6;
+}
+
+/* ========================================================= */
+/* Holiday Modal & Policy Styles                             */
+/* ========================================================= */
+.holiday-note-box {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  color: #166534;
+  line-height: 1.5;
+}
+
+.holidays-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.holiday-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.holiday-item-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.holiday-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.holiday-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.holiday-date {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
 }
 
 /* ========================================================= */

@@ -79,6 +79,23 @@ const App = {
       e.preventDefault();
       this.submitPin();
     });
+
+    // Manage Paid Holidays Button in top bar
+    const btnManageHolidays = document.getElementById('btnManageHolidays');
+    if (btnManageHolidays) {
+      btnManageHolidays.addEventListener('click', () => {
+        this.openHolidayModal();
+      });
+    }
+
+    // Holiday Form submission
+    const holidayForm = document.getElementById('addHolidayForm');
+    if (holidayForm) {
+      holidayForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await this.submitAddHoliday();
+      });
+    }
   },
 
   // Switch Active Tab
@@ -316,6 +333,94 @@ const App = {
       toast.style.transition = 'opacity 0.3s';
       setTimeout(() => toast.remove(), 300);
     }, 3000);
+  },
+
+  // Holiday Management
+  async openHolidayModal() {
+    this.openModal('holidayModal');
+    await this.loadHolidays();
+  },
+
+  async loadHolidays() {
+    const container = document.getElementById('holidaysListContainer');
+    if (!container) return;
+    container.innerHTML = '<div class="spinner"></div>';
+
+    try {
+      const res = await API.getHolidays();
+      if (!res.success || !res.holidays || res.holidays.length === 0) {
+        container.innerHTML = '<p class="text-muted" style="font-size: 0.85rem; padding: 12px 0;">No custom paid holidays added yet. Tuesdays are automatically paid off.</p>';
+        return;
+      }
+
+      container.innerHTML = res.holidays.map(h => `
+        <div class="holiday-item" data-id="${h.id}">
+          <div class="holiday-item-info">
+            <span class="holiday-badge">Paid Holiday</span>
+            <strong class="holiday-title">${this.escapeHtml(h.title)}</strong>
+            <span class="holiday-date">${this.formatDisplayDate(h.date)}</span>
+          </div>
+          <button class="btn-icon text-rose btn-delete-holiday" data-id="${h.id}" title="Remove Holiday">🗑️</button>
+        </div>
+      `).join('');
+
+      container.querySelectorAll('.btn-delete-holiday').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.id;
+          if (confirm('Are you sure you want to remove this paid holiday?')) {
+            try {
+              const delRes = await API.deleteHoliday(id);
+              if (delRes.success) {
+                this.showToast('Holiday removed', 'success');
+                await this.loadHolidays();
+                // Refresh attendance if on attendance tab
+                if (this.activeTab === 'tabAttendance') {
+                  AttendanceModule.loadAttendance();
+                }
+              }
+            } catch (err) {
+              this.showToast(`Error: ${err.message}`, 'error');
+            }
+          }
+        });
+      });
+    } catch (err) {
+      container.innerHTML = `<p class="text-rose" style="font-size: 0.85rem;">Failed to load holidays: ${this.escapeHtml(err.message)}</p>`;
+    }
+  },
+
+  async submitAddHoliday() {
+    const dateInput = document.getElementById('holidayDateInput');
+    const titleInput = document.getElementById('holidayTitleInput');
+    const date = dateInput.value;
+    const title = titleInput.value.trim();
+
+    if (!date || !title) {
+      this.showToast('Please provide both date and holiday title', 'error');
+      return;
+    }
+
+    try {
+      const res = await API.saveHoliday({ date, title });
+      if (res.success) {
+        this.showToast(`Holiday "${title}" added!`, 'success');
+        dateInput.value = '';
+        titleInput.value = '';
+        await this.loadHolidays();
+        if (this.activeTab === 'tabAttendance') {
+          AttendanceModule.loadAttendance();
+        }
+      }
+    } catch (err) {
+      this.showToast(`Error: ${err.message}`, 'error');
+    }
+  },
+
+  formatDisplayDate(dateStr) {
+    if (!dateStr) return '';
+    const [y, m, d] = dateStr.split('-');
+    const date = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+    return date.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
   },
 
   escapeHtml(str) {

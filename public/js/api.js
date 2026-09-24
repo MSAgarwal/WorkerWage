@@ -66,6 +66,19 @@ const API = {
     return res;
   },
 
+  // Holiday APIs
+  async getHolidays() {
+    return this.request('/api/holidays');
+  },
+
+  async saveHoliday(holidayData) {
+    return this.request('/api/holidays', { method: 'POST', body: holidayData });
+  },
+
+  async deleteHoliday(id) {
+    return this.request(`/api/holidays/${id}`, { method: 'DELETE' });
+  },
+
   // Employee APIs
   async getEmployees(status = 'ALL') {
     return this.request(`/api/employees?status=${encodeURIComponent(status)}`);

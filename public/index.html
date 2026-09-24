@@ -24,6 +24,9 @@
       </div>
     </div>
     <div class="nav-actions">
+      <button id="btnManageHolidays" class="btn-chip btn-holiday-chip" title="Manage Paid Holidays">
+        <span>🗓️</span> <span class="hide-mobile">Paid Holidays</span>
+      </button>
       <button id="btnConnectMobile" class="btn-chip btn-mobile-qr" title="Connect Phone via QR Code">
         <span>📱</span> <span class="hide-mobile">Connect Phone</span>
       </button>
@@ -82,7 +85,10 @@
         </div>
       </div>
 
-      <!-- Quick Metrics Ribbon -->
+      <!-- Tuesday Weekly Off / Paid Holiday Banner -->
+      <div id="holidayBanner" class="holiday-banner" style="display: none;"></div>
+
+      <!-- Quick Metrics Ribbon (Day-Wise) -->
       <div class="stats-ribbon">
         <div class="stat-pill present">
           <span class="stat-num" id="statPresentCount">0</span>
@@ -92,12 +98,16 @@
           <span class="stat-num" id="statHalfDayCount">0</span>
           <span class="stat-text">Half Day</span>
         </div>
+        <div class="stat-pill paid-leave">
+          <span class="stat-num" id="statPaidLeaveCount">0</span>
+          <span class="stat-text">Paid Off</span>
+        </div>
         <div class="stat-pill absent">
           <span class="stat-num" id="statAbsentCount">0</span>
           <span class="stat-text">Absent</span>
         </div>
         <div class="stat-pill ot">
-          <span class="stat-num" id="statOtHours">0.0h</span>
+          <span class="stat-num" id="statOtHours">0.0d</span>
           <span class="stat-text">Total OT</span>
         </div>
         <div class="stat-pill wages">
@@ -116,8 +126,8 @@
           <button class="pill-btn active" data-filter="ALL">All (<span id="countAll">0</span>)</button>
           <button class="pill-btn" data-filter="UNMARKED">Unmarked (<span id="countUnmarked">0</span>)</button>
           <button class="pill-btn" data-filter="PRESENT">Present</button>
+          <button class="pill-btn" data-filter="PAID_OFF">Paid Off / Tue</button>
           <button class="pill-btn" data-filter="OT">Overtime</button>
-        </div>
       </div>
 
       <!-- Attendance Worker Cards List -->
@@ -196,9 +206,9 @@
           <span class="grand-sub" id="grandBaseOtSplit">Base: ₹0 | OT: ₹0</span>
         </div>
         <div class="grand-card">
-          <span class="grand-label">Total Overtime Hours</span>
-          <span class="grand-value text-amber" id="grandOtHours">0.0h</span>
-          <span class="grand-sub" id="grandOtBreakdown">1.5x: 0h | 2.0x: 0h</span>
+          <span class="grand-label">Total Overtime (Days)</span>
+          <span class="grand-value text-amber" id="grandOtHours">0.0d</span>
+          <span class="grand-sub" id="grandOtBreakdown">OT wages</span>
         </div>
         <div class="grand-card">
           <span class="grand-label">Advances & Paid Out</span>
@@ -220,7 +230,9 @@
               <th>Worker</th>
               <th>Rate / Day</th>
               <th>Days Worked</th>
-              <th>OT Hours</th>
+              <th>Paid Off (Tue/Hol)</th>
+              <th>Total Paid Days</th>
+              <th>OT (Days)</th>
               <th>OT Multipliers</th>
               <th>Base Wage</th>
               <th>OT Wage</th>
@@ -231,7 +243,7 @@
             </tr>
           </thead>
           <tbody id="payrollTableBody">
-            <tr><td colspan="11" class="text-center">Loading payroll data...</td></tr>
+            <tr><td colspan="13" class="text-center">Loading payroll data...</td></tr>
           </tbody>
         </table>
       </div>
@@ -557,6 +569,51 @@
           <button type="submit" class="btn btn-primary">Save Payment</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL: MANAGE PAID HOLIDAYS                              -->
+  <!-- ======================================================== -->
+  <div id="holidayModal" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>🗓️ Manage Paid Holidays</h3>
+        <button class="modal-close" data-close="holidayModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="holiday-note-box mb-3">
+          <strong>ℹ️ Office Paid Leave Policy:</strong>
+          <div>• Every <strong>Tuesday</strong> is automatically a paid weekly off.</div>
+          <div>• All custom dates listed below are <strong>Paid Holidays</strong> (workers receive their full day wage).</div>
+          <div>• Workers who come and work on a Tuesday or Holiday receive their daily wage + <strong>Overtime Pay</strong>!</div>
+        </div>
+
+        <form id="addHolidayForm" class="mb-3">
+          <h4 style="font-size: 0.9rem; font-weight: 700;">➕ Add Paid Holiday</h4>
+          <div class="form-row mt-2">
+            <div class="form-group flex-1">
+              <label>Date *</label>
+              <input type="date" id="holidayDateInput" required>
+            </div>
+            <div class="form-group flex-1">
+              <label>Holiday / Festival Name *</label>
+              <input type="text" id="holidayTitleInput" placeholder="e.g. Diwali, Gandhi Jayanti" required>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">Save Holiday</button>
+        </form>
+
+        <hr style="border: none; border-top: 1px solid var(--border); margin: 16px 0;">
+
+        <h4 style="font-size: 0.9rem; font-weight: 700;">📅 Configured Paid Holidays</h4>
+        <div id="holidaysListContainer" class="holidays-list mt-2">
+          <div class="spinner"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close="holidayModal">Close</button>
+      </div>
     </div>
   </div>
 
