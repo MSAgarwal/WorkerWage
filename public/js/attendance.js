@@ -196,13 +196,7 @@ const AttendanceModule = {
         <div class="overtime-panel">
           <div class="ot-controls-row">
             <div class="ot-label-group">
-              <span>⏱️ Overtime</span>
-            </div>
-            
-            <!-- Multiplier Selector 1.5x / 2.0x -->
-            <div class="ot-multiplier-group">
-              <button type="button" class="ot-mult-btn ${otMult === 1.5 ? 'selected' : ''}" data-mult="1.5" data-emp-id="${r.employee_id}">1.5x</button>
-              <button type="button" class="ot-mult-btn ${otMult === 2.0 ? 'selected' : ''}" data-mult="2.0" data-emp-id="${r.employee_id}">2.0x</button>
+              <span>⏱️ Overtime Hours</span>
             </div>
 
             <!-- Stepper: - 0.5h + -->
@@ -214,9 +208,25 @@ const AttendanceModule = {
             </div>
           </div>
 
+          <!-- Multiplier Control: 0 to 3 in float up to 2 decimals -->
+          <div class="ot-mult-row">
+            <div class="ot-mult-label">
+              <span>Rate Multiplier:</span>
+            </div>
+            <div class="ot-chips-wrap">
+              <button type="button" class="ot-chip-btn ${Math.abs(otMult - 1.0) < 0.001 ? 'selected' : ''}" data-mult="1.00" data-emp-id="${r.employee_id}">1.0x</button>
+              <button type="button" class="ot-chip-btn ${Math.abs(otMult - 1.5) < 0.001 ? 'selected' : ''}" data-mult="1.50" data-emp-id="${r.employee_id}">1.5x</button>
+              <button type="button" class="ot-chip-btn ${Math.abs(otMult - 2.0) < 0.001 ? 'selected' : ''}" data-mult="2.00" data-emp-id="${r.employee_id}">2.0x</button>
+            </div>
+            <div class="ot-custom-mult-wrap">
+              <input type="number" min="0" max="3" step="0.01" class="ot-mult-input" id="ot-mult-${r.employee_id}" value="${Number(otMult).toFixed(2)}" data-emp-id="${r.employee_id}" title="Enter custom multiplier from 0.00 to 3.00">
+              <span class="ot-mult-suffix">x</span>
+            </div>
+          </div>
+
           <!-- Formula preview -->
           <div class="ot-calc-preview" id="ot-preview-${r.employee_id}">
-            <span>OT Rate: ${API.currency}${(hourlyRate * otMult).toFixed(2)}/h (${otMult}x)</span>
+            <span>OT Rate: ${API.currency}${(hourlyRate * otMult).toFixed(2)}/h (${Number(otMult).toFixed(2)}x)</span>
             <span>OT Pay: <strong>${API.formatMoney(otPayDisplay)}</strong></span>
           </div>
 
@@ -242,12 +252,24 @@ const AttendanceModule = {
       });
     });
 
-    // Overtime multiplier buttons
-    document.querySelectorAll('.ot-mult-btn').forEach(btn => {
+    // Overtime preset chip buttons
+    document.querySelectorAll('.ot-chip-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const empId = parseInt(btn.dataset.empId);
         const mult = parseFloat(btn.dataset.mult);
         this.updateWorkerAttendance(empId, { overtime_multiplier: mult });
+      });
+    });
+
+    // Custom overtime multiplier input (0.00 to 3.00)
+    document.querySelectorAll('.ot-mult-input').forEach(input => {
+      input.addEventListener('change', () => {
+        const empId = parseInt(input.dataset.empId);
+        let val = parseFloat(input.value);
+        if (isNaN(val)) val = 1.5;
+        val = Math.max(0, Math.min(3.0, Math.round(val * 100) / 100));
+        input.value = val.toFixed(2);
+        this.updateWorkerAttendance(empId, { overtime_multiplier: val });
       });
     });
 
@@ -300,6 +322,11 @@ const AttendanceModule = {
 
     // Merge updates locally
     Object.assign(record, updates);
+
+    // Ensure overtime multiplier is valid float between 0.00 and 3.00
+    if (record.overtime_multiplier !== undefined) {
+      record.overtime_multiplier = Math.max(0, Math.min(3.0, Math.round(Number(record.overtime_multiplier) * 100) / 100));
+    }
 
     // If status wasn't chosen yet and OT was touched, default status to PRESENT
     if (record.status === 'NOT_MARKED') {
@@ -354,15 +381,24 @@ const AttendanceModule = {
       }
     });
 
-    // Update multiplier buttons
-    const multBtns = card.querySelectorAll('.ot-mult-btn');
-    multBtns.forEach(b => {
-      if (parseFloat(b.dataset.mult) === (record.overtime_multiplier || 1.5)) {
+    const otMult = Number(record.overtime_multiplier !== undefined ? record.overtime_multiplier : 1.5);
+
+    // Update multiplier preset chips
+    const chipBtns = card.querySelectorAll('.ot-chip-btn');
+    chipBtns.forEach(b => {
+      const chipVal = parseFloat(b.dataset.mult);
+      if (Math.abs(chipVal - otMult) < 0.001) {
         b.classList.add('selected');
       } else {
         b.classList.remove('selected');
       }
     });
+
+    // Update custom multiplier input
+    const multInput = document.getElementById(`ot-mult-${record.employee_id}`);
+    if (multInput) {
+      multInput.value = otMult.toFixed(2);
+    }
 
     // Update OT input
     const otInput = document.getElementById(`ot-input-${record.employee_id}`);
@@ -370,7 +406,6 @@ const AttendanceModule = {
 
     // Recalculate local display earnings
     const hourlyRate = record.daily_wage / (record.standard_hours || 8.0);
-    const otMult = record.overtime_multiplier || 1.5;
     const otHours = record.overtime_hours || 0;
 
     let basePay = 0;
@@ -386,7 +421,7 @@ const AttendanceModule = {
     const otPreviewEl = document.getElementById(`ot-preview-${record.employee_id}`);
     if (otPreviewEl) {
       otPreviewEl.innerHTML = `
-        <span>OT Rate: ${API.currency}${(hourlyRate * otMult).toFixed(2)}/h (${otMult}x)</span>
+        <span>OT Rate: ${API.currency}${(hourlyRate * otMult).toFixed(2)}/h (${otMult.toFixed(2)}x)</span>
         <span>OT Pay: <strong>${API.formatMoney(otPay)}</strong></span>
       `;
     }

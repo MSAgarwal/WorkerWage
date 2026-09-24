@@ -33,7 +33,13 @@ function calculateWage(dailyWage, standardHours, status, otHours, otMultiplier, 
   standardHours = Number(standardHours) || 8.0;
   if (standardHours <= 0) standardHours = 8.0;
   otHours = Number(otHours) || 0;
-  otMultiplier = Number(otMultiplier) || 1.5;
+  // Parse and clamp overtime multiplier from 0.00 to 3.00 (up to 2 decimal places)
+  if (otMultiplier === undefined || otMultiplier === null || isNaN(Number(otMultiplier))) {
+    otMultiplier = 1.5;
+  } else {
+    otMultiplier = Math.max(0, Math.min(3.0, Math.round(Number(otMultiplier) * 100) / 100));
+  }
+
   bonus = Number(bonus) || 0;
   deduction = Number(deduction) || 0;
 
@@ -58,7 +64,7 @@ function calculateWage(dailyWage, standardHours, status, otHours, otMultiplier, 
     standardHours,
     hourlyRate: Math.round(hourlyRate * 100) / 100,
     basePay: Math.round(basePay * 100) / 100,
-    overtimeHours: otHours,
+    overtimeHours: Math.round(otHours * 100) / 100,
     overtimeMultiplier: otMultiplier,
     overtimePay: Math.round(overtimePay * 100) / 100,
     bonusAllowance: bonus,
@@ -656,9 +662,8 @@ app.get('/api/reports/payroll', (req, res) => {
       let presentDays = 0;
       let halfDays = 0;
       let absentDays = 0;
-      let ot15Hours = 0;
-      let ot20Hours = 0;
       let totalOtHours = 0;
+      const otMultiplierMap = {};
       let basePayTotal = 0;
       let otPayTotal = 0;
       let bonusTotal = 0;
@@ -672,11 +677,8 @@ app.get('/api/reports/payroll', (req, res) => {
 
         if (a.overtime_hours > 0) {
           totalOtHours += a.overtime_hours;
-          if (a.overtime_multiplier === 2.0) {
-            ot20Hours += a.overtime_hours;
-          } else {
-            ot15Hours += a.overtime_hours;
-          }
+          const multKey = Number(a.overtime_multiplier || 1.5).toFixed(2);
+          otMultiplierMap[multKey] = (otMultiplierMap[multKey] || 0) + a.overtime_hours;
         }
 
         basePayTotal += a.base_pay;
@@ -685,6 +687,13 @@ app.get('/api/reports/payroll', (req, res) => {
         deductionTotal += a.deduction;
         grossPayTotal += a.total_pay;
       }
+
+      // Format OT summary string, e.g. "1.5x: 4h, 2x: 2h"
+      const otSummaryParts = Object.keys(otMultiplierMap).sort((a,b) => parseFloat(a) - parseFloat(b)).map(m => {
+        const cleanM = parseFloat(m).toString();
+        return `${cleanM}x (${otMultiplierMap[m].toFixed(1)}h)`;
+      });
+      const otSummaryText = otSummaryParts.join(', ');
 
       let totalAdvances = 0;
       let totalSettlements = 0;
@@ -718,9 +727,9 @@ app.get('/api/reports/payroll', (req, res) => {
         halfDays,
         absentDays,
         effectiveDays: presentDays + (halfDays * 0.5),
-        ot15Hours: Math.round(ot15Hours * 10) / 10,
-        ot20Hours: Math.round(ot20Hours * 10) / 10,
-        totalOtHours: Math.round(totalOtHours * 10) / 10,
+        totalOtHours: Math.round(totalOtHours * 100) / 100,
+        otMultiplierMap,
+        otSummaryText,
         basePayTotal: Math.round(basePayTotal * 100) / 100,
         otPayTotal: Math.round(otPayTotal * 100) / 100,
         bonusTotal: Math.round(bonusTotal * 100) / 100,
@@ -765,27 +774,32 @@ app.get('/api/reports/export-csv', (req, res) => {
     const workers = db.prepare("SELECT * FROM employees WHERE status = 'ACTIVE' ORDER BY name ASC").all();
     const rows = [];
 
-    rows.push(['Code', 'Name', 'Role', 'Daily Wage', 'Present Days', 'Half Days', 'Absent Days', 'Effective Days', '1.5x OT (hrs)', '2.0x OT (hrs)', 'Total OT (hrs)', 'Base Wage', 'OT Wage', 'Gross Earnings', 'Advances Paid', 'Net Balance Payable'].join(','));
+    rows.push(['Code', 'Name', 'Role', 'Daily Wage', 'Present Days', 'Half Days', 'Absent Days', 'Effective Days', 'Total OT (hrs)', 'OT Multipliers Used', 'Base Wage', 'OT Wage', 'Gross Earnings', 'Advances Paid', 'Net Balance Payable'].join(','));
 
     for (const w of workers) {
       const attRecords = db.prepare('SELECT * FROM attendance WHERE employee_id = ? AND date >= ? AND date <= ?').all(w.id, start, end);
       const payRecords = db.prepare('SELECT * FROM payments WHERE employee_id = ? AND date >= ? AND date <= ?').all(w.id, start, end);
 
-      let present = 0, half = 0, absent = 0, ot15 = 0, ot20 = 0, basePay = 0, otPay = 0, gross = 0;
+      let present = 0, half = 0, absent = 0, totalOt = 0, basePay = 0, otPay = 0, gross = 0;
+      const multMap = {};
+
       for (const a of attRecords) {
         if (a.status === 'PRESENT') present++;
         else if (a.status === 'HALF_DAY') half++;
         else if (a.status === 'ABSENT') absent++;
 
         if (a.overtime_hours > 0) {
-          if (a.overtime_multiplier === 2.0) ot20 += a.overtime_hours;
-          else ot15 += a.overtime_hours;
+          totalOt += a.overtime_hours;
+          const k = Number(a.overtime_multiplier || 1.5).toFixed(2);
+          multMap[k] = (multMap[k] || 0) + a.overtime_hours;
         }
 
         basePay += a.base_pay;
         otPay += a.overtime_pay;
         gross += a.total_pay;
       }
+
+      const otDesc = Object.keys(multMap).map(k => `${parseFloat(k)}x (${multMap[k].toFixed(1)}h)`).join('; ');
 
       let advances = 0;
       for (const p of payRecords) {
@@ -803,9 +817,8 @@ app.get('/api/reports/export-csv', (req, res) => {
         half,
         absent,
         present + (half * 0.5),
-        ot15,
-        ot20,
-        ot15 + ot20,
+        totalOt.toFixed(1),
+        `"${otDesc || '-'}"`,
         basePay.toFixed(2),
         otPay.toFixed(2),
         gross.toFixed(2),

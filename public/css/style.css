@@ -604,28 +604,101 @@ body {
   background: #fff;
 }
 
-/* Overtime Multiplier Selector (1.5x / 2.0x) */
-.ot-multiplier-group {
+/* Flexible Overtime Multiplier Row (0.00 to 3.00) */
+.ot-mult-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.ot-mult-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.ot-chips-wrap {
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
-.ot-mult-btn {
-  padding: 4px 8px;
+.ot-chip-btn {
+  padding: 3px 8px;
   font-size: 0.72rem;
   font-weight: 700;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   border: 1px solid #cbd5e1;
   background: #fff;
   color: var(--text-muted);
   cursor: pointer;
+  transition: all 0.15s;
 }
 
-.ot-mult-btn.selected {
+.ot-chip-btn.selected {
   background: var(--purple);
   color: #fff;
   border-color: var(--purple);
+  box-shadow: 0 1px 3px rgba(139, 92, 246, 0.3);
+}
+
+.ot-custom-mult-wrap {
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: var(--radius-sm);
+  padding: 1px 4px;
+}
+
+.ot-mult-input {
+  width: 52px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.82rem;
+  border: none;
+  background: transparent;
+  outline: none;
+  padding: 2px 0;
+}
+
+.ot-mult-suffix {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--purple);
+  padding-right: 2px;
+}
+
+.input-with-addons {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  overflow: hidden;
+}
+
+.input-with-addons input {
+  border: none !important;
+  flex: 1;
+}
+
+.addon-suffix {
+  padding: 0 10px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  color: var(--purple);
+  background: #f8fafc;
+  border-left: 1px solid var(--border);
+  height: 100%;
+  display: flex;
+  align-items: center;
 }
 
 .ot-calc-preview {

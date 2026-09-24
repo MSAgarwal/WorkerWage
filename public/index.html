@@ -220,8 +220,8 @@
               <th>Worker</th>
               <th>Rate / Day</th>
               <th>Days Worked</th>
-              <th>1.5x OT</th>
-              <th>2.0x OT</th>
+              <th>OT Hours</th>
+              <th>OT Multipliers</th>
               <th>Base Wage</th>
               <th>OT Wage</th>
               <th>Gross Wage</th>
@@ -313,12 +313,12 @@
               <span class="helper-text">Standard hours in a regular workday (usually 8 hours)</span>
             </div>
             <div class="form-group">
-              <label>Default Overtime Multiplier</label>
-              <select id="settingDefaultOtMult">
-                <option value="1.5">1.5x (Time and a half - standard)</option>
-                <option value="2.0">2.0x (Double time)</option>
-              </select>
-              <span class="helper-text">Can also be overridden per worker or individual day</span>
+              <label>Default Overtime Multiplier (0.00 to 3.00)</label>
+              <div class="input-with-addons">
+                <input type="number" id="settingDefaultOtMult" min="0" max="3" step="0.01" value="1.50" required>
+                <span class="addon-suffix">x</span>
+              </div>
+              <span class="helper-text">Configurable from 0.00 to 3.00 (e.g. 1.25, 1.50, 1.75, 2.00, 2.50)</span>
             </div>
             <button type="submit" class="btn btn-primary">Save Overtime Defaults</button>
           </form>
@@ -469,11 +469,11 @@
               <input type="text" id="workerRole" placeholder="e.g. Mason, Welder, Helper, Carpenter">
             </div>
             <div class="form-group flex-1">
-              <label>Default Overtime Rate</label>
-              <select id="workerDefaultOt">
-                <option value="1.5">1.5x Hourly Rate</option>
-                <option value="2.0">2.0x Hourly Rate</option>
-              </select>
+              <label>Default Overtime Multiplier (0 to 3.00)</label>
+              <div class="input-with-addons">
+                <input type="number" id="workerDefaultOt" min="0" max="3" step="0.01" value="1.50" placeholder="1.50" required>
+                <span class="addon-suffix">x</span>
+              </div>
             </div>
           </div>
           <div class="form-row">

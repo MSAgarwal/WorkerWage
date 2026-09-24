@@ -100,16 +100,9 @@ const PayrollModule = {
     document.getElementById('grandAdvances').textContent = API.formatMoney(totals.grandAdvances);
     document.getElementById('grandNetPayable').textContent = API.formatMoney(totals.grandNetPayable);
 
-    // Count breakdown
-    let total15 = 0;
-    let total20 = 0;
-    if (this.reportData && this.reportData.workers) {
-      this.reportData.workers.forEach(w => {
-        total15 += w.ot15Hours || 0;
-        total20 += w.ot20Hours || 0;
-      });
-    }
-    document.getElementById('grandOtBreakdown').textContent = `1.5x: ${total15.toFixed(1)}h | 2.0x: ${total20.toFixed(1)}h`;
+    document.getElementById('grandOtBreakdown').textContent = totals.grandOtHours > 0 
+      ? `OT Wages: ${API.formatMoney(totals.grandOtPay)}` 
+      : 'No overtime in period';
   },
 
   renderTable(workers) {
@@ -131,8 +124,8 @@ const PayrollModule = {
             <span style="font-weight: 700;">${w.effectiveDays}</span> days
             <div class="text-xs text-muted">P:${w.presentDays} | H:${w.halfDays} | A:${w.absentDays}</div>
           </td>
-          <td>${w.ot15Hours > 0 ? `<strong>${w.ot15Hours}h</strong>` : '-'}</td>
-          <td>${w.ot20Hours > 0 ? `<strong>${w.ot20Hours}h</strong>` : '-'}</td>
+          <td>${w.totalOtHours > 0 ? `<strong>${w.totalOtHours}h</strong>` : '-'}</td>
+          <td><span class="text-xs">${w.otSummaryText || '-'}</span></td>
           <td>${API.formatMoney(w.basePayTotal)}</td>
           <td>${w.otPayTotal > 0 ? `<strong class="text-primary">${API.formatMoney(w.otPayTotal)}</strong>` : '-'}</td>
           <td><strong>${API.formatMoney(w.grossPayTotal)}</strong></td>
