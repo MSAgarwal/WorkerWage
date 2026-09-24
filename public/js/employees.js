@@ -68,7 +68,7 @@ const EmployeesModule = {
 
     container.innerHTML = filtered.map(w => {
       const isActive = w.status === 'ACTIVE';
-      const otMultiplier = parseFloat(w.default_ot_multiplier || 1.5);
+      const otMultiplier = parseFloat(w.default_ot_multiplier !== undefined && w.default_ot_multiplier !== null ? w.default_ot_multiplier : 0.0);
       const otDayRate = w.daily_wage * otMultiplier;
 
       return `
@@ -132,14 +132,14 @@ const EmployeesModule = {
       document.getElementById('workerCode').value = worker.employee_code || '';
       document.getElementById('workerDailyWage').value = worker.daily_wage;
       document.getElementById('workerRole').value = worker.role || '';
-      document.getElementById('workerDefaultOt').value = parseFloat(worker.default_ot_multiplier || 1.5).toFixed(2);
+      document.getElementById('workerDefaultOt').value = parseFloat(worker.default_ot_multiplier !== undefined && worker.default_ot_multiplier !== null ? worker.default_ot_multiplier : 0.0).toFixed(2);
       document.getElementById('workerPhone').value = worker.phone || '';
       document.getElementById('workerStatus').value = worker.status || 'ACTIVE';
       document.getElementById('workerNotes').value = worker.notes || '';
     } else {
       titleEl.textContent = 'Add New Daily Wage Worker';
       idInput.value = '';
-      document.getElementById('workerDefaultOt').value = parseFloat(API.defaultOtMult || 1.5).toFixed(2);
+      document.getElementById('workerDefaultOt').value = parseFloat(API.defaultOtMult !== undefined ? API.defaultOtMult : 0.0).toFixed(2);
       document.getElementById('workerStatus').value = 'ACTIVE';
     }
 
@@ -153,7 +153,7 @@ const EmployeesModule = {
     const dailyWage = parseFloat(document.getElementById('workerDailyWage').value);
     const role = document.getElementById('workerRole').value.trim();
     let defaultOt = parseFloat(document.getElementById('workerDefaultOt').value);
-    if (isNaN(defaultOt)) defaultOt = 1.5;
+    if (isNaN(defaultOt)) defaultOt = 0.0;
     defaultOt = Math.max(0, Math.min(3.0, Math.round(defaultOt * 100) / 100));
     const phone = document.getElementById('workerPhone').value.trim();
     const status = document.getElementById('workerStatus').value;

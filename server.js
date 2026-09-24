@@ -61,7 +61,7 @@ function calculateWage(dailyWage, status, otDays, otMultiplier, isHolidayWork = 
 
   // Multiplier from 0.00 to 3.00 (up to 2 decimal places)
   if (otMultiplier === undefined || otMultiplier === null || isNaN(Number(otMultiplier))) {
-    otMultiplier = 1.5;
+    otMultiplier = 0.0;
   } else {
     otMultiplier = Math.max(0, Math.min(3.0, Math.round(Number(otMultiplier) * 100) / 100));
   }
@@ -252,7 +252,7 @@ app.post('/api/employees', (req, res) => {
       phone ? phone.trim() : '',
       role ? role.trim() : 'Worker',
       wage,
-      parseFloat(default_ot_multiplier) || 1.5,
+      default_ot_multiplier !== undefined && !isNaN(parseFloat(default_ot_multiplier)) ? parseFloat(default_ot_multiplier) : 0.0,
       notes ? notes.trim() : ''
     );
 
@@ -284,7 +284,7 @@ app.put('/api/employees/:id', (req, res) => {
       phone !== undefined ? phone.trim() : existing.phone,
       role !== undefined ? role.trim() : existing.role,
       daily_wage !== undefined ? parseFloat(daily_wage) : existing.daily_wage,
-      default_ot_multiplier !== undefined ? parseFloat(default_ot_multiplier) : existing.default_ot_multiplier,
+      default_ot_multiplier !== undefined && !isNaN(parseFloat(default_ot_multiplier)) ? parseFloat(default_ot_multiplier) : existing.default_ot_multiplier,
       notes !== undefined ? notes.trim() : existing.notes,
       status !== undefined ? status : existing.status,
       id
@@ -402,9 +402,10 @@ app.get('/api/attendance', (req, res) => {
         };
       } else {
         // Unmarked entry: Check if date is Tuesday (Weekly Off) or Paid Holiday
+        const workerDefaultOt = (w.default_ot_multiplier !== undefined && w.default_ot_multiplier !== null) ? w.default_ot_multiplier : 0.0;
         if (meta.isPaidDayOff) {
           // Every Tuesday or Paid Holiday defaults to Paid Leave (full day wage)!
-          const defaultCalc = calculateWage(w.daily_wage, 'PAID_LEAVE', 0, w.default_ot_multiplier, false);
+          const defaultCalc = calculateWage(w.daily_wage, 'PAID_LEAVE', 0, workerDefaultOt, false);
           return {
             id: null,
             employee_id: w.id,
@@ -418,7 +419,7 @@ app.get('/api/attendance', (req, res) => {
             daily_wage: w.daily_wage,
             base_pay: defaultCalc.basePay,
             overtime_days: 0,
-            overtime_multiplier: w.default_ot_multiplier || 1.5,
+            overtime_multiplier: workerDefaultOt,
             overtime_pay: 0,
             is_holiday_work: false,
             bonus_allowance: 0,
@@ -441,7 +442,7 @@ app.get('/api/attendance', (req, res) => {
             daily_wage: w.daily_wage,
             base_pay: 0,
             overtime_days: 0,
-            overtime_multiplier: w.default_ot_multiplier || 1.5,
+            overtime_multiplier: workerDefaultOt,
             overtime_pay: 0,
             is_holiday_work: false,
             bonus_allowance: 0,
@@ -522,12 +523,15 @@ app.post('/api/attendance', (req, res) => {
 
   const otDays = parseFloat(overtime_days || 0);
   const holidayWork = is_holiday_work ? 1 : 0;
+  const otMult = (overtime_multiplier !== undefined && overtime_multiplier !== null && !isNaN(parseFloat(overtime_multiplier)))
+    ? parseFloat(overtime_multiplier)
+    : (worker.default_ot_multiplier !== undefined && worker.default_ot_multiplier !== null ? worker.default_ot_multiplier : 0.0);
 
   const calc = calculateWage(
     worker.daily_wage,
     status,
     otDays,
-    overtime_multiplier || worker.default_ot_multiplier,
+    otMult,
     holidayWork,
     bonus_allowance,
     deduction
@@ -614,12 +618,15 @@ app.post('/api/attendance/batch', (req, res) => {
 
       const otDays = parseFloat(r.overtime_days || 0);
       const holidayWork = r.is_holiday_work ? 1 : 0;
+      const otMult = (r.overtime_multiplier !== undefined && r.overtime_multiplier !== null && !isNaN(parseFloat(r.overtime_multiplier)))
+        ? parseFloat(r.overtime_multiplier)
+        : (worker.default_ot_multiplier !== undefined && worker.default_ot_multiplier !== null ? worker.default_ot_multiplier : 0.0);
 
       const calc = calculateWage(
         worker.daily_wage,
         r.status || 'PRESENT',
         otDays,
-        r.overtime_multiplier || worker.default_ot_multiplier || 1.5,
+        otMult,
         holidayWork,
         r.bonus_allowance || 0,
         r.deduction || 0
@@ -798,7 +805,7 @@ app.get('/api/reports/payroll', (req, res) => {
         const otDays = a.overtime_days || 0;
         if (otDays > 0) {
           totalOtDays += otDays;
-          const multKey = Number(a.overtime_multiplier || 1.5).toFixed(2);
+          const multKey = Number(a.overtime_multiplier !== undefined && a.overtime_multiplier !== null ? a.overtime_multiplier : 0.0).toFixed(2);
           otMultiplierMap[multKey] = (otMultiplierMap[multKey] || 0) + otDays;
         }
 
@@ -913,7 +920,7 @@ app.get('/api/reports/export-csv', (req, res) => {
         const otDays = a.overtime_days || 0;
         if (otDays > 0) {
           totalOt += otDays;
-          const k = Number(a.overtime_multiplier || 1.5).toFixed(2);
+          const k = Number(a.overtime_multiplier !== undefined && a.overtime_multiplier !== null ? a.overtime_multiplier : 0.0).toFixed(2);
           multMap[k] = (multMap[k] || 0) + otDays;
         }
 

@@ -186,7 +186,7 @@ const AttendanceModule = {
     const isPaidLeave = r.status === 'PAID_LEAVE' || r.status === 'PAID_HOLIDAY';
     const isAbsent = r.status === 'ABSENT';
 
-    const otMult = Number(r.overtime_multiplier !== undefined ? r.overtime_multiplier : 1.5);
+    const otMult = Number(r.overtime_multiplier !== undefined && r.overtime_multiplier !== null ? r.overtime_multiplier : 0.0);
     const otDays = Number(r.overtime_days || 0);
 
     // Live calculation breakdown preview (Day-Wise)
@@ -256,6 +256,7 @@ const AttendanceModule = {
                 <span>Overtime Multiplier:</span>
               </div>
               <div class="ot-chips-wrap">
+                <button type="button" class="ot-chip-btn ${Math.abs(otMult - 0.0) < 0.001 ? 'selected' : ''}" data-mult="0.00" data-emp-id="${r.employee_id}">0.0x</button>
                 <button type="button" class="ot-chip-btn ${Math.abs(otMult - 1.0) < 0.001 ? 'selected' : ''}" data-mult="1.00" data-emp-id="${r.employee_id}">1.0x</button>
                 <button type="button" class="ot-chip-btn ${Math.abs(otMult - 1.5) < 0.001 ? 'selected' : ''}" data-mult="1.50" data-emp-id="${r.employee_id}">1.5x</button>
                 <button type="button" class="ot-chip-btn ${Math.abs(otMult - 2.0) < 0.001 ? 'selected' : ''}" data-mult="2.00" data-emp-id="${r.employee_id}">2.0x</button>
@@ -341,6 +342,7 @@ const AttendanceModule = {
               <span>OT Multiplier:</span>
             </div>
             <div class="ot-chips-wrap">
+              <button type="button" class="ot-chip-btn ${Math.abs(otMult - 0.0) < 0.001 ? 'selected' : ''}" data-mult="0.00" data-emp-id="${r.employee_id}">0.0x</button>
               <button type="button" class="ot-chip-btn ${Math.abs(otMult - 1.0) < 0.001 ? 'selected' : ''}" data-mult="1.00" data-emp-id="${r.employee_id}">1.0x</button>
               <button type="button" class="ot-chip-btn ${Math.abs(otMult - 1.5) < 0.001 ? 'selected' : ''}" data-mult="1.50" data-emp-id="${r.employee_id}">1.5x</button>
               <button type="button" class="ot-chip-btn ${Math.abs(otMult - 2.0) < 0.001 ? 'selected' : ''}" data-mult="2.00" data-emp-id="${r.employee_id}">2.0x</button>
@@ -408,7 +410,7 @@ const AttendanceModule = {
       input.addEventListener('change', () => {
         const empId = parseInt(input.dataset.empId);
         let val = parseFloat(input.value);
-        if (isNaN(val)) val = 1.5;
+        if (isNaN(val)) val = 0.0;
         val = Math.max(0, Math.min(3.0, Math.round(val * 100) / 100));
         input.value = val.toFixed(2);
         this.updateWorkerAttendance(empId, { overtime_multiplier: val });
@@ -528,7 +530,7 @@ const AttendanceModule = {
       }
     });
 
-    const otMult = Number(record.overtime_multiplier !== undefined ? record.overtime_multiplier : 1.5);
+    const otMult = Number(record.overtime_multiplier !== undefined && record.overtime_multiplier !== null ? record.overtime_multiplier : 0.0);
     const otDays = Number(record.overtime_days || 0);
 
     // Update multiplier preset chips
@@ -598,7 +600,8 @@ const AttendanceModule = {
       }
 
       const otDays = Number(item.overtime_days || 0);
-      const ot = otDays * item.daily_wage * (item.overtime_multiplier || 1.5);
+      const otMult = (item.overtime_multiplier !== undefined && item.overtime_multiplier !== null) ? Number(item.overtime_multiplier) : 0.0;
+      const ot = otDays * item.daily_wage * otMult;
       totalOtDays += otDays;
       totalWagesToday += (base + ot);
     }
@@ -629,7 +632,7 @@ const AttendanceModule = {
       employee_id: r.employee_id,
       status: targetStatus,
       overtime_days: 0,
-      overtime_multiplier: r.overtime_multiplier || 1.5,
+      overtime_multiplier: (r.overtime_multiplier !== undefined && r.overtime_multiplier !== null) ? Number(r.overtime_multiplier) : 0.0,
       is_holiday_work: 0,
       notes: isDayOff ? (this.dateMeta.dayOffReason || 'Paid Leave') : ''
     }));

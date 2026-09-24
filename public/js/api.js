@@ -1,7 +1,7 @@
 // API Client & Shared Utilities
 const API = {
   currency: '₹',
-  defaultOtMult: 1.5,
+  defaultOtMult: 0.0,
 
   // Generic fetch wrapper
   async request(endpoint, options = {}) {
@@ -53,7 +53,9 @@ const API = {
     const res = await this.request('/api/settings');
     if (res.success && res.settings) {
       if (res.settings.currency_symbol) this.currency = res.settings.currency_symbol;
-      if (res.settings.default_ot_multiplier) this.defaultOtMult = parseFloat(res.settings.default_ot_multiplier) || 1.5;
+      if (res.settings.default_ot_multiplier !== undefined && res.settings.default_ot_multiplier !== null) {
+        this.defaultOtMult = parseFloat(res.settings.default_ot_multiplier);
+      }
     }
     return res;
   },

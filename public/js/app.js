@@ -298,7 +298,9 @@ const App = {
           document.getElementById('settingCurrency').value = s.currency_symbol;
           document.querySelectorAll('.currency-tag').forEach(el => el.textContent = s.currency_symbol);
         }
-        if (s.default_ot_multiplier) document.getElementById('settingDefaultOtMult').value = s.default_ot_multiplier;
+        if (s.default_ot_multiplier !== undefined && s.default_ot_multiplier !== null) {
+          document.getElementById('settingDefaultOtMult').value = parseFloat(s.default_ot_multiplier).toFixed(2);
+        }
       }
     } catch (e) {
       console.warn('Failed to populate settings form:', e);
