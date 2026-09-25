@@ -217,18 +217,20 @@ const AttendanceModule = {
     }
 
     let otPayDisplay = 0;
-    if (isPaidDayOff) {
-      if (isHolidayWork && !isAbsent) {
+    if (isManager) {
+      otPayDisplay = otDays * r.daily_wage * otMult;
+    } else if (isPiece) {
+      if (isPaidDayOff && isHolidayWork && !isAbsent) {
         otPayDisplay = 200;
       } else {
         otPayDisplay = 0;
       }
-    } else if (isManager) {
-      otPayDisplay = otDays * r.daily_wage * otMult;
-    } else if (isPiece) {
-      otPayDisplay = 0; // Disabled for cards and bangles on normal days
     } else {
-      otPayDisplay = extraBoxes * boxRate;
+      if (isPaidDayOff && !isHolidayWork) {
+        otPayDisplay = 0;
+      } else {
+        otPayDisplay = extraBoxes * boxRate;
+      }
     }
 
     const totalDayEst = basePayDisplay + otPayDisplay;
@@ -245,12 +247,35 @@ const AttendanceModule = {
     ).join('');
 
     let otControlsHtml = '';
+    const categoryDropdownHtml = `
+      <div class="work-category-row" id="cat-row-${r.employee_id}" style="${isAbsent ? 'opacity: 0.5; pointer-events: none;' : ''}">
+        <label class="work-category-label">${isPiece ? '🃏' : '📦'} Work Category:</label>
+        <select class="work-category-select" data-emp-id="${r.employee_id}" id="cat-select-${r.employee_id}">
+          <option value="">-- Select Work Category --</option>
+          ${categoryOptionsHtml}
+        </select>
+      </div>
+    `;
+
     if (isPaidDayOff) {
-      if (isHolidayWork && !isAbsent) {
+      if (!isHolidayWork) {
         otControlsHtml = `
+          ${categoryDropdownHtml}
+          <div class="holiday-off-box" style="background: rgba(14, 165, 233, 0.08); border: 1px solid rgba(14, 165, 233, 0.2); border-radius: 8px; padding: 8px 12px; margin-top: 10px; font-size: 0.82rem; color: #0369a1;">
+            <span>🌴 Paid Day Off: Full day's wage credited (₹0 Overtime)</span>
+          </div>
+          <div class="ot-calc-preview mt-2" id="ot-preview-${r.employee_id}">
+            <span>Holiday Pay: ${API.formatMoney(basePayDisplay)}</span>
+            <span>OT: <strong>₹0</strong></span>
+          </div>
+          <input type="text" class="notes-input-mini mt-2" placeholder="Notes..." value="${this.escapeHtml(r.notes || '')}" data-emp-id="${r.employee_id}" id="notes-${r.employee_id}">
+        `;
+      } else if (isPiece) {
+        otControlsHtml = `
+          ${categoryDropdownHtml}
           <div class="holiday-ot-active-box" style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; padding: 10px 14px; margin-top: 10px; display: flex; justify-content: space-between; align-items: center;">
             <div>
-              <div style="font-weight: 600; color: #047857; font-size: 0.88rem;">🎉 Worked on Holiday / Tuesday</div>
+              <div style="font-weight: 600; color: #047857; font-size: 0.88rem;">🎉 ${this.escapeHtml(currentCat || 'Cards & Bangles')} (Holiday Work)</div>
               <div style="font-size: 0.78rem; color: #065f46;">Fixed Overtime Wage: <strong>+₹200</strong> added to full day wage</div>
             </div>
             <div style="background: #10b981; color: white; font-weight: 700; font-size: 0.82rem; padding: 4px 10px; border-radius: 6px;">
@@ -264,15 +289,50 @@ const AttendanceModule = {
           <input type="text" class="notes-input-mini mt-2" placeholder="Notes (e.g. Holiday shift)..." value="${this.escapeHtml(r.notes || '')}" data-emp-id="${r.employee_id}" id="notes-${r.employee_id}">
         `;
       } else {
+        // Rest of the categories on holiday work: same like other day (extra boxes)
         otControlsHtml = `
-          <div class="holiday-off-box" style="background: rgba(14, 165, 233, 0.08); border: 1px solid rgba(14, 165, 233, 0.2); border-radius: 8px; padding: 8px 12px; margin-top: 10px; font-size: 0.82rem; color: #0369a1;">
-            <span>🌴 Paid Day Off: Full day's wage credited (₹0 Overtime)</span>
+          ${categoryDropdownHtml}
+          <div class="overtime-panel holiday-active">
+            <div class="ot-controls-row">
+              <div class="ot-label-group">
+                <span>📦 Extra Boxes Packed</span>
+                <span class="box-rate-tag">(@ ${API.formatMoney(boxRate)}/box)</span>
+              </div>
+
+              <div class="ot-stepper-wrap">
+                <button type="button" class="ot-step-btn btn-box-minus" data-emp-id="${r.employee_id}">-</button>
+                <input type="number" 
+                       step="1" 
+                       min="0" 
+                       max="99999" 
+                       class="ot-input box-count-input" 
+                       id="box-input-${r.employee_id}" 
+                       value="${extraBoxes}" 
+                       data-emp-id="${r.employee_id}">
+                <span class="text-xs text-muted" id="unit-label-${r.employee_id}">boxes</span>
+                <button type="button" class="ot-step-btn btn-box-plus" data-emp-id="${r.employee_id}">+</button>
+              </div>
+            </div>
+
+            <!-- Quick Chips -->
+            <div class="box-quick-chips">
+              <button type="button" class="box-chip-btn ${extraBoxes === 0 ? 'selected' : ''}" data-count="0" data-emp-id="${r.employee_id}">0</button>
+              <button type="button" class="box-chip-btn ${extraBoxes === 1 ? 'selected' : ''}" data-count="1" data-emp-id="${r.employee_id}">+1</button>
+              <button type="button" class="box-chip-btn ${extraBoxes === 2 ? 'selected' : ''}" data-count="2" data-emp-id="${r.employee_id}">+2</button>
+              <button type="button" class="box-chip-btn ${extraBoxes === 3 ? 'selected' : ''}" data-count="3" data-emp-id="${r.employee_id}">+3</button>
+              <button type="button" class="box-chip-btn ${extraBoxes === 5 ? 'selected' : ''}" data-count="5" data-emp-id="${r.employee_id}">+5</button>
+              <button type="button" class="box-chip-btn ${extraBoxes === 10 ? 'selected' : ''}" data-count="10" data-emp-id="${r.employee_id}">+10</button>
+            </div>
+
+            <!-- Formula preview -->
+            <div class="ot-calc-preview" id="ot-preview-${r.employee_id}">
+              <span>Holiday Base: ${API.formatMoney(basePayDisplay)}</span>
+              <span>Extra Boxes: ${extraBoxes > 0 ? `${extraBoxes} boxes × ${API.formatMoney(boxRate)} = <strong>${API.formatMoney(otPayDisplay)}</strong>` : '0 boxes'}</span>
+            </div>
+
+            <!-- Quick Notes -->
+            <input type="text" class="notes-input-mini mt-2" placeholder="Notes (e.g. Holiday packaging shift)..." value="${this.escapeHtml(r.notes || '')}" data-emp-id="${r.employee_id}" id="notes-${r.employee_id}">
           </div>
-          <div class="ot-calc-preview mt-2" id="ot-preview-${r.employee_id}">
-            <span>Holiday Pay: ${API.formatMoney(basePayDisplay)}</span>
-            <span>OT: <strong>₹0</strong></span>
-          </div>
-          <input type="text" class="notes-input-mini mt-2" placeholder="Notes..." value="${this.escapeHtml(r.notes || '')}" data-emp-id="${r.employee_id}" id="notes-${r.employee_id}">
         `;
       }
     } else if (isManager) {
@@ -704,14 +764,20 @@ const AttendanceModule = {
     const extraBoxes = Number(record.extra_boxes || 0);
     const boxRate = Number(record.box_rate !== undefined ? record.box_rate : (API.defaultBoxRate || 30.0));
 
-    if (isPaidDayOff) {
-      otPay = (isHolidayWork && record.status !== 'ABSENT') ? 200 : 0;
-    } else if (isManager) {
+    if (isManager) {
       otPay = (record.overtime_days || 0) * record.daily_wage * (record.overtime_multiplier || 0);
     } else if (isPiece) {
-      otPay = 0; // Disabled for cards and bangles on normal days
+      if (isPaidDayOff && isHolidayWork && record.status !== 'ABSENT') {
+        otPay = 200;
+      } else {
+        otPay = 0;
+      }
     } else {
-      otPay = extraBoxes * boxRate;
+      if (isPaidDayOff && !isHolidayWork) {
+        otPay = 0;
+      } else {
+        otPay = extraBoxes * boxRate;
+      }
     }
 
     const totalDay = basePay + otPay;
@@ -742,30 +808,37 @@ const AttendanceModule = {
     // Update calculation preview formula
     const otPreviewEl = document.getElementById(`ot-preview-${record.employee_id}`);
     if (otPreviewEl) {
-      if (isPaidDayOff) {
-        if (isHolidayWork && record.status !== 'ABSENT') {
+      if (isManager) {
+        otPreviewEl.innerHTML = `<span>Base: ${API.formatMoney(basePay)}</span>`;
+      } else if (isPiece) {
+        if (isPaidDayOff && isHolidayWork && record.status !== 'ABSENT') {
           otPreviewEl.innerHTML = `
             <span>Holiday Base: ${API.formatMoney(basePay)}</span>
             <span>Fixed Holiday OT: <strong>${API.formatMoney(200)}</strong></span>
           `;
-        } else {
+        } else if (isPaidDayOff && !isHolidayWork) {
           otPreviewEl.innerHTML = `
             <span>Holiday Pay: ${API.formatMoney(basePay)}</span>
             <span>OT: <strong>₹0</strong></span>
           `;
+        } else {
+          otPreviewEl.innerHTML = `
+            <span>Base: ${API.formatMoney(basePay)}</span>
+            <span>OT: <strong style="color: #64748b;">₹0 (Disabled)</strong></span>
+          `;
         }
-      } else if (isManager) {
-        otPreviewEl.innerHTML = `<span>Base: ${API.formatMoney(basePay)}</span>`;
-      } else if (isPiece) {
-        otPreviewEl.innerHTML = `
-          <span>Base: ${API.formatMoney(basePay)}</span>
-          <span>OT: <strong style="color: #64748b;">₹0 (Disabled)</strong></span>
-        `;
       } else {
-        otPreviewEl.innerHTML = `
-          <span>Base: ${API.formatMoney(basePay)}</span>
-          <span>Extra Boxes: ${extraBoxes > 0 ? `${extraBoxes} boxes × ${API.formatMoney(boxRate)} = <strong>${API.formatMoney(otPay)}</strong>` : '0 boxes'}</span>
-        `;
+        if (isPaidDayOff && !isHolidayWork) {
+          otPreviewEl.innerHTML = `
+            <span>Holiday Pay: ${API.formatMoney(basePay)}</span>
+            <span>OT: <strong>₹0</strong></span>
+          `;
+        } else {
+          otPreviewEl.innerHTML = `
+            <span>${isPaidDayOff ? 'Holiday Base' : 'Base'}: ${API.formatMoney(basePay)}</span>
+            <span>Extra Boxes: ${extraBoxes > 0 ? `${extraBoxes} boxes × ${API.formatMoney(boxRate)} = <strong>${API.formatMoney(otPay)}</strong>` : '0 boxes'}</span>
+          `;
+        }
       }
     }
   },
@@ -804,19 +877,25 @@ const AttendanceModule = {
       const isPiece = this.isPieceCategory(item.work_category);
       const rate = Number(item.box_rate !== undefined ? item.box_rate : (API.defaultBoxRate || 30.0));
 
-      if (isPaidDayOff) {
-        ot = (isHolidayWork && item.status !== 'ABSENT') ? 200 : 0;
-      } else if (item.worker_type === 'MANAGER') {
+      if (item.worker_type === 'MANAGER') {
         const otDays = Number(item.overtime_days || 0);
         const otMult = Number(item.overtime_multiplier || 0);
         ot = otDays * item.daily_wage * otMult;
         totalOtDays += otDays;
       } else if (isPiece) {
-        ot = 0; // Disabled for cards and bangles on normal days
+        if (isPaidDayOff && isHolidayWork && item.status !== 'ABSENT') {
+          ot = 200;
+        } else {
+          ot = 0;
+        }
       } else {
-        const boxes = Number(item.extra_boxes || 0);
-        ot = boxes * rate;
-        totalExtraBoxes += boxes;
+        if (isPaidDayOff && !isHolidayWork) {
+          ot = 0;
+        } else {
+          const boxes = Number(item.extra_boxes || 0);
+          ot = boxes * rate;
+          totalExtraBoxes += boxes;
+        }
       }
 
       totalWagesToday += (base + ot);

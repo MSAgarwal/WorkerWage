@@ -109,19 +109,7 @@ function calculateWage(
   // Determine if this is holiday work on a paid holiday / Tuesday
   const isHoliday = !!isHolidayWork || (isPaidDayOff && (status === 'PRESENT' || status === 'HALF_DAY'));
 
-  if (isHoliday) {
-    // User requirement: "for paid holidays either it is tuesday or holiday make it fixed overtime of ₹200 for now"
-    if (status !== 'ABSENT') {
-      overtimePay = 200.0;
-    } else {
-      overtimePay = 0.0;
-    }
-    parsedBoxes = 0;
-    parsedPieces = 0;
-    parsedBoxRate = 0.0;
-    parsedOtDays = 0;
-    parsedOtMultiplier = 0.0;
-  } else if (workerType === 'MANAGER') {
+  if (workerType === 'MANAGER') {
     // Manager: Exempt from packaging work categories & box/piece overtime
     parsedOtDays = Number(otDays) || 0;
     if (otMultiplier === undefined || otMultiplier === null || isNaN(Number(otMultiplier))) {
@@ -134,23 +122,33 @@ function calculateWage(
     parsedPieces = 0;
     parsedBoxRate = 0.0;
   } else {
-    // Packaging Worker on a Normal Day:
+    // Packaging Worker:
     const isPiece = isPieceCategory(workCategory);
 
     if (isPiece) {
-      // User requirement: "for now disable overtime for card and bangles in normal days"
-      overtimePay = 0.0;
+      // User requirement: "only for cards and bangle it will be fixed on hoildays for rest of the categories it should be same like other day"
+      if (isHoliday && status !== 'ABSENT') {
+        overtimePay = 200.0;
+      } else {
+        // Disabled on normal days
+        overtimePay = 0.0;
+      }
       parsedPieces = 0;
       parsedBoxes = 0;
       parsedBoxRate = 0.0;
     } else {
-      // Normal packaging category (e.g. Sp 100, Pd 80, etc.): Overtime in extra boxes @ box rate (default ₹30/box)
-      parsedBoxRate = (boxRate !== undefined && boxRate !== null && !isNaN(parseFloat(boxRate)))
-        ? Math.max(0, parseFloat(boxRate))
-        : 30.0;
-      parsedBoxes = Math.max(0, parseFloat(extraBoxes) || 0);
+      // Rest of the categories: same like other days (extra boxes * boxRate)
+      if (isPaidDayOff && !isHolidayWork) {
+        parsedBoxes = 0;
+        overtimePay = 0.0;
+      } else {
+        parsedBoxRate = (boxRate !== undefined && boxRate !== null && !isNaN(parseFloat(boxRate)))
+          ? Math.max(0, parseFloat(boxRate))
+          : 30.0;
+        parsedBoxes = Math.max(0, parseFloat(extraBoxes) || 0);
+        overtimePay = parsedBoxes * parsedBoxRate;
+      }
       parsedPieces = 0;
-      overtimePay = parsedBoxes * parsedBoxRate;
     }
 
     parsedOtDays = 0;
@@ -671,18 +669,9 @@ app.post('/api/attendance', (req, res) => {
   let parsedExtraPieces = 0;
   let parsedExtraBoxes = 0;
 
-  if (isManager || holidayWork || (isPiece && !isPaidDayOff)) {
+  if (isManager || isPiece) {
     parsedExtraPieces = 0;
     parsedExtraBoxes = 0;
-  } else if (isPiece) {
-    if (extra_pieces !== undefined && extra_pieces !== null && !isNaN(parseFloat(extra_pieces))) {
-      parsedExtraPieces = Math.max(0, parseFloat(extra_pieces));
-    } else if (parseFloat(extra_boxes) >= 100) {
-      parsedExtraPieces = Math.max(0, parseFloat(extra_boxes));
-    } else {
-      parsedExtraPieces = Math.max(0, parseFloat(extra_boxes || 0) * 500);
-    }
-    parsedExtraBoxes = Math.round((parsedExtraPieces / 500) * 100) / 100;
   } else {
     parsedExtraBoxes = Math.max(0, parseFloat(extra_boxes || 0));
     parsedExtraPieces = 0;
@@ -818,18 +807,9 @@ app.post('/api/attendance/batch', (req, res) => {
       let parsedExtraPieces = 0;
       let parsedExtraBoxes = 0;
 
-      if (isManager || holidayWork || (isPiece && !isPaidDayOff)) {
+      if (isManager || isPiece) {
         parsedExtraPieces = 0;
         parsedExtraBoxes = 0;
-      } else if (isPiece) {
-        if (r.extra_pieces !== undefined && r.extra_pieces !== null && !isNaN(parseFloat(r.extra_pieces))) {
-          parsedExtraPieces = Math.max(0, parseFloat(r.extra_pieces));
-        } else if (parseFloat(r.extra_boxes) >= 100) {
-          parsedExtraPieces = Math.max(0, parseFloat(r.extra_boxes));
-        } else {
-          parsedExtraPieces = Math.max(0, parseFloat(r.extra_boxes || 0) * 500);
-        }
-        parsedExtraBoxes = Math.round((parsedExtraPieces / 500) * 100) / 100;
       } else {
         parsedExtraBoxes = Math.max(0, parseFloat(r.extra_boxes || 0));
         parsedExtraPieces = 0;
