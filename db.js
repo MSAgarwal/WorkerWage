@@ -23,9 +23,11 @@ function initDatabase() {
       name TEXT NOT NULL,
       phone TEXT,
       role TEXT,
+      worker_type TEXT NOT NULL DEFAULT 'WORKER',
       daily_wage REAL NOT NULL DEFAULT 0.0,
       standard_hours REAL DEFAULT 8.0,
       default_ot_multiplier REAL NOT NULL DEFAULT 0.0,
+      default_box_rate REAL NOT NULL DEFAULT 30.0,
       status TEXT NOT NULL DEFAULT 'ACTIVE',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       notes TEXT
@@ -39,6 +41,9 @@ function initDatabase() {
       standard_hours REAL DEFAULT 8.0,
       daily_wage_snapshot REAL NOT NULL DEFAULT 0.0,
       base_pay REAL NOT NULL DEFAULT 0.0,
+      work_category TEXT DEFAULT '',
+      extra_boxes REAL NOT NULL DEFAULT 0.0,
+      box_rate REAL NOT NULL DEFAULT 30.0,
       overtime_hours REAL DEFAULT 0.0,
       overtime_days REAL NOT NULL DEFAULT 0.0,
       overtime_multiplier REAL NOT NULL DEFAULT 0.0,
@@ -81,20 +86,57 @@ function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_holidays_date ON holidays(date);
   `);
 
-  // Migrate attendance table for day-wise overtime and holiday work if upgrading
+  // Migrations for columns if upgrading
   try {
     db.exec('ALTER TABLE attendance ADD COLUMN overtime_days REAL NOT NULL DEFAULT 0.0;');
   } catch (e) {}
   try {
     db.exec('ALTER TABLE attendance ADD COLUMN is_holiday_work INTEGER NOT NULL DEFAULT 0;');
   } catch (e) {}
+  try {
+    db.exec("ALTER TABLE employees ADD COLUMN worker_type TEXT NOT NULL DEFAULT 'WORKER';");
+  } catch (e) {}
+  try {
+    db.exec('ALTER TABLE employees ADD COLUMN default_box_rate REAL NOT NULL DEFAULT 30.0;');
+  } catch (e) {}
+  try {
+    db.exec("ALTER TABLE attendance ADD COLUMN work_category TEXT DEFAULT '';");
+  } catch (e) {}
+  try {
+    db.exec('ALTER TABLE attendance ADD COLUMN extra_boxes REAL NOT NULL DEFAULT 0.0;');
+  } catch (e) {}
+  try {
+    db.exec('ALTER TABLE attendance ADD COLUMN box_rate REAL NOT NULL DEFAULT 30.0;');
+  } catch (e) {}
 
   // Initialize Default Settings if not present
+  const defaultWorkCategories = [
+    'Sp 100',
+    'Sp 80',
+    'Sp 80 kishanganj',
+    'Pd 80',
+    'Pd 100',
+    'S 50',
+    'Pd 40',
+    'Pd 50',
+    'P 100',
+    'p 95',
+    'P card',
+    'Sp card',
+    'pd orange card',
+    'pd pink card',
+    'pd big card',
+    'sp big card',
+    'bangles(special)'
+  ];
+
   const defaultSettings = [
     { key: 'admin_pin', value: '1234' },
     { key: 'business_name', value: 'Daily Wage Attendance & Payroll' },
     { key: 'currency_symbol', value: '₹' },
     { key: 'default_ot_multiplier', value: '0.0' },
+    { key: 'default_box_rate', value: '30.0' },
+    { key: 'work_categories', value: JSON.stringify(defaultWorkCategories) },
     { key: 'weekly_paid_off_day', value: 'Tuesday' },
     { key: 'site_location', value: 'Main Work Site' }
   ];

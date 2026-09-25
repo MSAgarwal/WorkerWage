@@ -26,6 +26,17 @@ const EmployeesModule = {
       this.searchQuery = e.target.value.toLowerCase().trim();
       this.render();
     });
+
+    // Toggle Worker Type in modal
+    document.querySelectorAll('input[name="workerType"]').forEach(r => {
+      r.addEventListener('change', () => {
+        const isManager = document.getElementById('workerTypeManager').checked;
+        const boxRateWrap = document.getElementById('wrapWorkerBoxRate');
+        const notice = document.getElementById('managerExemptNotice');
+        if (boxRateWrap) boxRateWrap.style.display = isManager ? 'none' : 'block';
+        if (notice) notice.style.display = isManager ? 'flex' : 'none';
+      });
+    });
   },
 
   async loadWorkers() {
@@ -68,8 +79,8 @@ const EmployeesModule = {
 
     container.innerHTML = filtered.map(w => {
       const isActive = w.status === 'ACTIVE';
-      const otMultiplier = parseFloat(w.default_ot_multiplier !== undefined && w.default_ot_multiplier !== null ? w.default_ot_multiplier : 0.0);
-      const otDayRate = w.daily_wage * otMultiplier;
+      const isManager = w.worker_type === 'MANAGER';
+      const boxRate = w.default_box_rate !== undefined && w.default_box_rate !== null ? w.default_box_rate : 30;
 
       return `
         <div class="emp-card ${isActive ? '' : 'inactive'}" style="${!isActive ? 'opacity: 0.6; background: #f8fafc;' : ''}">
@@ -77,7 +88,7 @@ const EmployeesModule = {
             <div class="emp-header">
               <div>
                 <span class="emp-name">${this.escapeHtml(w.name)}</span>
-                <span class="worker-badge">${this.escapeHtml(w.employee_code || '')}</span>
+                <span class="worker-badge ${isManager ? 'manager-badge' : ''}">${isManager ? '👔 Manager' : '📦 Packaging Worker'}</span>
               </div>
               <span class="badge ${isActive ? 'text-success' : 'text-muted'}" style="font-weight: 700; font-size: 0.75rem;">
                 ${isActive ? '🟢 Active' : '⚪ Inactive'}
@@ -85,7 +96,8 @@ const EmployeesModule = {
             </div>
 
             <div class="text-sm text-muted mb-2">
-              <strong>${this.escapeHtml(w.role || 'Daily Worker')}</strong>
+              <strong>${this.escapeHtml(w.role || (isManager ? 'Manager' : 'Packaging Worker'))}</strong>
+              <span class="text-xs text-muted">(${this.escapeHtml(w.employee_code || '')})</span>
               ${w.phone ? ` • 📞 ${this.escapeHtml(w.phone)}` : ''}
             </div>
 
@@ -94,10 +106,15 @@ const EmployeesModule = {
               <span class="emp-rate-val">${API.formatMoney(w.daily_wage)}/day</span>
             </div>
 
-            <div class="text-xs text-muted">
-              Default OT Multiplier: <strong>${otMultiplier.toFixed(2)}x</strong>
-              (${API.formatMoney(otDayRate)}/day OT rate)
-            </div>
+            ${isManager ? `
+              <div class="text-xs text-purple" style="font-weight: 600;">
+                👔 Manager: Fixed daily wage (Exempt from packaging work categories & box overtime)
+              </div>
+            ` : `
+              <div class="text-xs text-muted">
+                Overtime Rate: <strong>${API.formatMoney(boxRate)}/box</strong> (Based on extra boxes packed)
+              </div>
+            `}
 
             ${w.notes ? `<div class="text-xs text-muted mt-2" style="font-style: italic;">"${this.escapeHtml(w.notes)}"</div>` : ''}
           </div>
@@ -122,25 +139,41 @@ const EmployeesModule = {
 
     const titleEl = document.getElementById('workerModalTitle');
     const idInput = document.getElementById('workerId');
+    const boxRateWrap = document.getElementById('wrapWorkerBoxRate');
+    const notice = document.getElementById('managerExemptNotice');
 
     if (workerId) {
       const worker = this.workers.find(w => w.id === workerId);
       if (!worker) return;
-      titleEl.textContent = 'Edit Worker';
+      const isManager = worker.worker_type === 'MANAGER';
+      titleEl.textContent = isManager ? 'Edit Manager' : 'Edit Worker';
       idInput.value = worker.id;
       document.getElementById('workerName').value = worker.name;
       document.getElementById('workerCode').value = worker.employee_code || '';
       document.getElementById('workerDailyWage').value = worker.daily_wage;
       document.getElementById('workerRole').value = worker.role || '';
-      document.getElementById('workerDefaultOt').value = parseFloat(worker.default_ot_multiplier !== undefined && worker.default_ot_multiplier !== null ? worker.default_ot_multiplier : 0.0).toFixed(2);
+      document.getElementById('workerDefaultBoxRate').value = worker.default_box_rate !== undefined ? worker.default_box_rate : 30;
       document.getElementById('workerPhone').value = worker.phone || '';
       document.getElementById('workerStatus').value = worker.status || 'ACTIVE';
       document.getElementById('workerNotes').value = worker.notes || '';
+
+      if (isManager) {
+        document.getElementById('workerTypeManager').checked = true;
+        if (boxRateWrap) boxRateWrap.style.display = 'none';
+        if (notice) notice.style.display = 'flex';
+      } else {
+        document.getElementById('workerTypeWorker').checked = true;
+        if (boxRateWrap) boxRateWrap.style.display = 'block';
+        if (notice) notice.style.display = 'none';
+      }
     } else {
-      titleEl.textContent = 'Add New Daily Wage Worker';
+      titleEl.textContent = 'Add New Worker / Manager';
       idInput.value = '';
-      document.getElementById('workerDefaultOt').value = parseFloat(API.defaultOtMult !== undefined ? API.defaultOtMult : 0.0).toFixed(2);
+      document.getElementById('workerTypeWorker').checked = true;
+      document.getElementById('workerDefaultBoxRate').value = API.defaultBoxRate || 30;
       document.getElementById('workerStatus').value = 'ACTIVE';
+      if (boxRateWrap) boxRateWrap.style.display = 'block';
+      if (notice) notice.style.display = 'none';
     }
 
     App.openModal('workerModal');
@@ -150,11 +183,11 @@ const EmployeesModule = {
     const id = document.getElementById('workerId').value;
     const name = document.getElementById('workerName').value.trim();
     const code = document.getElementById('workerCode').value.trim();
+    const workerType = document.querySelector('input[name="workerType"]:checked')?.value || 'WORKER';
     const dailyWage = parseFloat(document.getElementById('workerDailyWage').value);
     const role = document.getElementById('workerRole').value.trim();
-    let defaultOt = parseFloat(document.getElementById('workerDefaultOt').value);
-    if (isNaN(defaultOt)) defaultOt = 0.0;
-    defaultOt = Math.max(0, Math.min(3.0, Math.round(defaultOt * 100) / 100));
+    let defaultBoxRate = parseFloat(document.getElementById('workerDefaultBoxRate').value);
+    if (isNaN(defaultBoxRate) || defaultBoxRate < 0) defaultBoxRate = 30.0;
     const phone = document.getElementById('workerPhone').value.trim();
     const status = document.getElementById('workerStatus').value;
     const notes = document.getElementById('workerNotes').value.trim();
@@ -167,9 +200,11 @@ const EmployeesModule = {
     const payload = {
       name,
       employee_code: code,
+      worker_type: workerType,
       daily_wage: dailyWage,
-      role,
-      default_ot_multiplier: defaultOt,
+      role: role || (workerType === 'MANAGER' ? 'Manager' : 'Packaging Worker'),
+      default_box_rate: defaultBoxRate,
+      default_ot_multiplier: 0.0,
       phone,
       status,
       notes

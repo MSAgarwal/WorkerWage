@@ -107,8 +107,8 @@
           <span class="stat-text">Absent</span>
         </div>
         <div class="stat-pill ot">
-          <span class="stat-num" id="statOtDays">0.0d</span>
-          <span class="stat-text">Total OT</span>
+          <span class="stat-num" id="statOtDays">0 boxes</span>
+          <span class="stat-text">Extra Boxes</span>
         </div>
         <div class="stat-pill wages">
           <span class="stat-num" id="statTotalWages">₹0</span>
@@ -127,7 +127,7 @@
           <button class="pill-btn" data-filter="UNMARKED">Unmarked (<span id="countUnmarked">0</span>)</button>
           <button class="pill-btn" data-filter="PRESENT">Present</button>
           <button class="pill-btn" data-filter="PAID_OFF">Paid Off / Tue</button>
-          <button class="pill-btn" data-filter="OT">Overtime</button>
+          <button class="pill-btn" data-filter="OT">Boxes / Overtime</button>
       </div>
 
       <!-- Attendance Worker Cards List -->
@@ -206,8 +206,8 @@
           <span class="grand-sub" id="grandBaseOtSplit">Base: ₹0 | OT: ₹0</span>
         </div>
         <div class="grand-card">
-          <span class="grand-label">Total Overtime (Days)</span>
-          <span class="grand-value text-amber" id="grandOtDays">0.0d</span>
+          <span class="grand-label">Extra Boxes / Overtime</span>
+          <span class="grand-value text-amber" id="grandOtDays">0 boxes</span>
           <span class="grand-sub" id="grandOtBreakdown">OT wages</span>
         </div>
         <div class="grand-card">
@@ -232,8 +232,8 @@
               <th>Days Worked</th>
               <th>Paid Off (Tue/Hol)</th>
               <th>Total Paid Days</th>
-              <th>OT (Days)</th>
-              <th>OT Multipliers</th>
+              <th>Extra Boxes / OT</th>
+              <th>Work Categories</th>
               <th>Base Wage</th>
               <th>OT Wage</th>
               <th>Gross Wage</th>
@@ -311,6 +311,38 @@
               </select>
             </div>
             <button type="submit" class="btn btn-primary">Save Settings</button>
+          </form>
+        </div>
+
+        <!-- Packaging Overtime & Work Categories Settings -->
+        <div class="settings-card">
+          <h3>📦 Packaging & Overtime Metric Settings</h3>
+          <p class="text-muted text-sm mb-3">Configure the overtime rate per extra box and the work categories list selectable during daily attendance marking.</p>
+          <form id="settingsPackagingForm">
+            <div class="form-group">
+              <label>Default Overtime Rate per Extra Box (<span class="currency-tag">₹</span>)</label>
+              <div class="input-with-addons">
+                <input type="number" id="settingDefaultBoxRate" min="0" step="1" value="30" required>
+                <span class="addon-suffix">₹/box</span>
+              </div>
+              <span class="helper-text">Packaging workers receive this amount for each extra box packed</span>
+            </div>
+
+            <div class="form-group">
+              <label>Daily Work Categories (<span id="catCountBadge">17</span>)</label>
+              <p class="text-xs text-muted mb-2">Categories available for admin selection when marking packaging workers.</p>
+              
+              <div class="category-chips-container" id="settingCategoriesList">
+                <!-- Dynamically populated chips with delete button -->
+              </div>
+
+              <div class="input-with-addons mt-2">
+                <input type="text" id="newCategoryInput" placeholder="Add new category (e.g. Sp 120)...">
+                <button type="button" class="btn btn-secondary btn-sm" id="btnAddCategory">+ Add</button>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Save Packaging Defaults</button>
           </form>
         </div>
 
@@ -450,6 +482,29 @@
       <form id="workerForm">
         <input type="hidden" id="workerId">
         <div class="modal-body">
+          <!-- Worker Type Selection -->
+          <div class="form-group">
+            <label>Worker Type & Rules *</label>
+            <div class="worker-type-toggle">
+              <label class="type-option">
+                <input type="radio" name="workerType" value="WORKER" id="workerTypeWorker" checked>
+                <span class="type-card">
+                  <span class="type-icon">📦</span>
+                  <span class="type-label">Packaging Worker</span>
+                  <span class="type-sub">Uses work categories & extra box overtime</span>
+                </span>
+              </label>
+              <label class="type-option">
+                <input type="radio" name="workerType" value="MANAGER" id="workerTypeManager">
+                <span class="type-card">
+                  <span class="type-icon">👔</span>
+                  <span class="type-label">Manager / Supervisor</span>
+                  <span class="type-sub">Exempt from packaging categories & box rules</span>
+                </span>
+              </label>
+            </div>
+          </div>
+
           <div class="form-row">
             <div class="form-group flex-1">
               <label>Full Name *</label>
@@ -465,14 +520,18 @@
               <label>Daily Wage Rate (<span class="currency-tag">₹</span>) *</label>
               <input type="number" id="workerDailyWage" min="0" step="10" placeholder="e.g. 700" required>
             </div>
-            <div class="form-group flex-1">
-              <label>Default Overtime Multiplier (0 to 3.00)</label>
+            <div class="form-group flex-1" id="wrapWorkerBoxRate">
+              <label>Extra Box OT Rate (<span class="currency-tag">₹</span>/box) *</label>
               <div class="input-with-addons">
-                <input type="number" id="workerDefaultOt" min="0" max="3" step="0.01" value="0.00" placeholder="0.00" required>
-                <span class="addon-suffix">x</span>
+                <input type="number" id="workerDefaultBoxRate" min="0" step="1" value="30" placeholder="30">
+                <span class="addon-suffix">₹/box</span>
               </div>
             </div>
           </div>
+          <div id="managerExemptNotice" class="manager-exempt-notice" style="display: none; margin-bottom: 12px;">
+            <span>ℹ️ Manager role is fixed daily wage. Packaging work categories and box counting do not apply to managers.</span>
+          </div>
+          <input type="hidden" id="workerDefaultOt" value="0.00">
           <div class="form-row">
             <div class="form-group flex-1">
               <label>Role / Trade</label>

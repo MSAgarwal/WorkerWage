@@ -2,6 +2,7 @@
 const App = {
   isUnlocked: false,
   activeTab: 'tabAttendance',
+  categoriesList: [],
 
   async init() {
     this.bindGlobalEvents();
@@ -121,6 +122,8 @@ const App = {
       PayrollModule.loadReport();
     } else if (tabId === 'tabPayments') {
       PaymentsModule.loadPayments();
+    } else if (tabId === 'tabSettings') {
+      this.populateSettingsForm();
     }
   },
 
@@ -267,6 +270,58 @@ const App = {
       }
     });
 
+    // Packaging & Overtime Metric Settings Form
+    const packagingForm = document.getElementById('settingsPackagingForm');
+    const btnAddCategory = document.getElementById('btnAddCategory');
+    const newCategoryInput = document.getElementById('newCategoryInput');
+
+    if (packagingForm) {
+      packagingForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const boxRate = parseFloat(document.getElementById('settingDefaultBoxRate').value);
+        const validBoxRate = (!isNaN(boxRate) && boxRate >= 0) ? boxRate : 30.0;
+
+        try {
+          const res = await API.updateSettings({
+            default_box_rate: validBoxRate,
+            work_categories: JSON.stringify(this.categoriesList)
+          });
+          if (res.success) {
+            API.defaultBoxRate = validBoxRate;
+            API.workCategories = [...this.categoriesList];
+            this.showToast('Packaging & box overtime defaults saved successfully', 'success');
+            if (this.activeTab === 'tabAttendance') {
+              AttendanceModule.loadAttendance();
+            }
+          }
+        } catch (err) {
+          this.showToast(`Error: ${err.message}`, 'error');
+        }
+      });
+    }
+
+    if (btnAddCategory && newCategoryInput) {
+      const handleAdd = () => {
+        const val = newCategoryInput.value.trim();
+        if (!val) return;
+        if (this.categoriesList.some(c => c.toLowerCase() === val.toLowerCase())) {
+          this.showToast(`Category "${val}" already exists`, 'info');
+          return;
+        }
+        this.categoriesList.push(val);
+        newCategoryInput.value = '';
+        this.renderCategoryChips();
+      };
+
+      btnAddCategory.addEventListener('click', handleAdd);
+      newCategoryInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          handleAdd();
+        }
+      });
+    }
+
     pinForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const currentPin = document.getElementById('currentPinInput').value;
@@ -281,6 +336,37 @@ const App = {
       } catch (err) {
         this.showToast(`Error: ${err.message}`, 'error');
       }
+    });
+  },
+
+  renderCategoryChips() {
+    const listEl = document.getElementById('settingCategoriesList');
+    const countBadge = document.getElementById('catCountBadge');
+    if (!listEl) return;
+
+    if (countBadge) countBadge.textContent = this.categoriesList.length;
+
+    if (!this.categoriesList || this.categoriesList.length === 0) {
+      listEl.innerHTML = '<span class="text-muted text-xs">No categories configured. Click "+ Add" to add categories.</span>';
+      return;
+    }
+
+    listEl.innerHTML = this.categoriesList.map((cat, idx) => `
+      <span class="category-chip">
+        <span>${this.escapeHtml(cat)}</span>
+        <button type="button" class="category-remove-btn" data-idx="${idx}" title="Remove ${this.escapeHtml(cat)}">&times;</button>
+      </span>
+    `).join('');
+
+    listEl.querySelectorAll('.category-remove-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const idx = parseInt(btn.dataset.idx, 10);
+        if (!isNaN(idx) && idx >= 0 && idx < this.categoriesList.length) {
+          this.categoriesList.splice(idx, 1);
+          this.renderCategoryChips();
+        }
+      });
     });
   },
 
@@ -301,6 +387,16 @@ const App = {
         if (s.default_ot_multiplier !== undefined && s.default_ot_multiplier !== null) {
           document.getElementById('settingDefaultOtMult').value = parseFloat(s.default_ot_multiplier).toFixed(2);
         }
+        if (s.default_box_rate !== undefined && s.default_box_rate !== null) {
+          const boxRateEl = document.getElementById('settingDefaultBoxRate');
+          if (boxRateEl) boxRateEl.value = s.default_box_rate;
+        }
+        if (s.work_categories_list && Array.isArray(s.work_categories_list)) {
+          this.categoriesList = [...s.work_categories_list];
+        } else if (API.workCategories && API.workCategories.length > 0) {
+          this.categoriesList = [...API.workCategories];
+        }
+        this.renderCategoryChips();
       }
     } catch (e) {
       console.warn('Failed to populate settings form:', e);

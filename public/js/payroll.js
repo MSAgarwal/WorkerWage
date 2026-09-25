@@ -96,13 +96,26 @@ const PayrollModule = {
     if (!totals) return;
     document.getElementById('grandGrossPay').textContent = API.formatMoney(totals.grandGrossPay);
     document.getElementById('grandBaseOtSplit').textContent = `Base: ${API.formatMoney(totals.grandBasePay)} | OT: ${API.formatMoney(totals.grandOtPay)}`;
+    
+    const extraBoxes = totals.grandTotalExtraBoxes || 0;
     const otDays = totals.grandOtDays || 0;
     const otEl = document.getElementById('grandOtDays');
-    if (otEl) otEl.textContent = `${otDays}d`;
+    if (otEl) {
+      if (extraBoxes > 0 && otDays > 0) {
+        otEl.textContent = `${extraBoxes} boxes / ${otDays}d`;
+      } else if (extraBoxes > 0) {
+        otEl.textContent = `${extraBoxes} boxes`;
+      } else if (otDays > 0) {
+        otEl.textContent = `${otDays}d`;
+      } else {
+        otEl.textContent = `0 boxes`;
+      }
+    }
+
     document.getElementById('grandAdvances').textContent = API.formatMoney(totals.grandAdvances);
     document.getElementById('grandNetPayable').textContent = API.formatMoney(totals.grandNetPayable);
 
-    document.getElementById('grandOtBreakdown').textContent = otDays > 0 
+    document.getElementById('grandOtBreakdown').textContent = (totals.grandOtPay > 0)
       ? `OT Wages: ${API.formatMoney(totals.grandOtPay)}` 
       : 'No overtime in period';
   },
@@ -116,11 +129,44 @@ const PayrollModule = {
 
     tbody.innerHTML = workers.map(w => {
       const workedDays = Math.round((w.presentDays + (w.halfDays * 0.5)) * 10) / 10;
+      const isManager = (w.worker_type === 'MANAGER');
+      const typeBadge = isManager
+        ? '<span class="manager-badge" style="font-size: 0.68rem; padding: 2px 6px;">👔 Manager</span>'
+        : '<span class="worker-badge" style="font-size: 0.68rem; padding: 2px 6px;">📦 Worker</span>';
+
+      // Extra Boxes / OT column
+      let otCol = '-';
+      if (isManager) {
+        otCol = '<span class="text-muted text-xs">Exempt</span>';
+      } else {
+        const parts = [];
+        if (w.totalExtraBoxes > 0) {
+          parts.push(`<strong>${w.totalExtraBoxes} boxes</strong>`);
+        }
+        if (w.totalOtDays > 0) {
+          parts.push(`<div class="text-xs text-muted">${w.totalOtDays}d (${this.escapeHtml(w.otSummaryText || '')})</div>`);
+        }
+        if (parts.length > 0) {
+          otCol = parts.join('');
+        }
+      }
+
+      // Work Categories summary column
+      let catCol = '-';
+      if (isManager) {
+        catCol = '<span class="text-muted text-xs">Exempt</span>';
+      } else if (w.categoriesSummary) {
+        catCol = `<span class="text-xs" style="color: #475569; font-weight: 500;">${this.escapeHtml(w.categoriesSummary)}</span>`;
+      }
+
       return `
         <tr>
           <td>
-            <strong>${this.escapeHtml(w.name)}</strong>
-            <div class="text-xs text-muted">${this.escapeHtml(w.role || 'Worker')} (${this.escapeHtml(w.employee_code || '')})</div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <strong>${this.escapeHtml(w.name)}</strong>
+              ${typeBadge}
+            </div>
+            <div class="text-xs text-muted">${this.escapeHtml(w.role || (isManager ? 'Manager' : 'Worker'))} (${this.escapeHtml(w.employee_code || '')})</div>
           </td>
           <td><strong>${API.formatMoney(w.daily_wage)}</strong></td>
           <td>
@@ -134,8 +180,8 @@ const PayrollModule = {
           <td>
             <strong style="font-size: 0.92rem;">${w.effectiveDays}d</strong>
           </td>
-          <td>${w.totalOtDays > 0 ? `<strong>${w.totalOtDays}d</strong>` : '-'}</td>
-          <td><span class="text-xs">${w.otSummaryText || '-'}</span></td>
+          <td>${otCol}</td>
+          <td>${catCol}</td>
           <td>${API.formatMoney(w.basePayTotal)}</td>
           <td>${w.otPayTotal > 0 ? `<strong class="text-primary">${API.formatMoney(w.otPayTotal)}</strong>` : '-'}</td>
           <td><strong>${API.formatMoney(w.grossPayTotal)}</strong></td>

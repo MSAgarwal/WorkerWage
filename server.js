@@ -54,18 +54,20 @@ function getDateMeta(dateStr) {
   };
 }
 
-// Helper: Day-wise wage calculation (strictly day-based worker wages)
-function calculateWage(dailyWage, status, otDays, otMultiplier, isHolidayWork = false, bonus = 0, deduction = 0) {
+// Helper: Wage calculation (Day-based wages, extra box overtime for packaging workers, manager exemption)
+function calculateWage(
+  dailyWage,
+  status,
+  otDays = 0,
+  otMultiplier = 0.0,
+  isHolidayWork = false,
+  bonus = 0,
+  deduction = 0,
+  extraBoxes = 0,
+  boxRate = 30.0,
+  workerType = 'WORKER'
+) {
   dailyWage = Number(dailyWage) || 0;
-  otDays = Number(otDays) || 0;
-
-  // Multiplier from 0.00 to 3.00 (up to 2 decimal places)
-  if (otMultiplier === undefined || otMultiplier === null || isNaN(Number(otMultiplier))) {
-    otMultiplier = 0.0;
-  } else {
-    otMultiplier = Math.max(0, Math.min(3.0, Math.round(Number(otMultiplier) * 100) / 100));
-  }
-
   bonus = Number(bonus) || 0;
   deduction = Number(deduction) || 0;
 
@@ -87,16 +89,45 @@ function calculateWage(dailyWage, status, otDays, otMultiplier, isHolidayWork = 
     basePay = 0.0;
   }
 
-  // Day-wise Overtime Pay = Overtime Days * Daily Wage * Multiplier
-  const overtimePay = otDays * dailyWage * otMultiplier;
+  let overtimePay = 0;
+  let parsedBoxes = 0;
+  let parsedBoxRate = 30.0;
+  let parsedOtDays = 0;
+  let parsedOtMultiplier = 0.0;
+
+  if (workerType === 'MANAGER') {
+    // Manager: Exempt from packaging work categories & box overtime
+    parsedOtDays = Number(otDays) || 0;
+    if (otMultiplier === undefined || otMultiplier === null || isNaN(Number(otMultiplier))) {
+      parsedOtMultiplier = 0.0;
+    } else {
+      parsedOtMultiplier = Math.max(0, Math.min(3.0, Math.round(Number(otMultiplier) * 100) / 100));
+    }
+    overtimePay = parsedOtDays * dailyWage * parsedOtMultiplier;
+    parsedBoxes = 0;
+    parsedBoxRate = 0.0;
+  } else {
+    // Packaging Worker: Overtime metric is based on count of extra boxes packed (default ₹30/box)
+    parsedBoxes = Math.max(0, parseFloat(extraBoxes) || 0);
+    parsedBoxRate = (boxRate !== undefined && boxRate !== null && !isNaN(parseFloat(boxRate)))
+      ? Math.max(0, parseFloat(boxRate))
+      : 30.0;
+    overtimePay = parsedBoxes * parsedBoxRate;
+    parsedOtDays = 0;
+    parsedOtMultiplier = 0.0;
+  }
+
   const totalPay = Math.max(0, basePay + overtimePay + bonus - deduction);
 
   return {
     dailyWage,
     statusDays,
+    workerType: workerType || 'WORKER',
     basePay: Math.round(basePay * 100) / 100,
-    overtimeDays: Math.round(otDays * 100) / 100,
-    overtimeMultiplier: otMultiplier,
+    extraBoxes: Math.round(parsedBoxes * 100) / 100,
+    boxRate: Math.round(parsedBoxRate * 100) / 100,
+    overtimeDays: Math.round(parsedOtDays * 100) / 100,
+    overtimeMultiplier: parsedOtMultiplier,
     overtimePay: Math.round(overtimePay * 100) / 100,
     isHolidayWork: !!isHolidayWork,
     bonusAllowance: bonus,
@@ -186,16 +217,28 @@ app.get('/api/settings', (req, res) => {
   for (const r of rows) {
     settings[r.key] = r.value;
   }
+  // Parse work_categories JSON array if present
+  if (settings.work_categories) {
+    try {
+      settings.work_categories_list = JSON.parse(settings.work_categories);
+    } catch (e) {
+      settings.work_categories_list = [];
+    }
+  }
   res.json({ success: true, settings });
 });
 
 app.put('/api/settings', (req, res) => {
-  const allowedKeys = ['business_name', 'currency_symbol', 'default_ot_multiplier', 'site_location'];
+  const allowedKeys = ['business_name', 'currency_symbol', 'default_ot_multiplier', 'default_box_rate', 'work_categories', 'site_location'];
   const updateStmt = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value');
 
   for (const key of allowedKeys) {
     if (req.body[key] !== undefined) {
-      updateStmt.run(key, String(req.body[key]));
+      let val = req.body[key];
+      if (key === 'work_categories' && Array.isArray(val)) {
+        val = JSON.stringify(val);
+      }
+      updateStmt.run(key, String(val));
     }
   }
 
@@ -221,7 +264,7 @@ app.get('/api/employees', (req, res) => {
 });
 
 app.post('/api/employees', (req, res) => {
-  const { name, phone, role, daily_wage, default_ot_multiplier, notes } = req.body;
+  const { name, phone, role, worker_type, daily_wage, default_ot_multiplier, default_box_rate, notes } = req.body;
 
   if (!name || name.trim() === '') {
     return res.status(400).json({ error: 'Worker name is required' });
@@ -231,6 +274,11 @@ app.post('/api/employees', (req, res) => {
   if (isNaN(wage) || wage < 0) {
     return res.status(400).json({ error: 'Valid daily wage is required' });
   }
+
+  const parsedType = (worker_type === 'MANAGER') ? 'MANAGER' : 'WORKER';
+  const boxRate = (!isNaN(parseFloat(default_box_rate)) && parseFloat(default_box_rate) >= 0)
+    ? parseFloat(default_box_rate)
+    : 30.0;
 
   // Generate unique employee code if not provided
   let code = req.body.employee_code;
@@ -242,17 +290,19 @@ app.post('/api/employees', (req, res) => {
 
   try {
     const stmt = db.prepare(`
-      INSERT INTO employees (employee_code, name, phone, role, daily_wage, default_ot_multiplier, notes, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+      INSERT INTO employees (employee_code, name, phone, role, worker_type, daily_wage, default_ot_multiplier, default_box_rate, notes, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
     `);
 
     const result = stmt.run(
       code.trim(),
       name.trim(),
       phone ? phone.trim() : '',
-      role ? role.trim() : 'Worker',
+      role ? role.trim() : (parsedType === 'MANAGER' ? 'Manager' : 'Worker'),
+      parsedType,
       wage,
       default_ot_multiplier !== undefined && !isNaN(parseFloat(default_ot_multiplier)) ? parseFloat(default_ot_multiplier) : 0.0,
+      boxRate,
       notes ? notes.trim() : ''
     );
 
@@ -265,17 +315,25 @@ app.post('/api/employees', (req, res) => {
 
 app.put('/api/employees/:id', (req, res) => {
   const { id } = req.params;
-  const { name, phone, role, daily_wage, default_ot_multiplier, notes, status } = req.body;
+  const { name, phone, role, worker_type, daily_wage, default_ot_multiplier, default_box_rate, notes, status } = req.body;
 
   const existing = db.prepare('SELECT * FROM employees WHERE id = ?').get(id);
   if (!existing) {
     return res.status(404).json({ error: 'Worker not found' });
   }
 
+  const parsedType = (worker_type !== undefined)
+    ? (worker_type === 'MANAGER' ? 'MANAGER' : 'WORKER')
+    : (existing.worker_type || 'WORKER');
+
+  const boxRate = (default_box_rate !== undefined && !isNaN(parseFloat(default_box_rate)) && parseFloat(default_box_rate) >= 0)
+    ? parseFloat(default_box_rate)
+    : (existing.default_box_rate !== undefined ? existing.default_box_rate : 30.0);
+
   try {
     const stmt = db.prepare(`
       UPDATE employees
-      SET name = ?, phone = ?, role = ?, daily_wage = ?, default_ot_multiplier = ?, notes = ?, status = ?
+      SET name = ?, phone = ?, role = ?, worker_type = ?, daily_wage = ?, default_ot_multiplier = ?, default_box_rate = ?, notes = ?, status = ?
       WHERE id = ?
     `);
 
@@ -283,8 +341,10 @@ app.put('/api/employees/:id', (req, res) => {
       name ? name.trim() : existing.name,
       phone !== undefined ? phone.trim() : existing.phone,
       role !== undefined ? role.trim() : existing.role,
+      parsedType,
       daily_wage !== undefined ? parseFloat(daily_wage) : existing.daily_wage,
       default_ot_multiplier !== undefined && !isNaN(parseFloat(default_ot_multiplier)) ? parseFloat(default_ot_multiplier) : existing.default_ot_multiplier,
+      boxRate,
       notes !== undefined ? notes.trim() : existing.notes,
       status !== undefined ? status : existing.status,
       id
@@ -377,6 +437,9 @@ app.get('/api/attendance', (req, res) => {
 
     const result = activeWorkers.map(w => {
       const rec = attMap[w.id];
+      const workerType = w.worker_type || 'WORKER';
+      const defaultBoxRate = (w.default_box_rate !== undefined && w.default_box_rate !== null) ? w.default_box_rate : 30.0;
+
       if (rec) {
         const otDays = rec.overtime_days || 0;
         return {
@@ -385,12 +448,16 @@ app.get('/api/attendance', (req, res) => {
           employee_code: w.employee_code,
           name: w.name,
           role: w.role,
+          worker_type: workerType,
           phone: w.phone,
           date: rec.date,
           status: rec.status,
           is_marked: true,
           daily_wage: rec.daily_wage_snapshot,
           base_pay: rec.base_pay,
+          work_category: rec.work_category || '',
+          extra_boxes: rec.extra_boxes || 0,
+          box_rate: (rec.box_rate !== undefined && rec.box_rate !== null) ? rec.box_rate : defaultBoxRate,
           overtime_days: otDays,
           overtime_multiplier: rec.overtime_multiplier,
           overtime_pay: rec.overtime_pay,
@@ -405,19 +472,23 @@ app.get('/api/attendance', (req, res) => {
         const workerDefaultOt = (w.default_ot_multiplier !== undefined && w.default_ot_multiplier !== null) ? w.default_ot_multiplier : 0.0;
         if (meta.isPaidDayOff) {
           // Every Tuesday or Paid Holiday defaults to Paid Leave (full day wage)!
-          const defaultCalc = calculateWage(w.daily_wage, 'PAID_LEAVE', 0, workerDefaultOt, false);
+          const defaultCalc = calculateWage(w.daily_wage, 'PAID_LEAVE', 0, workerDefaultOt, false, 0, 0, 0, defaultBoxRate, workerType);
           return {
             id: null,
             employee_id: w.id,
             employee_code: w.employee_code,
             name: w.name,
             role: w.role,
+            worker_type: workerType,
             phone: w.phone,
             date: date,
             status: 'PAID_LEAVE',
             is_marked: false,
             daily_wage: w.daily_wage,
             base_pay: defaultCalc.basePay,
+            work_category: '',
+            extra_boxes: 0,
+            box_rate: defaultBoxRate,
             overtime_days: 0,
             overtime_multiplier: workerDefaultOt,
             overtime_pay: 0,
@@ -435,12 +506,16 @@ app.get('/api/attendance', (req, res) => {
             employee_code: w.employee_code,
             name: w.name,
             role: w.role,
+            worker_type: workerType,
             phone: w.phone,
             date: date,
             status: 'NOT_MARKED',
             is_marked: false,
             daily_wage: w.daily_wage,
             base_pay: 0,
+            work_category: '',
+            extra_boxes: 0,
+            box_rate: defaultBoxRate,
             overtime_days: 0,
             overtime_multiplier: workerDefaultOt,
             overtime_pay: 0,
@@ -461,6 +536,7 @@ app.get('/api/attendance', (req, res) => {
     let totalAbsent = 0;
     let totalUnmarked = 0;
     let totalOtDays = 0;
+    let totalExtraBoxes = 0;
     let totalHolidayWorkers = 0;
     let totalWagesToday = 0;
 
@@ -473,6 +549,7 @@ app.get('/api/attendance', (req, res) => {
 
       if (item.is_holiday_work) totalHolidayWorkers++;
       totalOtDays += (item.overtime_days || 0);
+      totalExtraBoxes += (item.extra_boxes || 0);
       totalWagesToday += (item.total_pay || 0);
     }
 
@@ -488,6 +565,7 @@ app.get('/api/attendance', (req, res) => {
         totalAbsent,
         totalUnmarked,
         totalOtDays: Math.round(totalOtDays * 100) / 100,
+        totalExtraBoxes: Math.round(totalExtraBoxes * 100) / 100,
         totalHolidayWorkers,
         totalWagesToday: Math.round(totalWagesToday * 100) / 100
       },
@@ -498,12 +576,15 @@ app.get('/api/attendance', (req, res) => {
   }
 });
 
-// Save or Update Attendance for single employee (Day-Wise)
+// Save or Update Attendance for single employee (Day-Wise & Packaging Box OT)
 app.post('/api/attendance', (req, res) => {
   const {
     employee_id,
     date,
     status,
+    work_category,
+    extra_boxes,
+    box_rate,
     overtime_days,
     overtime_multiplier,
     is_holiday_work,
@@ -521,6 +602,14 @@ app.post('/api/attendance', (req, res) => {
     return res.status(404).json({ error: 'Worker not found' });
   }
 
+  const workerType = worker.worker_type || 'WORKER';
+  const isManager = workerType === 'MANAGER';
+  const effectiveCategory = isManager ? '' : (work_category ? String(work_category).trim() : '');
+  const parsedExtraBoxes = isManager ? 0 : Math.max(0, parseFloat(extra_boxes || 0));
+  const effectiveBoxRate = (!isNaN(parseFloat(box_rate)) && parseFloat(box_rate) >= 0)
+    ? parseFloat(box_rate)
+    : (worker.default_box_rate !== undefined && worker.default_box_rate !== null ? worker.default_box_rate : 30.0);
+
   const otDays = parseFloat(overtime_days || 0);
   const holidayWork = is_holiday_work ? 1 : 0;
   const otMult = (overtime_multiplier !== undefined && overtime_multiplier !== null && !isNaN(parseFloat(overtime_multiplier)))
@@ -534,20 +623,27 @@ app.post('/api/attendance', (req, res) => {
     otMult,
     holidayWork,
     bonus_allowance,
-    deduction
+    deduction,
+    parsedExtraBoxes,
+    effectiveBoxRate,
+    workerType
   );
 
   try {
     const upsertStmt = db.prepare(`
       INSERT INTO attendance (
         employee_id, date, status, daily_wage_snapshot,
-        base_pay, overtime_days, overtime_multiplier, overtime_pay,
+        base_pay, work_category, extra_boxes, box_rate,
+        overtime_days, overtime_multiplier, overtime_pay,
         is_holiday_work, bonus_allowance, deduction, total_pay, notes, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       ON CONFLICT(employee_id, date) DO UPDATE SET
         status = excluded.status,
         daily_wage_snapshot = excluded.daily_wage_snapshot,
         base_pay = excluded.base_pay,
+        work_category = excluded.work_category,
+        extra_boxes = excluded.extra_boxes,
+        box_rate = excluded.box_rate,
         overtime_days = excluded.overtime_days,
         overtime_multiplier = excluded.overtime_multiplier,
         overtime_pay = excluded.overtime_pay,
@@ -565,6 +661,9 @@ app.post('/api/attendance', (req, res) => {
       status,
       calc.dailyWage,
       calc.basePay,
+      effectiveCategory,
+      calc.extraBoxes,
+      calc.boxRate,
       calc.overtimeDays,
       calc.overtimeMultiplier,
       calc.overtimePay,
@@ -582,7 +681,7 @@ app.post('/api/attendance', (req, res) => {
   }
 });
 
-// Batch Save Attendance (Day-Wise)
+// Batch Save Attendance (Day-Wise & Packaging Box OT)
 app.post('/api/attendance/batch', (req, res) => {
   const { date, records } = req.body;
   if (!date || !Array.isArray(records)) {
@@ -592,13 +691,17 @@ app.post('/api/attendance/batch', (req, res) => {
   const upsertStmt = db.prepare(`
     INSERT INTO attendance (
       employee_id, date, status, daily_wage_snapshot,
-      base_pay, overtime_days, overtime_multiplier, overtime_pay,
+      base_pay, work_category, extra_boxes, box_rate,
+      overtime_days, overtime_multiplier, overtime_pay,
       is_holiday_work, bonus_allowance, deduction, total_pay, notes, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(employee_id, date) DO UPDATE SET
       status = excluded.status,
       daily_wage_snapshot = excluded.daily_wage_snapshot,
       base_pay = excluded.base_pay,
+      work_category = excluded.work_category,
+      extra_boxes = excluded.extra_boxes,
+      box_rate = excluded.box_rate,
       overtime_days = excluded.overtime_days,
       overtime_multiplier = excluded.overtime_multiplier,
       overtime_pay = excluded.overtime_pay,
@@ -616,6 +719,14 @@ app.post('/api/attendance/batch', (req, res) => {
       const worker = db.prepare('SELECT * FROM employees WHERE id = ?').get(r.employee_id);
       if (!worker) continue;
 
+      const workerType = worker.worker_type || 'WORKER';
+      const isManager = workerType === 'MANAGER';
+      const effectiveCategory = isManager ? '' : (r.work_category ? String(r.work_category).trim() : '');
+      const parsedExtraBoxes = isManager ? 0 : Math.max(0, parseFloat(r.extra_boxes || 0));
+      const effectiveBoxRate = (!isNaN(parseFloat(r.box_rate)) && parseFloat(r.box_rate) >= 0)
+        ? parseFloat(r.box_rate)
+        : (worker.default_box_rate !== undefined && worker.default_box_rate !== null ? worker.default_box_rate : 30.0);
+
       const otDays = parseFloat(r.overtime_days || 0);
       const holidayWork = r.is_holiday_work ? 1 : 0;
       const otMult = (r.overtime_multiplier !== undefined && r.overtime_multiplier !== null && !isNaN(parseFloat(r.overtime_multiplier)))
@@ -629,7 +740,10 @@ app.post('/api/attendance/batch', (req, res) => {
         otMult,
         holidayWork,
         r.bonus_allowance || 0,
-        r.deduction || 0
+        r.deduction || 0,
+        parsedExtraBoxes,
+        effectiveBoxRate,
+        workerType
       );
 
       upsertStmt.run(
@@ -638,6 +752,9 @@ app.post('/api/attendance/batch', (req, res) => {
         r.status || 'PRESENT',
         calc.dailyWage,
         calc.basePay,
+        effectiveCategory,
+        calc.extraBoxes,
+        calc.boxRate,
         calc.overtimeDays,
         calc.overtimeMultiplier,
         calc.overtimePay,
@@ -773,6 +890,7 @@ app.get('/api/reports/payroll', (req, res) => {
     let grandBasePay = 0;
     let grandOtDays = 0;
     let grandOtPay = 0;
+    let grandTotalExtraBoxes = 0;
     let grandGrossPay = 0;
     let grandAdvances = 0;
     let grandNetPayable = 0;
@@ -780,14 +898,17 @@ app.get('/api/reports/payroll', (req, res) => {
     for (const w of workers) {
       const attRecords = attendanceStmt.all(w.id, start, end);
       const payRecords = paymentsStmt.all(w.id, start, end);
+      const workerType = w.worker_type || 'WORKER';
 
       let presentDays = 0;
       let halfDays = 0;
       let paidLeaveDays = 0;
       let absentDays = 0;
       let totalOtDays = 0;
+      let totalExtraBoxes = 0;
       let holidayWorkDays = 0;
       const otMultiplierMap = {};
+      const categoriesMap = {};
       let basePayTotal = 0;
       let otPayTotal = 0;
       let bonusTotal = 0;
@@ -801,6 +922,15 @@ app.get('/api/reports/payroll', (req, res) => {
         else if (a.status === 'ABSENT') absentDays++;
 
         if (a.is_holiday_work) holidayWorkDays++;
+
+        if (a.extra_boxes > 0) {
+          totalExtraBoxes += a.extra_boxes;
+        }
+
+        if (a.work_category && a.work_category.trim()) {
+          const cat = a.work_category.trim();
+          categoriesMap[cat] = (categoriesMap[cat] || 0) + 1;
+        }
 
         const otDays = a.overtime_days || 0;
         if (otDays > 0) {
@@ -823,6 +953,9 @@ app.get('/api/reports/payroll', (req, res) => {
       });
       const otSummaryText = otSummaryParts.join(', ');
 
+      // Format Work Categories summary string, e.g. "Sp 100 (5d), Pd 80 (3d)"
+      const categoriesSummary = Object.keys(categoriesMap).sort().map(c => `${c} (${categoriesMap[c]}d)`).join(', ');
+
       let totalAdvances = 0;
       let totalSettlements = 0;
       for (const p of payRecords) {
@@ -837,6 +970,7 @@ app.get('/api/reports/payroll', (req, res) => {
 
       grandBasePay += basePayTotal;
       grandOtDays += totalOtDays;
+      grandTotalExtraBoxes += totalExtraBoxes;
       grandOtPay += otPayTotal;
       grandGrossPay += grossPayTotal;
       grandAdvances += totalAdvances;
@@ -847,6 +981,7 @@ app.get('/api/reports/payroll', (req, res) => {
         employee_code: w.employee_code,
         name: w.name,
         role: w.role,
+        worker_type: workerType,
         phone: w.phone,
         daily_wage: w.daily_wage,
         presentDays,
@@ -856,6 +991,9 @@ app.get('/api/reports/payroll', (req, res) => {
         holidayWorkDays,
         effectiveDays: Math.round((presentDays + (halfDays * 0.5) + paidLeaveDays) * 100) / 100,
         totalOtDays: Math.round(totalOtDays * 100) / 100,
+        totalExtraBoxes: Math.round(totalExtraBoxes * 100) / 100,
+        categoriesMap,
+        categoriesSummary,
         otMultiplierMap,
         otSummaryText,
         basePayTotal: Math.round(basePayTotal * 100) / 100,
@@ -879,6 +1017,7 @@ app.get('/api/reports/payroll', (req, res) => {
         totalWorkers: workers.length,
         grandBasePay: Math.round(grandBasePay * 100) / 100,
         grandOtDays: Math.round(grandOtDays * 100) / 100,
+        grandTotalExtraBoxes: Math.round(grandTotalExtraBoxes * 100) / 100,
         grandOtPay: Math.round(grandOtPay * 100) / 100,
         grandGrossPay: Math.round(grandGrossPay * 100) / 100,
         grandAdvances: Math.round(grandAdvances * 100) / 100,
@@ -891,7 +1030,7 @@ app.get('/api/reports/payroll', (req, res) => {
   }
 });
 
-// CSV Export (Day-Wise)
+// CSV Export (Day-Wise & Packaging Metrics)
 app.get('/api/reports/export-csv', (req, res) => {
   const { startDate, endDate } = req.query;
   const now = new Date();
@@ -902,14 +1041,15 @@ app.get('/api/reports/export-csv', (req, res) => {
     const workers = db.prepare("SELECT * FROM employees WHERE status = 'ACTIVE' ORDER BY name ASC").all();
     const rows = [];
 
-    rows.push(['Code', 'Name', 'Role', 'Daily Wage', 'Present (Days)', 'Half Days', 'Paid Leave/Tuesdays', 'Effective Paid Days', 'Total OT (Days)', 'OT Multipliers Used', 'Base Wage', 'OT Wage', 'Gross Earnings', 'Advances Paid', 'Net Balance Payable'].join(','));
+    rows.push(['Code', 'Name', 'Worker Type', 'Role', 'Daily Wage', 'Present (Days)', 'Half Days', 'Paid Leave/Tuesdays', 'Effective Paid Days', 'Work Categories', 'Extra Boxes Packed', 'Base Wage', 'OT Wage', 'Gross Earnings', 'Advances Paid', 'Net Balance Payable'].join(','));
 
     for (const w of workers) {
       const attRecords = db.prepare('SELECT * FROM attendance WHERE employee_id = ? AND date >= ? AND date <= ?').all(w.id, start, end);
       const payRecords = db.prepare('SELECT * FROM payments WHERE employee_id = ? AND date >= ? AND date <= ?').all(w.id, start, end);
+      const workerType = w.worker_type || 'WORKER';
 
-      let present = 0, half = 0, paidLeave = 0, absent = 0, totalOt = 0, basePay = 0, otPay = 0, gross = 0;
-      const multMap = {};
+      let present = 0, half = 0, paidLeave = 0, absent = 0, totalOt = 0, totalBoxes = 0, basePay = 0, otPay = 0, gross = 0;
+      const catMap = {};
 
       for (const a of attRecords) {
         if (a.status === 'PRESENT') present++;
@@ -917,19 +1057,21 @@ app.get('/api/reports/export-csv', (req, res) => {
         else if (a.status === 'PAID_LEAVE' || a.status === 'PAID_HOLIDAY') paidLeave++;
         else if (a.status === 'ABSENT') absent++;
 
-        const otDays = a.overtime_days || 0;
-        if (otDays > 0) {
-          totalOt += otDays;
-          const k = Number(a.overtime_multiplier !== undefined && a.overtime_multiplier !== null ? a.overtime_multiplier : 0.0).toFixed(2);
-          multMap[k] = (multMap[k] || 0) + otDays;
+        if (a.extra_boxes > 0) totalBoxes += a.extra_boxes;
+        if (a.work_category && a.work_category.trim()) {
+          const cat = a.work_category.trim();
+          catMap[cat] = (catMap[cat] || 0) + 1;
         }
+
+        const otDays = a.overtime_days || 0;
+        if (otDays > 0) totalOt += otDays;
 
         basePay += a.base_pay;
         otPay += a.overtime_pay;
         gross += a.total_pay;
       }
 
-      const otDesc = Object.keys(multMap).map(k => `${parseFloat(k)}x (${multMap[k].toFixed(2)}d)`).join('; ');
+      const catDesc = Object.keys(catMap).map(c => `${c} (${catMap[c]}d)`).join('; ');
 
       let advances = 0;
       for (const p of payRecords) {
@@ -942,14 +1084,15 @@ app.get('/api/reports/export-csv', (req, res) => {
       rows.push([
         `"${w.employee_code}"`,
         `"${w.name}"`,
+        `"${workerType === 'MANAGER' ? 'Manager' : 'Packaging Worker'}"`,
         `"${w.role || ''}"`,
         w.daily_wage,
         present,
         half,
         paidLeave,
         effectivePaidDays.toFixed(1),
-        totalOt.toFixed(2),
-        `"${otDesc || '-'}"`,
+        `"${catDesc || '-'}"`,
+        totalBoxes,
         basePay.toFixed(2),
         otPay.toFixed(2),
         gross.toFixed(2),

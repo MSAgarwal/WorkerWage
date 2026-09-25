@@ -133,7 +133,7 @@ const AttendanceModule = {
     if (paidLeaveEl) paidLeaveEl.textContent = summary.totalPaidLeave || 0;
     document.getElementById('statAbsentCount').textContent = summary.totalAbsent || 0;
     const otDaysEl = document.getElementById('statOtDays');
-    if (otDaysEl) otDaysEl.textContent = `${(summary.totalOtDays || 0)}d`;
+    if (otDaysEl) otDaysEl.textContent = `${summary.totalExtraBoxes || 0} boxes`;
     document.getElementById('statTotalWages').textContent = API.formatMoney(summary.totalWagesToday);
 
     // Update filter counts
@@ -150,7 +150,8 @@ const AttendanceModule = {
       filtered = filtered.filter(r => 
         (r.name && r.name.toLowerCase().includes(this.searchQuery)) ||
         (r.role && r.role.toLowerCase().includes(this.searchQuery)) ||
-        (r.employee_code && r.employee_code.toLowerCase().includes(this.searchQuery))
+        (r.employee_code && r.employee_code.toLowerCase().includes(this.searchQuery)) ||
+        (r.work_category && r.work_category.toLowerCase().includes(this.searchQuery))
       );
     }
 
@@ -162,7 +163,7 @@ const AttendanceModule = {
     } else if (this.activeFilter === 'PAID_OFF') {
       filtered = filtered.filter(r => r.status === 'PAID_LEAVE' || r.status === 'PAID_HOLIDAY');
     } else if (this.activeFilter === 'OT') {
-      filtered = filtered.filter(r => (r.overtime_days || 0) > 0 || r.is_holiday_work);
+      filtered = filtered.filter(r => (r.extra_boxes || 0) > 0 || (r.overtime_days || 0) > 0 || r.is_holiday_work);
     }
 
     if (filtered.length === 0) {
@@ -185,11 +186,14 @@ const AttendanceModule = {
     const isHalfDay = r.status === 'HALF_DAY';
     const isPaidLeave = r.status === 'PAID_LEAVE' || r.status === 'PAID_HOLIDAY';
     const isAbsent = r.status === 'ABSENT';
+    const isManager = r.worker_type === 'MANAGER';
 
-    const otMult = Number(r.overtime_multiplier !== undefined && r.overtime_multiplier !== null ? r.overtime_multiplier : 0.0);
+    const extraBoxes = Number(r.extra_boxes || 0);
+    const boxRate = Number(r.box_rate !== undefined && r.box_rate !== null ? r.box_rate : (API.defaultBoxRate || 30.0));
     const otDays = Number(r.overtime_days || 0);
+    const otMult = Number(r.overtime_multiplier || 0);
 
-    // Live calculation breakdown preview (Day-Wise)
+    // Live calculation breakdown preview
     let basePayDisplay = 0;
     if (isPresent || isPaidLeave) {
       basePayDisplay = r.daily_wage;
@@ -197,10 +201,28 @@ const AttendanceModule = {
       basePayDisplay = r.daily_wage * 0.5;
     }
 
-    const otPayDisplay = otDays * r.daily_wage * otMult;
+    let otPayDisplay = 0;
+    if (isManager) {
+      otPayDisplay = otDays * r.daily_wage * otMult;
+    } else {
+      otPayDisplay = extraBoxes * boxRate;
+    }
+
     const totalDayEst = basePayDisplay + otPayDisplay;
 
-    // Special Layout for Tuesdays / Paid Holidays
+    // Categories list for dropdown
+    const categories = API.workCategories || [
+      'Sp 100', 'Sp 80', 'Sp 80 kishanganj', 'Pd 80', 'Pd 100', 'S 50', 'Pd 40', 'Pd 50',
+      'P 100', 'p 95', 'P card', 'Sp card', 'pd orange card', 'pd pink card', 'pd big card',
+      'sp big card', 'bangles(special)'
+    ];
+
+    const currentCat = r.work_category || '';
+    const categoryOptionsHtml = categories.map(cat => 
+      `<option value="${this.escapeHtml(cat)}" ${currentCat === cat ? 'selected' : ''}>${this.escapeHtml(cat)}</option>`
+    ).join('');
+
+    // Tuesday or Paid Holiday Card
     if (isPaidDayOff) {
       return `
         <div class="worker-card holiday-mode status-${r.status}" data-emp-id="${r.employee_id}" id="worker-card-${r.employee_id}">
@@ -208,7 +230,7 @@ const AttendanceModule = {
             <div class="worker-info">
               <div class="worker-name">
                 <span>${this.escapeHtml(r.name)}</span>
-                <span class="worker-badge">${this.escapeHtml(r.role || 'Worker')}</span>
+                <span class="worker-badge ${isManager ? 'manager-badge' : ''}">${isManager ? '👔 Manager' : this.escapeHtml(r.role || 'Worker')}</span>
                 <span class="badge-holiday-tag">🌴 ${this.dateMeta.isTuesday ? 'Tue Off' : 'Holiday'}</span>
               </div>
               <div class="worker-wage-tag">
@@ -221,7 +243,7 @@ const AttendanceModule = {
             </div>
           </div>
 
-          <!-- Holiday Status Action Segment -->
+          <!-- Holiday Status Segment -->
           <div class="holiday-status-segment">
             <button type="button" class="status-btn btn-paid-leave ${(!isHolidayWork && isPaidLeave) ? 'selected' : ''}" data-status="PAID_LEAVE" data-holiday-work="0" data-emp-id="${r.employee_id}">
               <span>🌴</span> Off (Paid Full Day)
@@ -234,48 +256,58 @@ const AttendanceModule = {
             </button>
           </div>
 
-          <!-- Overtime Section (active when worked holiday or custom OT days) -->
-          <div class="overtime-panel ${isHolidayWork ? 'holiday-active' : ''}">
-            <div class="ot-controls-row">
-              <div class="ot-label-group">
-                <span>⏱️ Overtime Work (in Days)</span>
-              </div>
-
-              <!-- Stepper: - 0.5d + -->
-              <div class="ot-stepper-wrap">
-                <button type="button" class="ot-step-btn btn-step-minus" data-emp-id="${r.employee_id}">-</button>
-                <input type="number" step="0.25" min="0" max="5" class="ot-input" id="ot-input-${r.employee_id}" value="${otDays}" data-emp-id="${r.employee_id}">
-                <span class="text-xs text-muted">days</span>
-                <button type="button" class="ot-step-btn btn-step-plus" data-emp-id="${r.employee_id}">+</button>
-              </div>
+          ${isManager ? `
+            <div class="manager-exempt-notice">
+              <span>👔 Manager: Fixed daily wage (Exempt from packaging work categories & box counting)</span>
             </div>
-
-            <!-- Multiplier Control: 0 to 3 in float up to 2 decimals -->
-            <div class="ot-mult-row">
-              <div class="ot-mult-label">
-                <span>Overtime Multiplier:</span>
-              </div>
-              <div class="ot-chips-wrap">
-                <button type="button" class="ot-chip-btn ${Math.abs(otMult - 0.0) < 0.001 ? 'selected' : ''}" data-mult="0.00" data-emp-id="${r.employee_id}">0.0x</button>
-                <button type="button" class="ot-chip-btn ${Math.abs(otMult - 1.0) < 0.001 ? 'selected' : ''}" data-mult="1.00" data-emp-id="${r.employee_id}">1.0x</button>
-                <button type="button" class="ot-chip-btn ${Math.abs(otMult - 1.5) < 0.001 ? 'selected' : ''}" data-mult="1.50" data-emp-id="${r.employee_id}">1.5x</button>
-                <button type="button" class="ot-chip-btn ${Math.abs(otMult - 2.0) < 0.001 ? 'selected' : ''}" data-mult="2.00" data-emp-id="${r.employee_id}">2.0x</button>
-              </div>
-              <div class="ot-custom-mult-wrap">
-                <input type="number" min="0" max="3" step="0.01" class="ot-mult-input" id="ot-mult-${r.employee_id}" value="${otMult.toFixed(2)}" data-emp-id="${r.employee_id}" title="Multiplier 0.00 to 3.00">
-                <span class="ot-mult-suffix">x</span>
-              </div>
-            </div>
-
-            <!-- Formula preview -->
-            <div class="ot-calc-preview" id="ot-preview-${r.employee_id}">
-              <span>Paid Day: ${API.formatMoney(basePayDisplay)}</span>
-              <span>OT: ${otDays > 0 ? `${otDays}d @ ${otMult.toFixed(2)}x = <strong>${API.formatMoney(otPayDisplay)}</strong>` : '0d'}</span>
-            </div>
-
             <!-- Quick Notes -->
-            <input type="text" class="notes-input-mini" placeholder="Notes (e.g. Came for urgent site work)..." value="${this.escapeHtml(r.notes || '')}" data-emp-id="${r.employee_id}" id="notes-${r.employee_id}">
-          </div>
+            <input type="text" class="notes-input-mini mt-2" placeholder="Notes (e.g. Site supervision on holiday)..." value="${this.escapeHtml(r.notes || '')}" data-emp-id="${r.employee_id}" id="notes-${r.employee_id}">
+          ` : `
+            <!-- Work Category Selection (Active when worked on holiday or present) -->
+            <div class="work-category-row" id="cat-row-${r.employee_id}">
+              <label class="work-category-label">📦 Work Category:</label>
+              <select class="work-category-select" data-emp-id="${r.employee_id}" id="cat-select-${r.employee_id}">
+                <option value="">-- Select Work Category --</option>
+                ${categoryOptionsHtml}
+              </select>
+            </div>
+
+            <!-- Overtime Section: Extra Boxes -->
+            <div class="overtime-panel ${isHolidayWork ? 'holiday-active' : ''}">
+              <div class="ot-controls-row">
+                <div class="ot-label-group">
+                  <span>📦 Extra Boxes Packed</span>
+                  <span class="box-rate-tag">(@ ${API.formatMoney(boxRate)}/box)</span>
+                </div>
+
+                <div class="ot-stepper-wrap">
+                  <button type="button" class="ot-step-btn btn-box-minus" data-emp-id="${r.employee_id}">-</button>
+                  <input type="number" step="1" min="0" max="999" class="ot-input box-count-input" id="box-input-${r.employee_id}" value="${extraBoxes}" data-emp-id="${r.employee_id}">
+                  <span class="text-xs text-muted">boxes</span>
+                  <button type="button" class="ot-step-btn btn-box-plus" data-emp-id="${r.employee_id}">+</button>
+                </div>
+              </div>
+
+              <!-- Quick Box Chips -->
+              <div class="box-quick-chips">
+                <button type="button" class="box-chip-btn ${extraBoxes === 0 ? 'selected' : ''}" data-boxes="0" data-emp-id="${r.employee_id}">0</button>
+                <button type="button" class="box-chip-btn ${extraBoxes === 1 ? 'selected' : ''}" data-boxes="1" data-emp-id="${r.employee_id}">+1</button>
+                <button type="button" class="box-chip-btn ${extraBoxes === 2 ? 'selected' : ''}" data-boxes="2" data-emp-id="${r.employee_id}">+2</button>
+                <button type="button" class="box-chip-btn ${extraBoxes === 3 ? 'selected' : ''}" data-boxes="3" data-emp-id="${r.employee_id}">+3</button>
+                <button type="button" class="box-chip-btn ${extraBoxes === 5 ? 'selected' : ''}" data-boxes="5" data-emp-id="${r.employee_id}">+5</button>
+                <button type="button" class="box-chip-btn ${extraBoxes === 10 ? 'selected' : ''}" data-boxes="10" data-emp-id="${r.employee_id}">+10</button>
+              </div>
+
+              <!-- Formula preview -->
+              <div class="ot-calc-preview" id="ot-preview-${r.employee_id}">
+                <span>Paid Day: ${API.formatMoney(basePayDisplay)}</span>
+                <span>Extra Boxes: ${extraBoxes > 0 ? `${extraBoxes} boxes × ${API.formatMoney(boxRate)} = <strong>${API.formatMoney(otPayDisplay)}</strong>` : '0 boxes'}</span>
+              </div>
+
+              <!-- Quick Notes -->
+              <input type="text" class="notes-input-mini" placeholder="Notes (e.g. Worked extra batch on holiday)..." value="${this.escapeHtml(r.notes || '')}" data-emp-id="${r.employee_id}" id="notes-${r.employee_id}">
+            </div>
+          `}
 
           <!-- Visual Save Feedback -->
           <div class="card-save-status" id="save-status-${r.employee_id}">
@@ -285,14 +317,14 @@ const AttendanceModule = {
       `;
     }
 
-    // Regular Working Day Layout (Day-Wise)
+    // Regular Working Day Layout
     return `
       <div class="worker-card status-${r.status}" data-emp-id="${r.employee_id}" id="worker-card-${r.employee_id}">
         <div class="worker-header">
           <div class="worker-info">
             <div class="worker-name">
               <span>${this.escapeHtml(r.name)}</span>
-              <span class="worker-badge">${this.escapeHtml(r.role || 'Worker')}</span>
+              <span class="worker-badge ${isManager ? 'manager-badge' : ''}">${isManager ? '👔 Manager' : this.escapeHtml(r.role || 'Worker')}</span>
             </div>
             <div class="worker-wage-tag">
               Daily Rate: <span class="worker-wage-rate">${API.formatMoney(r.daily_wage)}/day</span>
@@ -320,48 +352,59 @@ const AttendanceModule = {
           </button>
         </div>
 
-        <!-- Overtime Panel (Day-Wise) -->
-        <div class="overtime-panel">
-          <div class="ot-controls-row">
-            <div class="ot-label-group">
-              <span>⏱️ Overtime (in Days)</span>
-            </div>
-
-            <!-- Stepper: - 0.25d / 0.5d + -->
-            <div class="ot-stepper-wrap">
-              <button type="button" class="ot-step-btn btn-step-minus" data-emp-id="${r.employee_id}">-</button>
-              <input type="number" step="0.25" min="0" max="5" class="ot-input" id="ot-input-${r.employee_id}" value="${otDays}" data-emp-id="${r.employee_id}">
-              <span class="text-xs text-muted">days</span>
-              <button type="button" class="ot-step-btn btn-step-plus" data-emp-id="${r.employee_id}">+</button>
-            </div>
+        ${isManager ? `
+          <div class="manager-exempt-notice">
+            <span>👔 Manager: Fixed daily wage (Exempt from packaging work categories & box counting)</span>
           </div>
-
-          <!-- Multiplier Control: 0 to 3 in float up to 2 decimals -->
-          <div class="ot-mult-row">
-            <div class="ot-mult-label">
-              <span>OT Multiplier:</span>
-            </div>
-            <div class="ot-chips-wrap">
-              <button type="button" class="ot-chip-btn ${Math.abs(otMult - 0.0) < 0.001 ? 'selected' : ''}" data-mult="0.00" data-emp-id="${r.employee_id}">0.0x</button>
-              <button type="button" class="ot-chip-btn ${Math.abs(otMult - 1.0) < 0.001 ? 'selected' : ''}" data-mult="1.00" data-emp-id="${r.employee_id}">1.0x</button>
-              <button type="button" class="ot-chip-btn ${Math.abs(otMult - 1.5) < 0.001 ? 'selected' : ''}" data-mult="1.50" data-emp-id="${r.employee_id}">1.5x</button>
-              <button type="button" class="ot-chip-btn ${Math.abs(otMult - 2.0) < 0.001 ? 'selected' : ''}" data-mult="2.00" data-emp-id="${r.employee_id}">2.0x</button>
-            </div>
-            <div class="ot-custom-mult-wrap">
-              <input type="number" min="0" max="3" step="0.01" class="ot-mult-input" id="ot-mult-${r.employee_id}" value="${otMult.toFixed(2)}" data-emp-id="${r.employee_id}" title="Multiplier 0.00 to 3.00">
-              <span class="ot-mult-suffix">x</span>
-            </div>
-          </div>
-
-          <!-- Formula preview (Day-Wise) -->
-          <div class="ot-calc-preview" id="ot-preview-${r.employee_id}">
-            <span>Base Wage: ${API.formatMoney(basePayDisplay)}</span>
-            <span>OT: ${otDays > 0 ? `${otDays}d @ ${otMult.toFixed(2)}x = <strong>${API.formatMoney(otPayDisplay)}</strong>` : '0d'}</span>
-          </div>
-
           <!-- Quick Notes -->
-          <input type="text" class="notes-input-mini" placeholder="Notes (e.g. Worked extra half day)..." value="${this.escapeHtml(r.notes || '')}" data-emp-id="${r.employee_id}" id="notes-${r.employee_id}">
-        </div>
+          <input type="text" class="notes-input-mini mt-2" placeholder="Notes (e.g. Planning, inventory, supervision)..." value="${this.escapeHtml(r.notes || '')}" data-emp-id="${r.employee_id}" id="notes-${r.employee_id}">
+        ` : `
+          <!-- Work Category Selection -->
+          <div class="work-category-row" id="cat-row-${r.employee_id}" style="${isAbsent ? 'opacity: 0.5; pointer-events: none;' : ''}">
+            <label class="work-category-label">📦 Work Category:</label>
+            <select class="work-category-select" data-emp-id="${r.employee_id}" id="cat-select-${r.employee_id}">
+              <option value="">-- Select Work Category --</option>
+              ${categoryOptionsHtml}
+            </select>
+          </div>
+
+          <!-- Overtime Panel: Extra Boxes Packed -->
+          <div class="overtime-panel">
+            <div class="ot-controls-row">
+              <div class="ot-label-group">
+                <span>📦 Extra Boxes Packed</span>
+                <span class="box-rate-tag">(@ ${API.formatMoney(boxRate)}/box)</span>
+              </div>
+
+              <!-- Stepper: - 1 box + -->
+              <div class="ot-stepper-wrap">
+                <button type="button" class="ot-step-btn btn-box-minus" data-emp-id="${r.employee_id}">-</button>
+                <input type="number" step="1" min="0" max="999" class="ot-input box-count-input" id="box-input-${r.employee_id}" value="${extraBoxes}" data-emp-id="${r.employee_id}">
+                <span class="text-xs text-muted">boxes</span>
+                <button type="button" class="ot-step-btn btn-box-plus" data-emp-id="${r.employee_id}">+</button>
+              </div>
+            </div>
+
+            <!-- Quick Box Chips -->
+            <div class="box-quick-chips">
+              <button type="button" class="box-chip-btn ${extraBoxes === 0 ? 'selected' : ''}" data-boxes="0" data-emp-id="${r.employee_id}">0</button>
+              <button type="button" class="box-chip-btn ${extraBoxes === 1 ? 'selected' : ''}" data-boxes="1" data-emp-id="${r.employee_id}">+1</button>
+              <button type="button" class="box-chip-btn ${extraBoxes === 2 ? 'selected' : ''}" data-boxes="2" data-emp-id="${r.employee_id}">+2</button>
+              <button type="button" class="box-chip-btn ${extraBoxes === 3 ? 'selected' : ''}" data-boxes="3" data-emp-id="${r.employee_id}">+3</button>
+              <button type="button" class="box-chip-btn ${extraBoxes === 5 ? 'selected' : ''}" data-boxes="5" data-emp-id="${r.employee_id}">+5</button>
+              <button type="button" class="box-chip-btn ${extraBoxes === 10 ? 'selected' : ''}" data-boxes="10" data-emp-id="${r.employee_id}">+10</button>
+            </div>
+
+            <!-- Formula preview -->
+            <div class="ot-calc-preview" id="ot-preview-${r.employee_id}">
+              <span>Base Wage: ${API.formatMoney(basePayDisplay)}</span>
+              <span>Extra Boxes: ${extraBoxes > 0 ? `${extraBoxes} boxes × ${API.formatMoney(boxRate)} = <strong>${API.formatMoney(otPayDisplay)}</strong>` : '0 boxes'}</span>
+            </div>
+
+            <!-- Quick Notes -->
+            <input type="text" class="notes-input-mini" placeholder="Notes (e.g. Extra packing target, special batch)..." value="${this.escapeHtml(r.notes || '')}" data-emp-id="${r.employee_id}" id="notes-${r.employee_id}">
+          </div>
+        `}
 
         <!-- Visual Save Feedback -->
         <div class="card-save-status" id="save-status-${r.employee_id}">
@@ -381,74 +424,63 @@ const AttendanceModule = {
 
         const updates = { status, is_holiday_work: holidayWork };
 
-        // If clicking "Worked on Holiday", default overtime_days to 1.0 if currently 0
-        if (holidayWork) {
-          const rec = this.records.find(r => r.employee_id === empId);
-          if (rec && (!rec.overtime_days || rec.overtime_days === 0)) {
-            updates.overtime_days = 1.0;
-          }
-        } else if (btn.dataset.holidayWork === '0' && this.dateMeta && this.dateMeta.isPaidDayOff) {
-          // If tapping "Off (Paid Leave)", reset OT days to 0
-          updates.overtime_days = 0;
+        // If absent, reset extra boxes
+        if (status === 'ABSENT') {
+          updates.extra_boxes = 0;
         }
 
         this.updateWorkerAttendance(empId, updates);
       });
     });
 
-    // Overtime preset chip buttons
-    document.querySelectorAll('.ot-chip-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const empId = parseInt(btn.dataset.empId);
-        const mult = parseFloat(btn.dataset.mult);
-        this.updateWorkerAttendance(empId, { overtime_multiplier: mult });
+    // Work Category dropdown change
+    document.querySelectorAll('.work-category-select').forEach(sel => {
+      sel.addEventListener('change', () => {
+        const empId = parseInt(sel.dataset.empId);
+        this.updateWorkerAttendance(empId, { work_category: sel.value });
       });
     });
 
-    // Custom overtime multiplier input (0.00 to 3.00)
-    document.querySelectorAll('.ot-mult-input').forEach(input => {
-      input.addEventListener('change', () => {
-        const empId = parseInt(input.dataset.empId);
-        let val = parseFloat(input.value);
-        if (isNaN(val)) val = 0.0;
-        val = Math.max(0, Math.min(3.0, Math.round(val * 100) / 100));
-        input.value = val.toFixed(2);
-        this.updateWorkerAttendance(empId, { overtime_multiplier: val });
-      });
-    });
-
-    // Overtime step plus/minus (Day-Wise: step by 0.25d or 0.5d)
-    document.querySelectorAll('.btn-step-plus').forEach(btn => {
+    // Box count stepper plus/minus (+1, -1)
+    document.querySelectorAll('.btn-box-plus').forEach(btn => {
       btn.addEventListener('click', () => {
         const empId = parseInt(btn.dataset.empId);
-        const input = document.getElementById(`ot-input-${empId}`);
-        let val = (parseFloat(input.value) || 0) + 0.5;
-        if (val > 5) val = 5;
+        const input = document.getElementById(`box-input-${empId}`);
+        let val = (parseInt(input.value) || 0) + 1;
         input.value = val;
-        this.updateWorkerAttendance(empId, { overtime_days: val });
+        this.updateWorkerAttendance(empId, { extra_boxes: val });
       });
     });
 
-    document.querySelectorAll('.btn-step-minus').forEach(btn => {
+    document.querySelectorAll('.btn-box-minus').forEach(btn => {
       btn.addEventListener('click', () => {
         const empId = parseInt(btn.dataset.empId);
-        const input = document.getElementById(`ot-input-${empId}`);
-        let val = (parseFloat(input.value) || 0) - 0.5;
+        const input = document.getElementById(`box-input-${empId}`);
+        let val = (parseInt(input.value) || 0) - 1;
         if (val < 0) val = 0;
         input.value = val;
-        this.updateWorkerAttendance(empId, { overtime_days: val });
+        this.updateWorkerAttendance(empId, { extra_boxes: val });
       });
     });
 
-    // Overtime input manual change
-    document.querySelectorAll('.ot-input').forEach(input => {
+    // Box quick chips (0, +1, +2, +3, +5, +10)
+    document.querySelectorAll('.box-chip-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const empId = parseInt(btn.dataset.empId);
+        const boxes = parseInt(btn.dataset.boxes);
+        const input = document.getElementById(`box-input-${empId}`);
+        if (input) input.value = boxes;
+        this.updateWorkerAttendance(empId, { extra_boxes: boxes });
+      });
+    });
+
+    // Box input manual entry
+    document.querySelectorAll('.box-count-input').forEach(input => {
       input.addEventListener('change', () => {
         const empId = parseInt(input.dataset.empId);
-        let val = parseFloat(input.value) || 0;
-        if (val < 0) val = 0;
-        if (val > 5) val = 5;
+        let val = Math.max(0, parseInt(input.value) || 0);
         input.value = val;
-        this.updateWorkerAttendance(empId, { overtime_days: val });
+        this.updateWorkerAttendance(empId, { extra_boxes: val });
       });
     });
 
@@ -468,11 +500,6 @@ const AttendanceModule = {
     // Merge updates locally
     Object.assign(record, updates);
 
-    // Ensure overtime multiplier is valid float between 0.00 and 3.00
-    if (record.overtime_multiplier !== undefined) {
-      record.overtime_multiplier = Math.max(0, Math.min(3.0, Math.round(Number(record.overtime_multiplier) * 100) / 100));
-    }
-
     // Default status if not marked
     if (record.status === 'NOT_MARKED') {
       record.status = (this.dateMeta && this.dateMeta.isPaidDayOff) ? 'PAID_LEAVE' : 'PRESENT';
@@ -486,8 +513,11 @@ const AttendanceModule = {
         employee_id: record.employee_id,
         date: this.currentDate,
         status: record.status,
+        work_category: record.work_category || '',
+        extra_boxes: parseFloat(record.extra_boxes || 0),
+        box_rate: parseFloat(record.box_rate !== undefined ? record.box_rate : (API.defaultBoxRate || 30.0)),
         overtime_days: parseFloat(record.overtime_days || 0),
-        overtime_multiplier: record.overtime_multiplier,
+        overtime_multiplier: parseFloat(record.overtime_multiplier || 0),
         is_holiday_work: record.is_holiday_work ? 1 : 0,
         bonus_allowance: record.bonus_allowance || 0,
         deduction: record.deduction || 0,
@@ -515,7 +545,7 @@ const AttendanceModule = {
     if (!card) return;
 
     // Update card classes
-    card.className = `worker-card status-${record.status} ${record.is_holiday_work ? 'holiday-worked' : ''}`;
+    card.className = `worker-card ${card.classList.contains('holiday-mode') ? 'holiday-mode' : ''} status-${record.status} ${record.is_holiday_work ? 'holiday-worked' : ''}`;
 
     // Update status buttons
     const btns = card.querySelectorAll('.status-btn');
@@ -530,27 +560,17 @@ const AttendanceModule = {
       }
     });
 
-    const otMult = Number(record.overtime_multiplier !== undefined && record.overtime_multiplier !== null ? record.overtime_multiplier : 0.0);
-    const otDays = Number(record.overtime_days || 0);
+    const isManager = record.worker_type === 'MANAGER';
+    const isAbsent = record.status === 'ABSENT';
 
-    // Update multiplier preset chips
-    const chipBtns = card.querySelectorAll('.ot-chip-btn');
-    chipBtns.forEach(b => {
-      const chipVal = parseFloat(b.dataset.mult);
-      b.classList.toggle('selected', Math.abs(chipVal - otMult) < 0.001);
-    });
-
-    // Update custom multiplier input
-    const multInput = document.getElementById(`ot-mult-${record.employee_id}`);
-    if (multInput) {
-      multInput.value = otMult.toFixed(2);
+    // Toggle work category row opacity if absent
+    const catRow = document.getElementById(`cat-row-${record.employee_id}`);
+    if (catRow) {
+      catRow.style.opacity = isAbsent ? '0.5' : '1';
+      catRow.style.pointerEvents = isAbsent ? 'none' : 'auto';
     }
 
-    // Update OT days input
-    const otInput = document.getElementById(`ot-input-${record.employee_id}`);
-    if (otInput) otInput.value = otDays;
-
-    // Recalculate local display earnings (Day-Wise)
+    // Recalculate local display earnings
     let basePay = 0;
     if (record.status === 'PRESENT' || record.status === 'PAID_LEAVE' || record.status === 'PAID_HOLIDAY') {
       basePay = record.daily_wage;
@@ -558,18 +578,48 @@ const AttendanceModule = {
       basePay = record.daily_wage * 0.5;
     }
 
-    const otPay = otDays * record.daily_wage * otMult;
+    let otPay = 0;
+    const extraBoxes = Number(record.extra_boxes || 0);
+    const boxRate = Number(record.box_rate !== undefined ? record.box_rate : (API.defaultBoxRate || 30.0));
+
+    if (isManager) {
+      otPay = (record.overtime_days || 0) * record.daily_wage * (record.overtime_multiplier || 0);
+    } else {
+      otPay = extraBoxes * boxRate;
+    }
+
     const totalDay = basePay + otPay;
 
+    // Update Day Total badge
     const earningEl = document.getElementById(`earning-${record.employee_id}`);
     if (earningEl) earningEl.textContent = API.formatMoney(totalDay);
 
+    // Update box count input & quick chip buttons
+    const boxInput = document.getElementById(`box-input-${record.employee_id}`);
+    if (boxInput) boxInput.value = extraBoxes;
+
+    const boxChips = card.querySelectorAll('.box-chip-btn');
+    boxChips.forEach(b => {
+      b.classList.toggle('selected', parseInt(b.dataset.boxes) === extraBoxes);
+    });
+
+    // Update category dropdown
+    const catSelect = document.getElementById(`cat-select-${record.employee_id}`);
+    if (catSelect && record.work_category !== undefined) {
+      catSelect.value = record.work_category || '';
+    }
+
+    // Update calculation preview formula
     const otPreviewEl = document.getElementById(`ot-preview-${record.employee_id}`);
     if (otPreviewEl) {
-      otPreviewEl.innerHTML = `
-        <span>Base: ${API.formatMoney(basePay)}</span>
-        <span>OT: ${otDays > 0 ? `${otDays}d @ ${otMult.toFixed(2)}x = <strong>${API.formatMoney(otPay)}</strong>` : '0d'}</span>
-      `;
+      if (isManager) {
+        otPreviewEl.innerHTML = `<span>Base: ${API.formatMoney(basePay)}</span>`;
+      } else {
+        otPreviewEl.innerHTML = `
+          <span>Base: ${API.formatMoney(basePay)}</span>
+          <span>Extra Boxes: ${extraBoxes > 0 ? `${extraBoxes} boxes × ${API.formatMoney(boxRate)} = <strong>${API.formatMoney(otPay)}</strong>` : '0 boxes'}</span>
+        `;
+      }
     }
   },
 
@@ -580,6 +630,7 @@ const AttendanceModule = {
     let totalAbsent = 0;
     let totalUnmarked = 0;
     let totalOtDays = 0;
+    let totalExtraBoxes = 0;
     let totalHolidayWorkers = 0;
     let totalWagesToday = 0;
 
@@ -599,10 +650,19 @@ const AttendanceModule = {
         base = item.daily_wage * 0.5;
       }
 
-      const otDays = Number(item.overtime_days || 0);
-      const otMult = (item.overtime_multiplier !== undefined && item.overtime_multiplier !== null) ? Number(item.overtime_multiplier) : 0.0;
-      const ot = otDays * item.daily_wage * otMult;
-      totalOtDays += otDays;
+      let ot = 0;
+      if (item.worker_type === 'MANAGER') {
+        const otDays = Number(item.overtime_days || 0);
+        const otMult = Number(item.overtime_multiplier || 0);
+        ot = otDays * item.daily_wage * otMult;
+        totalOtDays += otDays;
+      } else {
+        const boxes = Number(item.extra_boxes || 0);
+        const rate = Number(item.box_rate !== undefined ? item.box_rate : (API.defaultBoxRate || 30.0));
+        ot = boxes * rate;
+        totalExtraBoxes += boxes;
+      }
+
       totalWagesToday += (base + ot);
     }
 
@@ -613,6 +673,7 @@ const AttendanceModule = {
       totalAbsent,
       totalUnmarked,
       totalOtDays: Math.round(totalOtDays * 100) / 100,
+      totalExtraBoxes: Math.round(totalExtraBoxes * 100) / 100,
       totalHolidayWorkers,
       totalWagesToday: Math.round(totalWagesToday * 100) / 100
     });
@@ -631,8 +692,11 @@ const AttendanceModule = {
     const batchRecords = this.records.map(r => ({
       employee_id: r.employee_id,
       status: targetStatus,
+      work_category: r.work_category || '',
+      extra_boxes: 0,
+      box_rate: r.box_rate || API.defaultBoxRate || 30.0,
       overtime_days: 0,
-      overtime_multiplier: (r.overtime_multiplier !== undefined && r.overtime_multiplier !== null) ? Number(r.overtime_multiplier) : 0.0,
+      overtime_multiplier: 0.0,
       is_holiday_work: 0,
       notes: isDayOff ? (this.dateMeta.dayOffReason || 'Paid Leave') : ''
     }));

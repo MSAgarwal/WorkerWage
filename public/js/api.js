@@ -2,6 +2,12 @@
 const API = {
   currency: '₹',
   defaultOtMult: 0.0,
+  defaultBoxRate: 30.0,
+  workCategories: [
+    'Sp 100', 'Sp 80', 'Sp 80 kishanganj', 'Pd 80', 'Pd 100', 'S 50', 'Pd 40', 'Pd 50',
+    'P 100', 'p 95', 'P card', 'Sp card', 'pd orange card', 'pd pink card', 'pd big card',
+    'sp big card', 'bangles(special)'
+  ],
 
   // Generic fetch wrapper
   async request(endpoint, options = {}) {
@@ -55,6 +61,12 @@ const API = {
       if (res.settings.currency_symbol) this.currency = res.settings.currency_symbol;
       if (res.settings.default_ot_multiplier !== undefined && res.settings.default_ot_multiplier !== null) {
         this.defaultOtMult = parseFloat(res.settings.default_ot_multiplier);
+      }
+      if (res.settings.default_box_rate !== undefined && res.settings.default_box_rate !== null) {
+        this.defaultBoxRate = parseFloat(res.settings.default_box_rate);
+      }
+      if (res.settings.work_categories_list && Array.isArray(res.settings.work_categories_list)) {
+        this.workCategories = res.settings.work_categories_list;
       }
     }
     return res;
