@@ -133,10 +133,13 @@ const PayrollModule = {
 
       // Extra Boxes / Pieces / OT column
       let otCol = '-';
-      if (isManager) {
+      if (isManager && (!w.holidayWorkDays || w.holidayWorkDays === 0)) {
         otCol = '<span class="text-muted text-xs">Exempt</span>';
       } else {
         const parts = [];
+        if (w.holidayWorkDays > 0) {
+          parts.push(`<div><span class="badge" style="background:#dcfce7;color:#166534;font-size:0.72rem;padding:2px 6px;border-radius:4px;font-weight:600;">🎉 ${w.holidayWorkDays}d Hol (+${API.formatMoney(w.holidayWorkDays * 200)})</span></div>`);
+        }
         if (w.totalExtraPieces > 0) {
           parts.push(`<div><strong>${w.totalExtraPieces.toLocaleString()} pcs</strong> <span class="text-xs text-muted">(${(w.totalExtraPieces / 500).toFixed(1).replace('.0', '')} eq)</span></div>`);
         }

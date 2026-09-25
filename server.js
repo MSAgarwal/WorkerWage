@@ -74,7 +74,8 @@ function calculateWage(
   boxRate = 30.0,
   workerType = 'WORKER',
   workCategory = '',
-  extraPieces = 0
+  extraPieces = 0,
+  isPaidDayOff = false
 ) {
   dailyWage = Number(dailyWage) || 0;
   bonus = Number(bonus) || 0;
@@ -105,7 +106,22 @@ function calculateWage(
   let parsedOtDays = 0;
   let parsedOtMultiplier = 0.0;
 
-  if (workerType === 'MANAGER') {
+  // Determine if this is holiday work on a paid holiday / Tuesday
+  const isHoliday = !!isHolidayWork || (isPaidDayOff && (status === 'PRESENT' || status === 'HALF_DAY'));
+
+  if (isHoliday) {
+    // User requirement: "for paid holidays either it is tuesday or holiday make it fixed overtime of ₹200 for now"
+    if (status !== 'ABSENT') {
+      overtimePay = 200.0;
+    } else {
+      overtimePay = 0.0;
+    }
+    parsedBoxes = 0;
+    parsedPieces = 0;
+    parsedBoxRate = 0.0;
+    parsedOtDays = 0;
+    parsedOtMultiplier = 0.0;
+  } else if (workerType === 'MANAGER') {
     // Manager: Exempt from packaging work categories & box/piece overtime
     parsedOtDays = Number(otDays) || 0;
     if (otMultiplier === undefined || otMultiplier === null || isNaN(Number(otMultiplier))) {
@@ -118,35 +134,20 @@ function calculateWage(
     parsedPieces = 0;
     parsedBoxRate = 0.0;
   } else {
-    // Packaging Worker:
-    parsedBoxRate = (boxRate !== undefined && boxRate !== null && !isNaN(parseFloat(boxRate)))
-      ? Math.max(0, parseFloat(boxRate))
-      : 30.0;
-
+    // Packaging Worker on a Normal Day:
     const isPiece = isPieceCategory(workCategory);
 
     if (isPiece) {
-      // Card of any type or Bangle: Overtime counted in pieces in multiples of 500
-      // 500 pieces receives the box/unit rate (e.g. ₹30 per 500 pcs)
-      let pieces = parseFloat(extraPieces);
-      if (isNaN(pieces) || pieces < 0) pieces = 0;
-
-      // Fallback check if extraBoxes was passed instead of extraPieces
-      if (pieces === 0 && parseFloat(extraBoxes) > 0) {
-        const rawBoxes = parseFloat(extraBoxes);
-        if (rawBoxes >= 100) {
-          pieces = rawBoxes;
-        } else {
-          pieces = rawBoxes * 500;
-        }
-      }
-
-      parsedPieces = Math.max(0, pieces);
-      parsedBoxes = Math.round((parsedPieces / 500) * 100) / 100;
-      // Overtime Pay: (pieces / 500) * rate
-      overtimePay = (parsedPieces / 500) * parsedBoxRate;
+      // User requirement: "for now disable overtime for card and bangles in normal days"
+      overtimePay = 0.0;
+      parsedPieces = 0;
+      parsedBoxes = 0;
+      parsedBoxRate = 0.0;
     } else {
-      // Normal packaging category: Overtime counted in extra boxes
+      // Normal packaging category (e.g. Sp 100, Pd 80, etc.): Overtime in extra boxes @ box rate (default ₹30/box)
+      parsedBoxRate = (boxRate !== undefined && boxRate !== null && !isNaN(parseFloat(boxRate)))
+        ? Math.max(0, parseFloat(boxRate))
+        : 30.0;
       parsedBoxes = Math.max(0, parseFloat(extraBoxes) || 0);
       parsedPieces = 0;
       overtimePay = parsedBoxes * parsedBoxRate;
@@ -170,7 +171,7 @@ function calculateWage(
     overtimeDays: Math.round(parsedOtDays * 100) / 100,
     overtimeMultiplier: parsedOtMultiplier,
     overtimePay: Math.round(overtimePay * 100) / 100,
-    isHolidayWork: !!isHolidayWork,
+    isHolidayWork: isHoliday && status !== 'ABSENT',
     bonusAllowance: bonus,
     deduction: deduction,
     totalPay: Math.round(totalPay * 100) / 100
@@ -658,6 +659,10 @@ app.post('/api/attendance', (req, res) => {
     return res.status(404).json({ error: 'Worker not found' });
   }
 
+  const dateMeta = getDateMeta(date);
+  const isPaidDayOff = dateMeta.isPaidDayOff;
+  const holidayWork = (is_holiday_work === true || is_holiday_work === 1 || is_holiday_work === '1' || (isPaidDayOff && (status === 'PRESENT' || status === 'HALF_DAY'))) ? 1 : 0;
+
   const workerType = worker.worker_type || 'WORKER';
   const isManager = workerType === 'MANAGER';
   const effectiveCategory = isManager ? '' : (work_category ? String(work_category).trim() : '');
@@ -666,7 +671,7 @@ app.post('/api/attendance', (req, res) => {
   let parsedExtraPieces = 0;
   let parsedExtraBoxes = 0;
 
-  if (isManager) {
+  if (isManager || holidayWork || (isPiece && !isPaidDayOff)) {
     parsedExtraPieces = 0;
     parsedExtraBoxes = 0;
   } else if (isPiece) {
@@ -688,7 +693,6 @@ app.post('/api/attendance', (req, res) => {
     : (worker.default_box_rate !== undefined && worker.default_box_rate !== null ? worker.default_box_rate : 30.0);
 
   const otDays = parseFloat(overtime_days || 0);
-  const holidayWork = is_holiday_work ? 1 : 0;
   const otMult = (overtime_multiplier !== undefined && overtime_multiplier !== null && !isNaN(parseFloat(overtime_multiplier)))
     ? parseFloat(overtime_multiplier)
     : (worker.default_ot_multiplier !== undefined && worker.default_ot_multiplier !== null ? worker.default_ot_multiplier : 0.0);
@@ -705,7 +709,8 @@ app.post('/api/attendance', (req, res) => {
     effectiveBoxRate,
     workerType,
     effectiveCategory,
-    parsedExtraPieces
+    parsedExtraPieces,
+    isPaidDayOff
   );
 
   try {
@@ -795,12 +800,16 @@ app.post('/api/attendance/batch', (req, res) => {
       updated_at = CURRENT_TIMESTAMP
   `);
 
+  const dateMeta = getDateMeta(date);
+  const isPaidDayOff = dateMeta.isPaidDayOff;
+
   try {
     let count = 0;
     for (const r of records) {
       const worker = db.prepare('SELECT * FROM employees WHERE id = ?').get(r.employee_id);
       if (!worker) continue;
 
+      const holidayWork = (r.is_holiday_work === true || r.is_holiday_work === 1 || r.is_holiday_work === '1' || (isPaidDayOff && (r.status === 'PRESENT' || r.status === 'HALF_DAY'))) ? 1 : 0;
       const workerType = worker.worker_type || 'WORKER';
       const isManager = workerType === 'MANAGER';
       const effectiveCategory = isManager ? '' : (r.work_category ? String(r.work_category).trim() : '');
@@ -809,7 +818,7 @@ app.post('/api/attendance/batch', (req, res) => {
       let parsedExtraPieces = 0;
       let parsedExtraBoxes = 0;
 
-      if (isManager) {
+      if (isManager || holidayWork || (isPiece && !isPaidDayOff)) {
         parsedExtraPieces = 0;
         parsedExtraBoxes = 0;
       } else if (isPiece) {
@@ -831,7 +840,6 @@ app.post('/api/attendance/batch', (req, res) => {
         : (worker.default_box_rate !== undefined && worker.default_box_rate !== null ? worker.default_box_rate : 30.0);
 
       const otDays = parseFloat(r.overtime_days || 0);
-      const holidayWork = r.is_holiday_work ? 1 : 0;
       const otMult = (r.overtime_multiplier !== undefined && r.overtime_multiplier !== null && !isNaN(parseFloat(r.overtime_multiplier)))
         ? parseFloat(r.overtime_multiplier)
         : (worker.default_ot_multiplier !== undefined && worker.default_ot_multiplier !== null ? worker.default_ot_multiplier : 0.0);
@@ -848,7 +856,8 @@ app.post('/api/attendance/batch', (req, res) => {
         effectiveBoxRate,
         workerType,
         effectiveCategory,
-        parsedExtraPieces
+        parsedExtraPieces,
+        isPaidDayOff
       );
 
       upsertStmt.run(
