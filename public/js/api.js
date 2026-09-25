@@ -9,6 +9,13 @@ const API = {
     'sp big card', 'bangles(special)'
   ],
 
+  // Check if category is piece-based (cards or bangles)
+  isPieceCategory(cat) {
+    if (!cat) return false;
+    const lower = String(cat).toLowerCase();
+    return lower.includes('card') || lower.includes('bangle');
+  },
+
   // Generic fetch wrapper
   async request(endpoint, options = {}) {
     const defaultHeaders = {

@@ -98,18 +98,15 @@ const PayrollModule = {
     document.getElementById('grandBaseOtSplit').textContent = `Base: ${API.formatMoney(totals.grandBasePay)} | OT: ${API.formatMoney(totals.grandOtPay)}`;
     
     const extraBoxes = totals.grandTotalExtraBoxes || 0;
+    const extraPieces = totals.grandTotalExtraPieces || 0;
     const otDays = totals.grandOtDays || 0;
     const otEl = document.getElementById('grandOtDays');
     if (otEl) {
-      if (extraBoxes > 0 && otDays > 0) {
-        otEl.textContent = `${extraBoxes} boxes / ${otDays}d`;
-      } else if (extraBoxes > 0) {
-        otEl.textContent = `${extraBoxes} boxes`;
-      } else if (otDays > 0) {
-        otEl.textContent = `${otDays}d`;
-      } else {
-        otEl.textContent = `0 boxes`;
-      }
+      const parts = [];
+      if (extraBoxes > 0) parts.push(`${extraBoxes} boxes`);
+      if (extraPieces > 0) parts.push(`${extraPieces.toLocaleString()} pcs`);
+      if (otDays > 0) parts.push(`${otDays}d`);
+      otEl.textContent = parts.length > 0 ? parts.join(' / ') : '0 units';
     }
 
     document.getElementById('grandAdvances').textContent = API.formatMoney(totals.grandAdvances);
@@ -134,14 +131,17 @@ const PayrollModule = {
         ? '<span class="manager-badge" style="font-size: 0.68rem; padding: 2px 6px;">👔 Manager</span>'
         : '<span class="worker-badge" style="font-size: 0.68rem; padding: 2px 6px;">📦 Worker</span>';
 
-      // Extra Boxes / OT column
+      // Extra Boxes / Pieces / OT column
       let otCol = '-';
       if (isManager) {
         otCol = '<span class="text-muted text-xs">Exempt</span>';
       } else {
         const parts = [];
+        if (w.totalExtraPieces > 0) {
+          parts.push(`<div><strong>${w.totalExtraPieces.toLocaleString()} pcs</strong> <span class="text-xs text-muted">(${(w.totalExtraPieces / 500).toFixed(1).replace('.0', '')} eq)</span></div>`);
+        }
         if (w.totalExtraBoxes > 0) {
-          parts.push(`<strong>${w.totalExtraBoxes} boxes</strong>`);
+          parts.push(`<div><strong>${w.totalExtraBoxes} boxes</strong></div>`);
         }
         if (w.totalOtDays > 0) {
           parts.push(`<div class="text-xs text-muted">${w.totalOtDays}d (${this.escapeHtml(w.otSummaryText || '')})</div>`);

@@ -43,6 +43,7 @@ function initDatabase() {
       base_pay REAL NOT NULL DEFAULT 0.0,
       work_category TEXT DEFAULT '',
       extra_boxes REAL NOT NULL DEFAULT 0.0,
+      extra_pieces REAL NOT NULL DEFAULT 0.0,
       box_rate REAL NOT NULL DEFAULT 30.0,
       overtime_hours REAL DEFAULT 0.0,
       overtime_days REAL NOT NULL DEFAULT 0.0,
@@ -107,6 +108,9 @@ function initDatabase() {
   } catch (e) {}
   try {
     db.exec('ALTER TABLE attendance ADD COLUMN box_rate REAL NOT NULL DEFAULT 30.0;');
+  } catch (e) {}
+  try {
+    db.exec('ALTER TABLE attendance ADD COLUMN extra_pieces REAL NOT NULL DEFAULT 0.0;');
   } catch (e) {}
 
   // Initialize Default Settings if not present

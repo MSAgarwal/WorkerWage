@@ -125,6 +125,10 @@ const AttendanceModule = {
     }
   },
 
+  isPieceCategory(cat) {
+    return API.isPieceCategory(cat);
+  },
+
   updateStats(summary) {
     if (!summary) return;
     document.getElementById('statPresentCount').textContent = summary.totalPresent || 0;
@@ -133,7 +137,12 @@ const AttendanceModule = {
     if (paidLeaveEl) paidLeaveEl.textContent = summary.totalPaidLeave || 0;
     document.getElementById('statAbsentCount').textContent = summary.totalAbsent || 0;
     const otDaysEl = document.getElementById('statOtDays');
-    if (otDaysEl) otDaysEl.textContent = `${summary.totalExtraBoxes || 0} boxes`;
+    if (otDaysEl) {
+      const parts = [];
+      if (summary.totalExtraBoxes > 0) parts.push(`${summary.totalExtraBoxes} bxs`);
+      if (summary.totalExtraPieces > 0) parts.push(`${summary.totalExtraPieces.toLocaleString()} pcs`);
+      otDaysEl.textContent = parts.length > 0 ? parts.join(' / ') : '0 units';
+    }
     document.getElementById('statTotalWages').textContent = API.formatMoney(summary.totalWagesToday);
 
     // Update filter counts
@@ -163,7 +172,7 @@ const AttendanceModule = {
     } else if (this.activeFilter === 'PAID_OFF') {
       filtered = filtered.filter(r => r.status === 'PAID_LEAVE' || r.status === 'PAID_HOLIDAY');
     } else if (this.activeFilter === 'OT') {
-      filtered = filtered.filter(r => (r.extra_boxes || 0) > 0 || (r.overtime_days || 0) > 0 || r.is_holiday_work);
+      filtered = filtered.filter(r => (r.extra_pieces || 0) > 0 || (r.extra_boxes || 0) > 0 || (r.overtime_days || 0) > 0 || r.is_holiday_work);
     }
 
     if (filtered.length === 0) {
@@ -187,8 +196,14 @@ const AttendanceModule = {
     const isPaidLeave = r.status === 'PAID_LEAVE' || r.status === 'PAID_HOLIDAY';
     const isAbsent = r.status === 'ABSENT';
     const isManager = r.worker_type === 'MANAGER';
+    const currentCat = r.work_category || '';
+    const isPiece = this.isPieceCategory(currentCat);
 
     const extraBoxes = Number(r.extra_boxes || 0);
+    const extraPieces = Number(r.extra_pieces !== undefined && r.extra_pieces !== null 
+      ? r.extra_pieces 
+      : (isPiece && extraBoxes > 0 ? (extraBoxes >= 100 ? extraBoxes : extraBoxes * 500) : 0));
+
     const boxRate = Number(r.box_rate !== undefined && r.box_rate !== null ? r.box_rate : (API.defaultBoxRate || 30.0));
     const otDays = Number(r.overtime_days || 0);
     const otMult = Number(r.overtime_multiplier || 0);
@@ -204,6 +219,8 @@ const AttendanceModule = {
     let otPayDisplay = 0;
     if (isManager) {
       otPayDisplay = otDays * r.daily_wage * otMult;
+    } else if (isPiece) {
+      otPayDisplay = (extraPieces / 500) * boxRate;
     } else {
       otPayDisplay = extraBoxes * boxRate;
     }
@@ -217,10 +234,82 @@ const AttendanceModule = {
       'sp big card', 'bangles(special)'
     ];
 
-    const currentCat = r.work_category || '';
     const categoryOptionsHtml = categories.map(cat => 
       `<option value="${this.escapeHtml(cat)}" ${currentCat === cat ? 'selected' : ''}>${this.escapeHtml(cat)}</option>`
     ).join('');
+
+    const otControlsHtml = isManager ? `
+      <div class="manager-exempt-notice">
+        <span>👔 Manager: Fixed daily wage (Exempt from packaging work categories & box/piece overtime)</span>
+      </div>
+      <input type="text" class="notes-input-mini mt-2" placeholder="Notes (e.g. Planning, inventory, supervision)..." value="${this.escapeHtml(r.notes || '')}" data-emp-id="${r.employee_id}" id="notes-${r.employee_id}">
+    ` : `
+      <!-- Work Category Selection -->
+      <div class="work-category-row" id="cat-row-${r.employee_id}" style="${isAbsent ? 'opacity: 0.5; pointer-events: none;' : ''}">
+        <label class="work-category-label">${isPiece ? '🃏' : '📦'} Work Category:</label>
+        <select class="work-category-select" data-emp-id="${r.employee_id}" id="cat-select-${r.employee_id}">
+          <option value="">-- Select Work Category --</option>
+          ${categoryOptionsHtml}
+        </select>
+      </div>
+
+      <!-- Overtime Section: Boxes or Pieces (in 500s) -->
+      <div class="overtime-panel ${isHolidayWork ? 'holiday-active' : ''}">
+        <div class="ot-controls-row">
+          <div class="ot-label-group">
+            <span>${isPiece ? '🃏 Extra Pieces Packed' : '📦 Extra Boxes Packed'}</span>
+            <span class="box-rate-tag">(@ ${API.formatMoney(boxRate)} ${isPiece ? '/ 500 pcs' : '/box'})</span>
+          </div>
+
+          <div class="ot-stepper-wrap">
+            <button type="button" class="ot-step-btn btn-box-minus" data-emp-id="${r.employee_id}">-</button>
+            <input type="number" 
+                   step="${isPiece ? '500' : '1'}" 
+                   min="0" 
+                   max="99999" 
+                   class="ot-input box-count-input" 
+                   id="box-input-${r.employee_id}" 
+                   value="${isPiece ? extraPieces : extraBoxes}" 
+                   data-emp-id="${r.employee_id}">
+            <span class="text-xs text-muted" id="unit-label-${r.employee_id}">${isPiece ? 'pcs' : 'boxes'}</span>
+            <button type="button" class="ot-step-btn btn-box-plus" data-emp-id="${r.employee_id}">+</button>
+          </div>
+        </div>
+
+        <!-- Quick Chips -->
+        <div class="box-quick-chips">
+          ${isPiece ? `
+            <button type="button" class="box-chip-btn ${extraPieces === 0 ? 'selected' : ''}" data-count="0" data-emp-id="${r.employee_id}">0</button>
+            <button type="button" class="box-chip-btn ${extraPieces === 500 ? 'selected' : ''}" data-count="500" data-emp-id="${r.employee_id}">+500</button>
+            <button type="button" class="box-chip-btn ${extraPieces === 1000 ? 'selected' : ''}" data-count="1000" data-emp-id="${r.employee_id}">+1000</button>
+            <button type="button" class="box-chip-btn ${extraPieces === 1500 ? 'selected' : ''}" data-count="1500" data-emp-id="${r.employee_id}">+1500</button>
+            <button type="button" class="box-chip-btn ${extraPieces === 2000 ? 'selected' : ''}" data-count="2000" data-emp-id="${r.employee_id}">+2000</button>
+            <button type="button" class="box-chip-btn ${extraPieces === 2500 ? 'selected' : ''}" data-count="2500" data-emp-id="${r.employee_id}">+2500</button>
+            <button type="button" class="box-chip-btn ${extraPieces === 3000 ? 'selected' : ''}" data-count="3000" data-emp-id="${r.employee_id}">+3000</button>
+          ` : `
+            <button type="button" class="box-chip-btn ${extraBoxes === 0 ? 'selected' : ''}" data-count="0" data-emp-id="${r.employee_id}">0</button>
+            <button type="button" class="box-chip-btn ${extraBoxes === 1 ? 'selected' : ''}" data-count="1" data-emp-id="${r.employee_id}">+1</button>
+            <button type="button" class="box-chip-btn ${extraBoxes === 2 ? 'selected' : ''}" data-count="2" data-emp-id="${r.employee_id}">+2</button>
+            <button type="button" class="box-chip-btn ${extraBoxes === 3 ? 'selected' : ''}" data-count="3" data-emp-id="${r.employee_id}">+3</button>
+            <button type="button" class="box-chip-btn ${extraBoxes === 5 ? 'selected' : ''}" data-count="5" data-emp-id="${r.employee_id}">+5</button>
+            <button type="button" class="box-chip-btn ${extraBoxes === 10 ? 'selected' : ''}" data-count="10" data-emp-id="${r.employee_id}">+10</button>
+          `}
+        </div>
+
+        <!-- Formula preview -->
+        <div class="ot-calc-preview" id="ot-preview-${r.employee_id}">
+          <span>${isPaidDayOff ? 'Paid Day' : 'Base'}: ${API.formatMoney(basePayDisplay)}</span>
+          ${isPiece ? `
+            <span>Extra Pieces: ${extraPieces > 0 ? `${extraPieces.toLocaleString()} pcs (${(extraPieces / 500).toFixed(1).replace('.0', '')} × ${API.formatMoney(boxRate)}) = <strong>${API.formatMoney(otPayDisplay)}</strong>` : '0 pcs'}</span>
+          ` : `
+            <span>Extra Boxes: ${extraBoxes > 0 ? `${extraBoxes} boxes × ${API.formatMoney(boxRate)} = <strong>${API.formatMoney(otPayDisplay)}</strong>` : '0 boxes'}</span>
+          `}
+        </div>
+
+        <!-- Quick Notes -->
+        <input type="text" class="notes-input-mini" placeholder="Notes (e.g. Extra packaging batch, target achieved)..." value="${this.escapeHtml(r.notes || '')}" data-emp-id="${r.employee_id}" id="notes-${r.employee_id}">
+      </div>
+    `;
 
     // Tuesday or Paid Holiday Card
     if (isPaidDayOff) {
@@ -256,58 +345,7 @@ const AttendanceModule = {
             </button>
           </div>
 
-          ${isManager ? `
-            <div class="manager-exempt-notice">
-              <span>👔 Manager: Fixed daily wage (Exempt from packaging work categories & box counting)</span>
-            </div>
-            <!-- Quick Notes -->
-            <input type="text" class="notes-input-mini mt-2" placeholder="Notes (e.g. Site supervision on holiday)..." value="${this.escapeHtml(r.notes || '')}" data-emp-id="${r.employee_id}" id="notes-${r.employee_id}">
-          ` : `
-            <!-- Work Category Selection (Active when worked on holiday or present) -->
-            <div class="work-category-row" id="cat-row-${r.employee_id}">
-              <label class="work-category-label">📦 Work Category:</label>
-              <select class="work-category-select" data-emp-id="${r.employee_id}" id="cat-select-${r.employee_id}">
-                <option value="">-- Select Work Category --</option>
-                ${categoryOptionsHtml}
-              </select>
-            </div>
-
-            <!-- Overtime Section: Extra Boxes -->
-            <div class="overtime-panel ${isHolidayWork ? 'holiday-active' : ''}">
-              <div class="ot-controls-row">
-                <div class="ot-label-group">
-                  <span>📦 Extra Boxes Packed</span>
-                  <span class="box-rate-tag">(@ ${API.formatMoney(boxRate)}/box)</span>
-                </div>
-
-                <div class="ot-stepper-wrap">
-                  <button type="button" class="ot-step-btn btn-box-minus" data-emp-id="${r.employee_id}">-</button>
-                  <input type="number" step="1" min="0" max="999" class="ot-input box-count-input" id="box-input-${r.employee_id}" value="${extraBoxes}" data-emp-id="${r.employee_id}">
-                  <span class="text-xs text-muted">boxes</span>
-                  <button type="button" class="ot-step-btn btn-box-plus" data-emp-id="${r.employee_id}">+</button>
-                </div>
-              </div>
-
-              <!-- Quick Box Chips -->
-              <div class="box-quick-chips">
-                <button type="button" class="box-chip-btn ${extraBoxes === 0 ? 'selected' : ''}" data-boxes="0" data-emp-id="${r.employee_id}">0</button>
-                <button type="button" class="box-chip-btn ${extraBoxes === 1 ? 'selected' : ''}" data-boxes="1" data-emp-id="${r.employee_id}">+1</button>
-                <button type="button" class="box-chip-btn ${extraBoxes === 2 ? 'selected' : ''}" data-boxes="2" data-emp-id="${r.employee_id}">+2</button>
-                <button type="button" class="box-chip-btn ${extraBoxes === 3 ? 'selected' : ''}" data-boxes="3" data-emp-id="${r.employee_id}">+3</button>
-                <button type="button" class="box-chip-btn ${extraBoxes === 5 ? 'selected' : ''}" data-boxes="5" data-emp-id="${r.employee_id}">+5</button>
-                <button type="button" class="box-chip-btn ${extraBoxes === 10 ? 'selected' : ''}" data-boxes="10" data-emp-id="${r.employee_id}">+10</button>
-              </div>
-
-              <!-- Formula preview -->
-              <div class="ot-calc-preview" id="ot-preview-${r.employee_id}">
-                <span>Paid Day: ${API.formatMoney(basePayDisplay)}</span>
-                <span>Extra Boxes: ${extraBoxes > 0 ? `${extraBoxes} boxes × ${API.formatMoney(boxRate)} = <strong>${API.formatMoney(otPayDisplay)}</strong>` : '0 boxes'}</span>
-              </div>
-
-              <!-- Quick Notes -->
-              <input type="text" class="notes-input-mini" placeholder="Notes (e.g. Worked extra batch on holiday)..." value="${this.escapeHtml(r.notes || '')}" data-emp-id="${r.employee_id}" id="notes-${r.employee_id}">
-            </div>
-          `}
+          ${otControlsHtml}
 
           <!-- Visual Save Feedback -->
           <div class="card-save-status" id="save-status-${r.employee_id}">
@@ -352,59 +390,7 @@ const AttendanceModule = {
           </button>
         </div>
 
-        ${isManager ? `
-          <div class="manager-exempt-notice">
-            <span>👔 Manager: Fixed daily wage (Exempt from packaging work categories & box counting)</span>
-          </div>
-          <!-- Quick Notes -->
-          <input type="text" class="notes-input-mini mt-2" placeholder="Notes (e.g. Planning, inventory, supervision)..." value="${this.escapeHtml(r.notes || '')}" data-emp-id="${r.employee_id}" id="notes-${r.employee_id}">
-        ` : `
-          <!-- Work Category Selection -->
-          <div class="work-category-row" id="cat-row-${r.employee_id}" style="${isAbsent ? 'opacity: 0.5; pointer-events: none;' : ''}">
-            <label class="work-category-label">📦 Work Category:</label>
-            <select class="work-category-select" data-emp-id="${r.employee_id}" id="cat-select-${r.employee_id}">
-              <option value="">-- Select Work Category --</option>
-              ${categoryOptionsHtml}
-            </select>
-          </div>
-
-          <!-- Overtime Panel: Extra Boxes Packed -->
-          <div class="overtime-panel">
-            <div class="ot-controls-row">
-              <div class="ot-label-group">
-                <span>📦 Extra Boxes Packed</span>
-                <span class="box-rate-tag">(@ ${API.formatMoney(boxRate)}/box)</span>
-              </div>
-
-              <!-- Stepper: - 1 box + -->
-              <div class="ot-stepper-wrap">
-                <button type="button" class="ot-step-btn btn-box-minus" data-emp-id="${r.employee_id}">-</button>
-                <input type="number" step="1" min="0" max="999" class="ot-input box-count-input" id="box-input-${r.employee_id}" value="${extraBoxes}" data-emp-id="${r.employee_id}">
-                <span class="text-xs text-muted">boxes</span>
-                <button type="button" class="ot-step-btn btn-box-plus" data-emp-id="${r.employee_id}">+</button>
-              </div>
-            </div>
-
-            <!-- Quick Box Chips -->
-            <div class="box-quick-chips">
-              <button type="button" class="box-chip-btn ${extraBoxes === 0 ? 'selected' : ''}" data-boxes="0" data-emp-id="${r.employee_id}">0</button>
-              <button type="button" class="box-chip-btn ${extraBoxes === 1 ? 'selected' : ''}" data-boxes="1" data-emp-id="${r.employee_id}">+1</button>
-              <button type="button" class="box-chip-btn ${extraBoxes === 2 ? 'selected' : ''}" data-boxes="2" data-emp-id="${r.employee_id}">+2</button>
-              <button type="button" class="box-chip-btn ${extraBoxes === 3 ? 'selected' : ''}" data-boxes="3" data-emp-id="${r.employee_id}">+3</button>
-              <button type="button" class="box-chip-btn ${extraBoxes === 5 ? 'selected' : ''}" data-boxes="5" data-emp-id="${r.employee_id}">+5</button>
-              <button type="button" class="box-chip-btn ${extraBoxes === 10 ? 'selected' : ''}" data-boxes="10" data-emp-id="${r.employee_id}">+10</button>
-            </div>
-
-            <!-- Formula preview -->
-            <div class="ot-calc-preview" id="ot-preview-${r.employee_id}">
-              <span>Base Wage: ${API.formatMoney(basePayDisplay)}</span>
-              <span>Extra Boxes: ${extraBoxes > 0 ? `${extraBoxes} boxes × ${API.formatMoney(boxRate)} = <strong>${API.formatMoney(otPayDisplay)}</strong>` : '0 boxes'}</span>
-            </div>
-
-            <!-- Quick Notes -->
-            <input type="text" class="notes-input-mini" placeholder="Notes (e.g. Extra packing target, special batch)..." value="${this.escapeHtml(r.notes || '')}" data-emp-id="${r.employee_id}" id="notes-${r.employee_id}">
-          </div>
-        `}
+        ${otControlsHtml}
 
         <!-- Visual Save Feedback -->
         <div class="card-save-status" id="save-status-${r.employee_id}">
@@ -414,9 +400,21 @@ const AttendanceModule = {
     `;
   },
 
-  attachCardEventListeners() {
+  rebuildCard(empId) {
+    const record = this.records.find(r => r.employee_id === empId);
+    if (!record) return;
+    const oldCard = document.getElementById(`worker-card-${empId}`);
+    if (!oldCard) return;
+    const temp = document.createElement('div');
+    temp.innerHTML = this.createWorkerCardHtml(record);
+    const newCard = temp.firstElementChild;
+    oldCard.replaceWith(newCard);
+    this.attachCardEventListeners(newCard);
+  },
+
+  attachCardEventListeners(root = document) {
     // Status button clicks (handles both regular and holiday segments)
-    document.querySelectorAll('.status-btn').forEach(btn => {
+    root.querySelectorAll('.status-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const empId = parseInt(btn.dataset.empId);
         const status = btn.dataset.status;
@@ -424,9 +422,10 @@ const AttendanceModule = {
 
         const updates = { status, is_holiday_work: holidayWork };
 
-        // If absent, reset extra boxes
+        // If absent, reset extra boxes/pieces
         if (status === 'ABSENT') {
           updates.extra_boxes = 0;
+          updates.extra_pieces = 0;
         }
 
         this.updateWorkerAttendance(empId, updates);
@@ -434,58 +433,126 @@ const AttendanceModule = {
     });
 
     // Work Category dropdown change
-    document.querySelectorAll('.work-category-select').forEach(sel => {
+    root.querySelectorAll('.work-category-select').forEach(sel => {
       sel.addEventListener('change', () => {
         const empId = parseInt(sel.dataset.empId);
-        this.updateWorkerAttendance(empId, { work_category: sel.value });
+        const record = this.records.find(r => r.employee_id === empId);
+        if (!record) return;
+
+        const wasPiece = this.isPieceCategory(record.work_category);
+        const willBePiece = this.isPieceCategory(sel.value);
+        record.work_category = sel.value;
+
+        if (wasPiece !== willBePiece) {
+          if (willBePiece) {
+            record.extra_pieces = (record.extra_boxes || 0) * 500;
+          } else {
+            record.extra_boxes = Math.round((record.extra_pieces || 0) / 500);
+            record.extra_pieces = 0;
+          }
+          this.rebuildCard(empId);
+        }
+
+        this.updateWorkerAttendance(empId, {
+          work_category: record.work_category,
+          extra_boxes: record.extra_boxes,
+          extra_pieces: record.extra_pieces
+        });
       });
     });
 
-    // Box count stepper plus/minus (+1, -1)
-    document.querySelectorAll('.btn-box-plus').forEach(btn => {
+    // Stepper plus button (+)
+    root.querySelectorAll('.btn-box-plus').forEach(btn => {
       btn.addEventListener('click', () => {
         const empId = parseInt(btn.dataset.empId);
+        const record = this.records.find(r => r.employee_id === empId);
+        if (!record) return;
+        const isPiece = this.isPieceCategory(record.work_category);
+        const step = isPiece ? 500 : 1;
         const input = document.getElementById(`box-input-${empId}`);
-        let val = (parseInt(input.value) || 0) + 1;
+        let val = (parseFloat(input.value) || 0) + step;
         input.value = val;
-        this.updateWorkerAttendance(empId, { extra_boxes: val });
+        if (isPiece) {
+          record.extra_pieces = val;
+          record.extra_boxes = Math.round((val / 500) * 100) / 100;
+          this.updateWorkerAttendance(empId, { extra_pieces: val, extra_boxes: record.extra_boxes });
+        } else {
+          record.extra_boxes = val;
+          record.extra_pieces = 0;
+          this.updateWorkerAttendance(empId, { extra_boxes: val, extra_pieces: 0 });
+        }
       });
     });
 
-    document.querySelectorAll('.btn-box-minus').forEach(btn => {
+    // Stepper minus button (-)
+    root.querySelectorAll('.btn-box-minus').forEach(btn => {
       btn.addEventListener('click', () => {
         const empId = parseInt(btn.dataset.empId);
+        const record = this.records.find(r => r.employee_id === empId);
+        if (!record) return;
+        const isPiece = this.isPieceCategory(record.work_category);
+        const step = isPiece ? 500 : 1;
         const input = document.getElementById(`box-input-${empId}`);
-        let val = (parseInt(input.value) || 0) - 1;
+        let val = (parseFloat(input.value) || 0) - step;
         if (val < 0) val = 0;
         input.value = val;
-        this.updateWorkerAttendance(empId, { extra_boxes: val });
+        if (isPiece) {
+          record.extra_pieces = val;
+          record.extra_boxes = Math.round((val / 500) * 100) / 100;
+          this.updateWorkerAttendance(empId, { extra_pieces: val, extra_boxes: record.extra_boxes });
+        } else {
+          record.extra_boxes = val;
+          record.extra_pieces = 0;
+          this.updateWorkerAttendance(empId, { extra_boxes: val, extra_pieces: 0 });
+        }
       });
     });
 
-    // Box quick chips (0, +1, +2, +3, +5, +10)
-    document.querySelectorAll('.box-chip-btn').forEach(btn => {
+    // Quick chips
+    root.querySelectorAll('.box-chip-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const empId = parseInt(btn.dataset.empId);
-        const boxes = parseInt(btn.dataset.boxes);
+        const record = this.records.find(r => r.employee_id === empId);
+        if (!record) return;
+        const isPiece = this.isPieceCategory(record.work_category);
+        const count = parseFloat(btn.dataset.count !== undefined ? btn.dataset.count : btn.dataset.boxes);
         const input = document.getElementById(`box-input-${empId}`);
-        if (input) input.value = boxes;
-        this.updateWorkerAttendance(empId, { extra_boxes: boxes });
+        if (input) input.value = count;
+        if (isPiece) {
+          record.extra_pieces = count;
+          record.extra_boxes = Math.round((count / 500) * 100) / 100;
+          this.updateWorkerAttendance(empId, { extra_pieces: count, extra_boxes: record.extra_boxes });
+        } else {
+          record.extra_boxes = count;
+          record.extra_pieces = 0;
+          this.updateWorkerAttendance(empId, { extra_boxes: count, extra_pieces: 0 });
+        }
       });
     });
 
-    // Box input manual entry
-    document.querySelectorAll('.box-count-input').forEach(input => {
+    // Manual input entry
+    root.querySelectorAll('.box-count-input').forEach(input => {
       input.addEventListener('change', () => {
         const empId = parseInt(input.dataset.empId);
-        let val = Math.max(0, parseInt(input.value) || 0);
+        const record = this.records.find(r => r.employee_id === empId);
+        if (!record) return;
+        const isPiece = this.isPieceCategory(record.work_category);
+        let val = Math.max(0, parseFloat(input.value) || 0);
         input.value = val;
-        this.updateWorkerAttendance(empId, { extra_boxes: val });
+        if (isPiece) {
+          record.extra_pieces = val;
+          record.extra_boxes = Math.round((val / 500) * 100) / 100;
+          this.updateWorkerAttendance(empId, { extra_pieces: val, extra_boxes: record.extra_boxes });
+        } else {
+          record.extra_boxes = val;
+          record.extra_pieces = 0;
+          this.updateWorkerAttendance(empId, { extra_boxes: val, extra_pieces: 0 });
+        }
       });
     });
 
     // Notes change
-    document.querySelectorAll('.notes-input-mini').forEach(input => {
+    root.querySelectorAll('.notes-input-mini').forEach(input => {
       input.addEventListener('change', () => {
         const empId = parseInt(input.dataset.empId);
         this.updateWorkerAttendance(empId, { notes: input.value });
@@ -515,6 +582,7 @@ const AttendanceModule = {
         status: record.status,
         work_category: record.work_category || '',
         extra_boxes: parseFloat(record.extra_boxes || 0),
+        extra_pieces: parseFloat(record.extra_pieces || 0),
         box_rate: parseFloat(record.box_rate !== undefined ? record.box_rate : (API.defaultBoxRate || 30.0)),
         overtime_days: parseFloat(record.overtime_days || 0),
         overtime_multiplier: parseFloat(record.overtime_multiplier || 0),
@@ -578,12 +646,18 @@ const AttendanceModule = {
       basePay = record.daily_wage * 0.5;
     }
 
+    const isPiece = this.isPieceCategory(record.work_category);
     let otPay = 0;
     const extraBoxes = Number(record.extra_boxes || 0);
+    const extraPieces = Number(record.extra_pieces !== undefined && record.extra_pieces !== null
+      ? record.extra_pieces
+      : (isPiece && extraBoxes > 0 ? (extraBoxes >= 100 ? extraBoxes : extraBoxes * 500) : 0));
     const boxRate = Number(record.box_rate !== undefined ? record.box_rate : (API.defaultBoxRate || 30.0));
 
     if (isManager) {
       otPay = (record.overtime_days || 0) * record.daily_wage * (record.overtime_multiplier || 0);
+    } else if (isPiece) {
+      otPay = (extraPieces / 500) * boxRate;
     } else {
       otPay = extraBoxes * boxRate;
     }
@@ -596,11 +670,16 @@ const AttendanceModule = {
 
     // Update box count input & quick chip buttons
     const boxInput = document.getElementById(`box-input-${record.employee_id}`);
-    if (boxInput) boxInput.value = extraBoxes;
+    if (boxInput) {
+      boxInput.value = isPiece ? extraPieces : extraBoxes;
+      boxInput.step = isPiece ? '500' : '1';
+    }
 
     const boxChips = card.querySelectorAll('.box-chip-btn');
     boxChips.forEach(b => {
-      b.classList.toggle('selected', parseInt(b.dataset.boxes) === extraBoxes);
+      const chipVal = parseFloat(b.dataset.count !== undefined ? b.dataset.count : b.dataset.boxes);
+      const curVal = isPiece ? extraPieces : extraBoxes;
+      b.classList.toggle('selected', chipVal === curVal);
     });
 
     // Update category dropdown
@@ -614,6 +693,11 @@ const AttendanceModule = {
     if (otPreviewEl) {
       if (isManager) {
         otPreviewEl.innerHTML = `<span>Base: ${API.formatMoney(basePay)}</span>`;
+      } else if (isPiece) {
+        otPreviewEl.innerHTML = `
+          <span>Base: ${API.formatMoney(basePay)}</span>
+          <span>Extra Pieces: ${extraPieces > 0 ? `${extraPieces.toLocaleString()} pcs (${(extraPieces / 500).toFixed(1).replace('.0', '')} × ${API.formatMoney(boxRate)}) = <strong>${API.formatMoney(otPay)}</strong>` : '0 pcs'}</span>
+        `;
       } else {
         otPreviewEl.innerHTML = `
           <span>Base: ${API.formatMoney(basePay)}</span>
@@ -631,6 +715,7 @@ const AttendanceModule = {
     let totalUnmarked = 0;
     let totalOtDays = 0;
     let totalExtraBoxes = 0;
+    let totalExtraPieces = 0;
     let totalHolidayWorkers = 0;
     let totalWagesToday = 0;
 
@@ -651,14 +736,22 @@ const AttendanceModule = {
       }
 
       let ot = 0;
+      const isPiece = this.isPieceCategory(item.work_category);
+      const rate = Number(item.box_rate !== undefined ? item.box_rate : (API.defaultBoxRate || 30.0));
+
       if (item.worker_type === 'MANAGER') {
         const otDays = Number(item.overtime_days || 0);
         const otMult = Number(item.overtime_multiplier || 0);
         ot = otDays * item.daily_wage * otMult;
         totalOtDays += otDays;
+      } else if (isPiece) {
+        const pieces = Number(item.extra_pieces !== undefined && item.extra_pieces !== null
+          ? item.extra_pieces
+          : (item.extra_boxes ? item.extra_boxes * 500 : 0));
+        ot = (pieces / 500) * rate;
+        totalExtraPieces += pieces;
       } else {
         const boxes = Number(item.extra_boxes || 0);
-        const rate = Number(item.box_rate !== undefined ? item.box_rate : (API.defaultBoxRate || 30.0));
         ot = boxes * rate;
         totalExtraBoxes += boxes;
       }
@@ -674,6 +767,7 @@ const AttendanceModule = {
       totalUnmarked,
       totalOtDays: Math.round(totalOtDays * 100) / 100,
       totalExtraBoxes: Math.round(totalExtraBoxes * 100) / 100,
+      totalExtraPieces: Math.round(totalExtraPieces),
       totalHolidayWorkers,
       totalWagesToday: Math.round(totalWagesToday * 100) / 100
     });
