@@ -7,9 +7,11 @@ const bcrypt = require('bcryptjs');
 const DB_PATH = path.join(__dirname, 'attendance.db');
 const db = new DatabaseSync(DB_PATH);
 
-// Optimize database for reliability and speed
+// Optimize database for reliability, concurrency, and durability
 db.exec('PRAGMA journal_mode = WAL;');
 db.exec('PRAGMA foreign_keys = ON;');
+db.exec('PRAGMA synchronous = NORMAL;');
+db.exec('PRAGMA busy_timeout = 5000;');
 
 // Initialize Tables
 function initDatabase() {
@@ -89,31 +91,75 @@ function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_holidays_date ON holidays(date);
   `);
 
-  // Migrations for columns if upgrading
-  try {
-    db.exec('ALTER TABLE attendance ADD COLUMN overtime_days REAL NOT NULL DEFAULT 0.0;');
-  } catch (e) {}
-  try {
-    db.exec('ALTER TABLE attendance ADD COLUMN is_holiday_work INTEGER NOT NULL DEFAULT 0;');
-  } catch (e) {}
-  try {
-    db.exec("ALTER TABLE employees ADD COLUMN worker_type TEXT NOT NULL DEFAULT 'WORKER';");
-  } catch (e) {}
-  try {
-    db.exec('ALTER TABLE employees ADD COLUMN default_box_rate REAL NOT NULL DEFAULT 30.0;');
-  } catch (e) {}
-  try {
-    db.exec("ALTER TABLE attendance ADD COLUMN work_category TEXT DEFAULT '';");
-  } catch (e) {}
-  try {
-    db.exec('ALTER TABLE attendance ADD COLUMN extra_boxes REAL NOT NULL DEFAULT 0.0;');
-  } catch (e) {}
-  try {
-    db.exec('ALTER TABLE attendance ADD COLUMN box_rate REAL NOT NULL DEFAULT 30.0;');
-  } catch (e) {}
-  try {
-    db.exec('ALTER TABLE attendance ADD COLUMN extra_pieces REAL NOT NULL DEFAULT 0.0;');
-  } catch (e) {}
+  // Create schema_migrations table for idempotent versioned schema tracking
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      version TEXT UNIQUE NOT NULL,
+      applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  const migrations = [
+    {
+      version: '20260901_add_overtime_days',
+      up: () => {
+        try { db.exec('ALTER TABLE attendance ADD COLUMN overtime_days REAL NOT NULL DEFAULT 0.0;'); } catch (e) {}
+      }
+    },
+    {
+      version: '20260902_add_is_holiday_work',
+      up: () => {
+        try { db.exec('ALTER TABLE attendance ADD COLUMN is_holiday_work INTEGER NOT NULL DEFAULT 0;'); } catch (e) {}
+      }
+    },
+    {
+      version: '20260903_add_worker_type',
+      up: () => {
+        try { db.exec("ALTER TABLE employees ADD COLUMN worker_type TEXT NOT NULL DEFAULT 'WORKER';"); } catch (e) {}
+      }
+    },
+    {
+      version: '20260904_add_default_box_rate',
+      up: () => {
+        try { db.exec('ALTER TABLE employees ADD COLUMN default_box_rate REAL NOT NULL DEFAULT 30.0;'); } catch (e) {}
+      }
+    },
+    {
+      version: '20260905_add_work_category',
+      up: () => {
+        try { db.exec("ALTER TABLE attendance ADD COLUMN work_category TEXT DEFAULT '';"); } catch (e) {}
+      }
+    },
+    {
+      version: '20260906_add_extra_boxes',
+      up: () => {
+        try { db.exec('ALTER TABLE attendance ADD COLUMN extra_boxes REAL NOT NULL DEFAULT 0.0;'); } catch (e) {}
+      }
+    },
+    {
+      version: '20260907_add_box_rate',
+      up: () => {
+        try { db.exec('ALTER TABLE attendance ADD COLUMN box_rate REAL NOT NULL DEFAULT 30.0;'); } catch (e) {}
+      }
+    },
+    {
+      version: '20260908_add_extra_pieces',
+      up: () => {
+        try { db.exec('ALTER TABLE attendance ADD COLUMN extra_pieces REAL NOT NULL DEFAULT 0.0;'); } catch (e) {}
+      }
+    }
+  ];
+
+  const checkMigStmt = db.prepare('SELECT version FROM schema_migrations WHERE version = ?');
+  const insertMigStmt = db.prepare('INSERT INTO schema_migrations (version) VALUES (?)');
+
+  for (const m of migrations) {
+    if (!checkMigStmt.get(m.version)) {
+      m.up();
+      insertMigStmt.run(m.version);
+    }
+  }
 
   // Initialize Default Settings if not present
   const defaultWorkCategories = [
@@ -238,9 +284,35 @@ function updateAdminPin(newPin) {
   db.prepare('UPDATE settings SET value = ? WHERE key = ?').run(hashed, 'admin_pin');
 }
 
+// Database Transaction Helper (Atomic execution of multi-statement operations)
+function withTransaction(fn) {
+  db.exec('BEGIN TRANSACTION;');
+  try {
+    const result = fn();
+    db.exec('COMMIT;');
+    return result;
+  } catch (err) {
+    db.exec('ROLLBACK;');
+    throw err;
+  }
+}
+
+// Database Health & Integrity Check
+function checkDatabaseIntegrity() {
+  try {
+    const row = db.prepare('PRAGMA integrity_check;').get();
+    return row ? (row.integrity_check === 'ok') : true;
+  } catch (e) {
+    console.error('Integrity check error:', e);
+    return false;
+  }
+}
+
 module.exports = {
   db,
   DB_PATH,
+  withTransaction,
+  checkDatabaseIntegrity,
   getJwtSecret,
   verifyAdminPin,
   updateAdminPin

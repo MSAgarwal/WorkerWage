@@ -5,7 +5,17 @@ const jwt = require('jsonwebtoken');
 const path = require('path');
 const os = require('os');
 const QRCode = require('qrcode');
-const { db, DB_PATH, getJwtSecret, verifyAdminPin, updateAdminPin } = require('./db');
+const { db, DB_PATH, getJwtSecret, verifyAdminPin, updateAdminPin, withTransaction, checkDatabaseIntegrity } = require('./db');
+const {
+  isValidDate,
+  sanitizeString,
+  validateEmployeeInput,
+  validateAttendanceInput,
+  validateBatchAttendanceInput,
+  validatePaymentInput,
+  validateHolidayInput,
+  validateChangePinInput
+} = require('./validators');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -376,17 +386,15 @@ app.post('/api/auth/logout', (req, res) => {
 });
 
 app.post('/api/auth/change-pin', requireAdmin, (req, res) => {
-  const { currentPin, newPin } = req.body;
-  if (!currentPin || !newPin) {
-    return res.status(400).json({ error: 'Both current PIN and new PIN are required' });
+  const validation = validateChangePinInput(req.body);
+  if (!validation.isValid) {
+    return res.status(400).json({ error: 'Validation failed', details: validation.errors });
   }
+
+  const { currentPin, newPin } = validation.sanitized;
 
   if (!verifyAdminPin(currentPin)) {
     return res.status(401).json({ error: 'Current PIN does not match' });
-  }
-
-  if (String(newPin).trim().length < 4) {
-    return res.status(400).json({ error: 'New PIN must be at least 4 digits' });
   }
 
   updateAdminPin(newPin);
@@ -420,8 +428,27 @@ app.put('/api/settings', requireAdmin, (req, res) => {
   for (const key of allowedKeys) {
     if (req.body[key] !== undefined) {
       let val = req.body[key];
-      if (key === 'work_categories' && Array.isArray(val)) {
-        val = JSON.stringify(val);
+      if (key === 'work_categories') {
+        if (Array.isArray(val)) {
+          val = JSON.stringify(val.map(c => sanitizeString(c, 50)).filter(c => c.length > 0));
+        } else if (typeof val === 'string') {
+          try {
+            const parsed = JSON.parse(val);
+            if (Array.isArray(parsed)) {
+              val = JSON.stringify(parsed.map(c => sanitizeString(c, 50)).filter(c => c.length > 0));
+            }
+          } catch (e) {}
+        }
+      } else if (key === 'business_name' || key === 'site_location') {
+        val = sanitizeString(val, 100);
+      } else if (key === 'currency_symbol') {
+        val = sanitizeString(val, 5);
+      } else if (key === 'default_ot_multiplier') {
+        const num = parseFloat(val);
+        val = (!isNaN(num) && num >= 0 && num <= 5.0) ? num.toFixed(2) : '0.00';
+      } else if (key === 'default_box_rate') {
+        const num = parseFloat(val);
+        val = (!isNaN(num) && num >= 0) ? num.toFixed(2) : '30.00';
       }
       updateStmt.run(key, String(val));
     }
@@ -449,24 +476,15 @@ app.get('/api/employees', requireAdmin, (req, res) => {
 });
 
 app.post('/api/employees', requireAdmin, (req, res) => {
-  const { name, phone, role, worker_type, daily_wage, default_ot_multiplier, default_box_rate, notes } = req.body;
-
-  if (!name || name.trim() === '') {
-    return res.status(400).json({ error: 'Worker name is required' });
+  const validation = validateEmployeeInput(req.body, false);
+  if (!validation.isValid) {
+    return res.status(400).json({ error: 'Validation failed', details: validation.errors });
   }
 
-  const wage = parseFloat(daily_wage);
-  if (isNaN(wage) || wage < 0) {
-    return res.status(400).json({ error: 'Valid daily wage is required' });
-  }
-
-  const parsedType = (worker_type === 'MANAGER') ? 'MANAGER' : 'WORKER';
-  const boxRate = (!isNaN(parseFloat(default_box_rate)) && parseFloat(default_box_rate) >= 0)
-    ? parseFloat(default_box_rate)
-    : 30.0;
+  const { name, phone, role, worker_type, daily_wage, default_ot_multiplier, default_box_rate, notes, employee_code } = validation.sanitized;
 
   // Generate unique employee code if not provided
-  let code = req.body.employee_code;
+  let code = employee_code;
   if (!code || code.trim() === '') {
     const lastRow = db.prepare('SELECT id FROM employees ORDER BY id DESC LIMIT 1').get();
     const nextId = lastRow ? lastRow.id + 1 : 1;
@@ -474,46 +492,56 @@ app.post('/api/employees', requireAdmin, (req, res) => {
   }
 
   try {
+    // Check if employee_code is already taken
+    const existingCode = db.prepare('SELECT id FROM employees WHERE employee_code = ?').get(code);
+    if (existingCode) {
+      return res.status(409).json({ error: `Worker code "${code}" already exists. Please choose a different code.` });
+    }
+
     const stmt = db.prepare(`
       INSERT INTO employees (employee_code, name, phone, role, worker_type, daily_wage, default_ot_multiplier, default_box_rate, notes, status)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
     `);
 
     const result = stmt.run(
-      code.trim(),
-      name.trim(),
-      phone ? phone.trim() : '',
-      role ? role.trim() : (parsedType === 'MANAGER' ? 'Manager' : 'Worker'),
-      parsedType,
-      wage,
-      default_ot_multiplier !== undefined && !isNaN(parseFloat(default_ot_multiplier)) ? parseFloat(default_ot_multiplier) : 0.0,
-      boxRate,
-      notes ? notes.trim() : ''
+      code,
+      name,
+      phone,
+      role,
+      worker_type,
+      daily_wage,
+      default_ot_multiplier,
+      default_box_rate,
+      notes
     );
 
     const newWorker = db.prepare('SELECT * FROM employees WHERE id = ?').get(result.lastInsertRowid);
-    res.json({ success: true, message: 'Worker added successfully', employee: newWorker });
+    res.status(201).json({ success: true, message: 'Worker added successfully', employee: newWorker });
   } catch (error) {
+    if (error.message && error.message.includes('UNIQUE constraint failed: employees.employee_code')) {
+      return res.status(409).json({ error: `Worker code "${code}" already exists. Please choose a different code.` });
+    }
     res.status(500).json({ error: error.message });
   }
 });
 
 app.put('/api/employees/:id', requireAdmin, (req, res) => {
-  const { id } = req.params;
-  const { name, phone, role, worker_type, daily_wage, default_ot_multiplier, default_box_rate, notes, status } = req.body;
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id) || id <= 0) {
+    return res.status(400).json({ error: 'Invalid worker ID' });
+  }
 
   const existing = db.prepare('SELECT * FROM employees WHERE id = ?').get(id);
   if (!existing) {
     return res.status(404).json({ error: 'Worker not found' });
   }
 
-  const parsedType = (worker_type !== undefined)
-    ? (worker_type === 'MANAGER' ? 'MANAGER' : 'WORKER')
-    : (existing.worker_type || 'WORKER');
+  const validation = validateEmployeeInput(req.body, true);
+  if (!validation.isValid) {
+    return res.status(400).json({ error: 'Validation failed', details: validation.errors });
+  }
 
-  const boxRate = (default_box_rate !== undefined && !isNaN(parseFloat(default_box_rate)) && parseFloat(default_box_rate) >= 0)
-    ? parseFloat(default_box_rate)
-    : (existing.default_box_rate !== undefined ? existing.default_box_rate : 30.0);
+  const { name, phone, role, worker_type, daily_wage, default_ot_multiplier, default_box_rate, notes, status } = validation.sanitized;
 
   try {
     const stmt = db.prepare(`
@@ -523,14 +551,14 @@ app.put('/api/employees/:id', requireAdmin, (req, res) => {
     `);
 
     stmt.run(
-      name ? name.trim() : existing.name,
-      phone !== undefined ? phone.trim() : existing.phone,
-      role !== undefined ? role.trim() : existing.role,
-      parsedType,
-      daily_wage !== undefined ? parseFloat(daily_wage) : existing.daily_wage,
-      default_ot_multiplier !== undefined && !isNaN(parseFloat(default_ot_multiplier)) ? parseFloat(default_ot_multiplier) : existing.default_ot_multiplier,
-      boxRate,
-      notes !== undefined ? notes.trim() : existing.notes,
+      name !== undefined ? name : existing.name,
+      phone !== undefined ? phone : existing.phone,
+      role !== undefined ? role : existing.role,
+      worker_type !== undefined ? worker_type : existing.worker_type,
+      daily_wage !== undefined ? daily_wage : existing.daily_wage,
+      default_ot_multiplier !== undefined ? default_ot_multiplier : existing.default_ot_multiplier,
+      default_box_rate !== undefined ? default_box_rate : existing.default_box_rate,
+      notes !== undefined ? notes : existing.notes,
       status !== undefined ? status : existing.status,
       id
     );
@@ -573,10 +601,12 @@ app.get('/api/holidays', requireAdmin, (req, res) => {
 });
 
 app.post('/api/holidays', requireAdmin, (req, res) => {
-  const { date, title, is_paid } = req.body;
-  if (!date || !title) {
-    return res.status(400).json({ error: 'Date and Title are required' });
+  const validation = validateHolidayInput(req.body);
+  if (!validation.isValid) {
+    return res.status(400).json({ error: 'Validation failed', details: validation.errors });
   }
+
+  const { date, title, is_paid } = validation.sanitized;
 
   try {
     const stmt = db.prepare(`
@@ -585,8 +615,8 @@ app.post('/api/holidays', requireAdmin, (req, res) => {
       ON CONFLICT(date) DO UPDATE SET title = excluded.title, is_paid = excluded.is_paid
     `);
 
-    stmt.run(date.trim(), title.trim(), is_paid === false ? 0 : 1);
-    const holiday = db.prepare('SELECT * FROM holidays WHERE date = ?').get(date.trim());
+    stmt.run(date, title, is_paid);
+    const holiday = db.prepare('SELECT * FROM holidays WHERE date = ?').get(date);
     res.json({ success: true, message: 'Holiday saved successfully', holiday });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -594,7 +624,10 @@ app.post('/api/holidays', requireAdmin, (req, res) => {
 });
 
 app.delete('/api/holidays/:id', requireAdmin, (req, res) => {
-  const { id } = req.params;
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id) || id <= 0) {
+    return res.status(400).json({ error: 'Invalid holiday ID' });
+  }
   try {
     db.prepare('DELETE FROM holidays WHERE id = ?').run(id);
     res.json({ success: true, message: 'Holiday removed successfully' });
@@ -609,6 +642,9 @@ app.delete('/api/holidays/:id', requireAdmin, (req, res) => {
 // Get attendance list for a specific date (merged with all active employees)
 app.get('/api/attendance', requireAdmin, (req, res) => {
   const date = req.query.date || new Date().toISOString().split('T')[0];
+  if (!isValidDate(date)) {
+    return res.status(400).json({ error: 'Invalid date parameter. Date must be in YYYY-MM-DD format.' });
+  }
   const meta = getDateMeta(date);
 
   try {
@@ -777,6 +813,11 @@ app.get('/api/attendance', requireAdmin, (req, res) => {
 
 // Save or Update Attendance for single employee (Day-Wise & Packaging Box/Piece OT)
 app.post('/api/attendance', requireAdmin, (req, res) => {
+  const validation = validateAttendanceInput(req.body);
+  if (!validation.isValid) {
+    return res.status(400).json({ error: 'Validation failed', details: validation.errors });
+  }
+
   const {
     employee_id,
     date,
@@ -791,11 +832,7 @@ app.post('/api/attendance', requireAdmin, (req, res) => {
     bonus_allowance,
     deduction,
     notes
-  } = req.body;
-
-  if (!employee_id || !date || !status) {
-    return res.status(400).json({ error: 'employee_id, date, and status are required' });
-  }
+  } = validation.sanitized;
 
   const worker = db.prepare('SELECT * FROM employees WHERE id = ?').get(employee_id);
   if (!worker) {
@@ -804,7 +841,7 @@ app.post('/api/attendance', requireAdmin, (req, res) => {
 
   const dateMeta = getDateMeta(date);
   const isPaidDayOff = dateMeta.isPaidDayOff;
-  const holidayWork = (is_holiday_work === true || is_holiday_work === 1 || is_holiday_work === '1' || (isPaidDayOff && (status === 'PRESENT' || status === 'HALF_DAY'))) ? 1 : 0;
+  const holidayWork = (is_holiday_work === true || (isPaidDayOff && (status === 'PRESENT' || status === 'HALF_DAY'))) ? 1 : 0;
 
   const workerType = worker.worker_type || 'WORKER';
   const isManager = workerType === 'MANAGER';
@@ -901,12 +938,14 @@ app.post('/api/attendance', requireAdmin, (req, res) => {
   }
 });
 
-// Batch Save Attendance (Day-Wise & Packaging Box/Piece OT)
+// Batch Save Attendance (Day-Wise & Packaging Box/Piece OT) - Wrapped in Database Transaction
 app.post('/api/attendance/batch', requireAdmin, (req, res) => {
-  const { date, records } = req.body;
-  if (!date || !Array.isArray(records)) {
-    return res.status(400).json({ error: 'date and records array are required' });
+  const validation = validateBatchAttendanceInput(req.body);
+  if (!validation.isValid) {
+    return res.status(400).json({ error: 'Validation failed', details: validation.errors });
   }
+
+  const { date, records } = validation.sanitized;
 
   const upsertStmt = db.prepare(`
     INSERT INTO attendance (
@@ -939,73 +978,76 @@ app.post('/api/attendance/batch', requireAdmin, (req, res) => {
 
   try {
     let count = 0;
-    for (const r of records) {
-      const worker = db.prepare('SELECT * FROM employees WHERE id = ?').get(r.employee_id);
-      if (!worker) continue;
+    // Execute all updates inside an atomic SQLite transaction
+    withTransaction(() => {
+      for (const r of records) {
+        const worker = db.prepare('SELECT * FROM employees WHERE id = ?').get(r.employee_id);
+        if (!worker) continue;
 
-      const holidayWork = (r.is_holiday_work === true || r.is_holiday_work === 1 || r.is_holiday_work === '1' || (isPaidDayOff && (r.status === 'PRESENT' || r.status === 'HALF_DAY'))) ? 1 : 0;
-      const workerType = worker.worker_type || 'WORKER';
-      const isManager = workerType === 'MANAGER';
-      const effectiveCategory = isManager ? '' : (r.work_category ? String(r.work_category).trim() : '');
-      const isPiece = isPieceCategory(effectiveCategory);
+        const holidayWork = (r.is_holiday_work === true || (isPaidDayOff && (r.status === 'PRESENT' || r.status === 'HALF_DAY'))) ? 1 : 0;
+        const workerType = worker.worker_type || 'WORKER';
+        const isManager = workerType === 'MANAGER';
+        const effectiveCategory = isManager ? '' : (r.work_category ? String(r.work_category).trim() : '');
+        const isPiece = isPieceCategory(effectiveCategory);
 
-      let parsedExtraPieces = 0;
-      let parsedExtraBoxes = 0;
+        let parsedExtraPieces = 0;
+        let parsedExtraBoxes = 0;
 
-      if (isManager || isPiece) {
-        parsedExtraPieces = 0;
-        parsedExtraBoxes = 0;
-      } else {
-        parsedExtraBoxes = Math.max(0, parseFloat(r.extra_boxes || 0));
-        parsedExtraPieces = 0;
+        if (isManager || isPiece) {
+          parsedExtraPieces = 0;
+          parsedExtraBoxes = 0;
+        } else {
+          parsedExtraBoxes = Math.max(0, parseFloat(r.extra_boxes || 0));
+          parsedExtraPieces = 0;
+        }
+
+        const effectiveBoxRate = (!isNaN(parseFloat(r.box_rate)) && parseFloat(r.box_rate) >= 0)
+          ? parseFloat(r.box_rate)
+          : (worker.default_box_rate !== undefined && worker.default_box_rate !== null ? worker.default_box_rate : 30.0);
+
+        const otDays = parseFloat(r.overtime_days || 0);
+        const otMult = (r.overtime_multiplier !== undefined && r.overtime_multiplier !== null && !isNaN(parseFloat(r.overtime_multiplier)))
+          ? parseFloat(r.overtime_multiplier)
+          : (worker.default_ot_multiplier !== undefined && worker.default_ot_multiplier !== null ? worker.default_ot_multiplier : 0.0);
+
+        const calc = calculateWage(
+          worker.daily_wage,
+          r.status || 'PRESENT',
+          otDays,
+          otMult,
+          holidayWork,
+          r.bonus_allowance || 0,
+          r.deduction || 0,
+          parsedExtraBoxes,
+          effectiveBoxRate,
+          workerType,
+          effectiveCategory,
+          parsedExtraPieces,
+          isPaidDayOff
+        );
+
+        upsertStmt.run(
+          r.employee_id,
+          date,
+          r.status || 'PRESENT',
+          calc.dailyWage,
+          calc.basePay,
+          effectiveCategory,
+          calc.extraBoxes,
+          calc.extraPieces,
+          calc.boxRate,
+          calc.overtimeDays,
+          calc.overtimeMultiplier,
+          calc.overtimePay,
+          holidayWork,
+          calc.bonusAllowance,
+          calc.deduction,
+          calc.totalPay,
+          r.notes || ''
+        );
+        count++;
       }
-
-      const effectiveBoxRate = (!isNaN(parseFloat(r.box_rate)) && parseFloat(r.box_rate) >= 0)
-        ? parseFloat(r.box_rate)
-        : (worker.default_box_rate !== undefined && worker.default_box_rate !== null ? worker.default_box_rate : 30.0);
-
-      const otDays = parseFloat(r.overtime_days || 0);
-      const otMult = (r.overtime_multiplier !== undefined && r.overtime_multiplier !== null && !isNaN(parseFloat(r.overtime_multiplier)))
-        ? parseFloat(r.overtime_multiplier)
-        : (worker.default_ot_multiplier !== undefined && worker.default_ot_multiplier !== null ? worker.default_ot_multiplier : 0.0);
-
-      const calc = calculateWage(
-        worker.daily_wage,
-        r.status || 'PRESENT',
-        otDays,
-        otMult,
-        holidayWork,
-        r.bonus_allowance || 0,
-        r.deduction || 0,
-        parsedExtraBoxes,
-        effectiveBoxRate,
-        workerType,
-        effectiveCategory,
-        parsedExtraPieces,
-        isPaidDayOff
-      );
-
-      upsertStmt.run(
-        r.employee_id,
-        date,
-        r.status || 'PRESENT',
-        calc.dailyWage,
-        calc.basePay,
-        effectiveCategory,
-        calc.extraBoxes,
-        calc.extraPieces,
-        calc.boxRate,
-        calc.overtimeDays,
-        calc.overtimeMultiplier,
-        calc.overtimePay,
-        holidayWork,
-        calc.bonusAllowance,
-        calc.deduction,
-        calc.totalPay,
-        r.notes || ''
-      );
-      count++;
-    }
+    });
 
     res.json({ success: true, message: `Successfully updated attendance for ${count} workers` });
   } catch (error) {
@@ -1018,6 +1060,14 @@ app.post('/api/attendance/batch', requireAdmin, (req, res) => {
 // -------------------------------------------------------------
 app.get('/api/payments', requireAdmin, (req, res) => {
   const { employee_id, startDate, endDate } = req.query;
+
+  if (startDate && !isValidDate(startDate)) {
+    return res.status(400).json({ error: 'Invalid startDate parameter. Date must be in YYYY-MM-DD format.' });
+  }
+  if (endDate && !isValidDate(endDate)) {
+    return res.status(400).json({ error: 'Invalid endDate parameter. Date must be in YYYY-MM-DD format.' });
+  }
+
   let query = `
     SELECT p.*, e.name as employee_name, e.employee_code, e.role
     FROM payments p
@@ -1027,8 +1077,12 @@ app.get('/api/payments', requireAdmin, (req, res) => {
   const params = [];
 
   if (employee_id) {
+    const empId = parseInt(employee_id, 10);
+    if (isNaN(empId) || empId <= 0) {
+      return res.status(400).json({ error: 'Invalid employee_id parameter' });
+    }
     query += ' AND p.employee_id = ?';
-    params.push(employee_id);
+    params.push(empId);
   }
   if (startDate) {
     query += ' AND p.date >= ?';
@@ -1045,14 +1099,17 @@ app.get('/api/payments', requireAdmin, (req, res) => {
 });
 
 app.post('/api/payments', requireAdmin, (req, res) => {
-  const { employee_id, date, amount, type, payment_method, notes } = req.body;
-  if (!employee_id || !date || !amount) {
-    return res.status(400).json({ error: 'employee_id, date, and amount are required' });
+  const validation = validatePaymentInput(req.body);
+  if (!validation.isValid) {
+    return res.status(400).json({ error: 'Validation failed', details: validation.errors });
   }
 
-  const numAmount = parseFloat(amount);
-  if (isNaN(numAmount) || numAmount <= 0) {
-    return res.status(400).json({ error: 'Amount must be greater than 0' });
+  const { employee_id, date, amount, type, payment_method, notes } = validation.sanitized;
+
+  // Check worker exists
+  const worker = db.prepare('SELECT id FROM employees WHERE id = ?').get(employee_id);
+  if (!worker) {
+    return res.status(404).json({ error: 'Worker not found' });
   }
 
   try {
@@ -1064,10 +1121,10 @@ app.post('/api/payments', requireAdmin, (req, res) => {
     const result = stmt.run(
       employee_id,
       date,
-      numAmount,
-      type || 'ADVANCE',
-      payment_method || 'CASH',
-      notes || ''
+      amount,
+      type,
+      payment_method,
+      notes
     );
 
     const payment = db.prepare('SELECT * FROM payments WHERE id = ?').get(result.lastInsertRowid);
@@ -1078,8 +1135,15 @@ app.post('/api/payments', requireAdmin, (req, res) => {
 });
 
 app.delete('/api/payments/:id', requireAdmin, (req, res) => {
-  const { id } = req.params;
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id) || id <= 0) {
+    return res.status(400).json({ error: 'Invalid payment ID' });
+  }
   try {
+    const existing = db.prepare('SELECT id FROM payments WHERE id = ?').get(id);
+    if (!existing) {
+      return res.status(404).json({ error: 'Payment not found' });
+    }
     db.prepare('DELETE FROM payments WHERE id = ?').run(id);
     res.json({ success: true, message: 'Payment entry removed' });
   } catch (error) {
@@ -1093,6 +1157,21 @@ app.delete('/api/payments/:id', requireAdmin, (req, res) => {
 app.get('/api/reports/payroll', requireAdmin, (req, res) => {
   const { startDate, endDate, employee_id } = req.query;
 
+  if (startDate && !isValidDate(startDate)) {
+    return res.status(400).json({ error: 'Invalid startDate parameter. Date must be in YYYY-MM-DD format.' });
+  }
+  if (endDate && !isValidDate(endDate)) {
+    return res.status(400).json({ error: 'Invalid endDate parameter. Date must be in YYYY-MM-DD format.' });
+  }
+
+  let empId = null;
+  if (employee_id) {
+    empId = parseInt(employee_id, 10);
+    if (isNaN(empId) || empId <= 0) {
+      return res.status(400).json({ error: 'Invalid employee_id parameter' });
+    }
+  }
+
   // Default to current month if no dates provided
   const now = new Date();
   const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
@@ -1104,9 +1183,9 @@ app.get('/api/reports/payroll', requireAdmin, (req, res) => {
   try {
     let empQuery = 'SELECT * FROM employees';
     const empParams = [];
-    if (employee_id) {
+    if (empId) {
       empQuery += ' WHERE id = ?';
-      empParams.push(employee_id);
+      empParams.push(empId);
     } else {
       empQuery += ' WHERE status = ? ORDER BY name ASC';
       empParams.push('ACTIVE');
@@ -1285,6 +1364,14 @@ app.get('/api/reports/payroll', requireAdmin, (req, res) => {
 // CSV Export (Day-Wise & Packaging Metrics) (Protected)
 app.get('/api/reports/export-csv', requireAdmin, (req, res) => {
   const { startDate, endDate } = req.query;
+
+  if (startDate && !isValidDate(startDate)) {
+    return res.status(400).json({ error: 'Invalid startDate parameter. Date must be in YYYY-MM-DD format.' });
+  }
+  if (endDate && !isValidDate(endDate)) {
+    return res.status(400).json({ error: 'Invalid endDate parameter. Date must be in YYYY-MM-DD format.' });
+  }
+
   const now = new Date();
   const start = startDate || new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
   const end = endDate || new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
@@ -1369,6 +1456,27 @@ app.get('/api/reports/export-csv', requireAdmin, (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+});
+
+// System Diagnostics & Health Check Endpoint (Public)
+app.get('/api/health', (req, res) => {
+  const isHealthy = checkDatabaseIntegrity();
+  let journalMode = 'unknown';
+  try {
+    const row = db.prepare('PRAGMA journal_mode;').get();
+    journalMode = row ? row.journal_mode : 'unknown';
+  } catch (e) {}
+
+  res.status(isHealthy ? 200 : 503).json({
+    status: isHealthy ? 'healthy' : 'unhealthy',
+    timestamp: new Date().toISOString(),
+    uptime: Math.floor(process.uptime()),
+    database: {
+      integrity: isHealthy ? 'OK' : 'CORRUPTED',
+      journalMode: journalMode
+    },
+    version: '2.0.0'
+  });
 });
 
 // Database Backup Download (Protected)
