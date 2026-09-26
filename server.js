@@ -28,7 +28,7 @@ const {
 } = require('./validators');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = parseInt(process.env.PORT, 10) || 5000;
 
 // Security Headers Middleware
 app.use((req, res, next) => {

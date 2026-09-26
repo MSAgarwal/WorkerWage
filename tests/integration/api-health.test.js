@@ -50,7 +50,7 @@ describe('Health & Diagnostic API Integration Tests', () => {
     const res = await apiRequest('/api/server-info');
     assert.equal(res.status, 200);
     assert.equal(res.body.success, true);
-    assert.equal(res.body.port, 5000);
+    assert.equal(Number(res.body.port), 5000);
     assert.ok(res.body.localUrl);
     assert.ok(res.body.networkUrl);
     assert.ok(res.body.qrCodeDataUrl);
