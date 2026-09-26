@@ -1,6 +1,13 @@
 const attendanceService = require('../services/attendance.service');
 const { isValidDate, validateAttendanceInput, validateBatchAttendanceInput } = require('../validators');
 
+function getLocalDateString(d = new Date()) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 class AttendanceController {
   /**
    * GET /api/attendance
@@ -8,7 +15,7 @@ class AttendanceController {
    */
   getAttendance(req, res, next) {
     try {
-      const date = req.query.date || new Date().toISOString().split('T')[0];
+      const date = req.query.date || getLocalDateString();
       if (!isValidDate(date)) {
         return res.status(400).json({ error: 'Invalid date parameter. Date must be in YYYY-MM-DD format.' });
       }

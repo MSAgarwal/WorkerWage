@@ -7,11 +7,12 @@ class PayrollService {
    */
   _resolveDateRange(startDate, endDate) {
     const now = new Date();
-    const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-    const defaultEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const formatDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     return {
-      start: startDate || defaultStart,
-      end: endDate || defaultEnd
+      start: startDate || formatDate(firstDay),
+      end: endDate || formatDate(lastDay)
     };
   }
 

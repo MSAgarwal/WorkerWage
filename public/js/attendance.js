@@ -1,6 +1,6 @@
 // Daily Attendance & Overtime Module (Day-Wise with Tuesday & Paid Holiday rules)
 const AttendanceModule = {
-  currentDate: new Date().toISOString().split('T')[0],
+  currentDate: API.getLocalDateString(),
   dateMeta: null,
   records: [],
   activeFilter: 'ALL',
@@ -8,6 +8,7 @@ const AttendanceModule = {
 
   init() {
     this.bindEvents();
+    this.currentDate = API.getLocalDateString();
     this.setDate(this.currentDate);
   },
 
@@ -24,19 +25,21 @@ const AttendanceModule = {
     });
 
     btnPrev.addEventListener('click', () => {
-      const d = new Date(this.currentDate);
+      const [y, m, day] = this.currentDate.split('-').map(Number);
+      const d = new Date(y, m - 1, day);
       d.setDate(d.getDate() - 1);
-      this.setDate(d.toISOString().split('T')[0]);
+      this.setDate(API.getLocalDateString(d));
     });
 
     btnNext.addEventListener('click', () => {
-      const d = new Date(this.currentDate);
+      const [y, m, day] = this.currentDate.split('-').map(Number);
+      const d = new Date(y, m - 1, day);
       d.setDate(d.getDate() + 1);
-      this.setDate(d.toISOString().split('T')[0]);
+      this.setDate(API.getLocalDateString(d));
     });
 
     btnToday.addEventListener('click', () => {
-      this.setDate(new Date().toISOString().split('T')[0]);
+      this.setDate(API.getLocalDateString());
     });
 
     btnMarkAll.addEventListener('click', () => {
@@ -65,7 +68,7 @@ const AttendanceModule = {
     const dateLabel = document.getElementById('dateDisplayLabel');
     datePicker.value = dateStr;
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = API.getLocalDateString();
     const targetDate = new Date(dateStr + 'T00:00:00');
     const options = { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' };
     const formatted = targetDate.toLocaleDateString('en-US', options);

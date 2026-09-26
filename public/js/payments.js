@@ -87,7 +87,7 @@ const PaymentsModule = {
   openPaymentModal(empId = null) {
     const form = document.getElementById('paymentForm');
     form.reset();
-    document.getElementById('paymentDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('paymentDate').value = API.getLocalDateString();
 
     if (empId) {
       document.getElementById('paymentWorkerSelect').value = empId;

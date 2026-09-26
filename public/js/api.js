@@ -16,6 +16,14 @@ const API = {
     return lower.includes('card') || lower.includes('bangle');
   },
 
+  // Timezone-safe local date string helper (YYYY-MM-DD)
+  getLocalDateString(d = new Date()) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  },
+
   // Token management
   getToken() {
     return localStorage.getItem('admin_token') || sessionStorage.getItem('admin_token') || '';
