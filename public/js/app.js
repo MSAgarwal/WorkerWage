@@ -51,6 +51,22 @@ const App = {
   },
 
   bindGlobalEvents() {
+    // Network Connectivity Listeners
+    window.addEventListener('offline', () => {
+      const banner = document.getElementById('networkOfflineBanner');
+      if (banner) banner.style.display = 'flex';
+      this.showToast('You are offline. Reconnect to Wi-Fi / Hotspot to sync.', 'error');
+    });
+
+    window.addEventListener('online', () => {
+      const banner = document.getElementById('networkOfflineBanner');
+      if (banner) banner.style.display = 'none';
+      this.showToast('Connection restored! Syncing data...', 'success');
+      if (this.isUnlocked) {
+        this.switchTab(this.activeTab);
+      }
+    });
+
     // Navigation Tabs
     const tabButtons = document.querySelectorAll('.main-tabs .tab-btn');
     tabButtons.forEach(btn => {

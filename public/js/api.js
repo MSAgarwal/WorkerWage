@@ -57,7 +57,19 @@ const API = {
 
     try {
       const response = await fetch(endpoint, config);
-      const data = await response.json();
+      let data = {};
+      try {
+        data = await response.json();
+      } catch (e) {
+        data = {};
+      }
+
+      // Hide offline banner on successful server response
+      const offlineBanner = document.getElementById('networkOfflineBanner');
+      if (offlineBanner && offlineBanner.style.display !== 'none') {
+        offlineBanner.style.display = 'none';
+      }
+
       if (!response.ok) {
         if (response.status === 401 && endpoint !== '/api/auth/verify' && endpoint !== '/api/auth/check') {
           this.setToken(null);
@@ -65,10 +77,18 @@ const API = {
             window.App.handleUnauthorized();
           }
         }
-        throw new Error(data.error || 'Server error occurred');
+        const errorMsg = data.error || (data.details ? data.details.join(', ') : 'Server error occurred');
+        throw new Error(errorMsg);
       }
       return data;
     } catch (err) {
+      if (err.name === 'TypeError' && String(err.message).toLowerCase().includes('fetch')) {
+        const offlineBanner = document.getElementById('networkOfflineBanner');
+        if (offlineBanner) {
+          offlineBanner.style.display = 'flex';
+        }
+        throw new Error('Connection to server lost. Please check Wi-Fi or Hotspot.');
+      }
       console.error(`API Error on ${endpoint}:`, err);
       throw err;
     }

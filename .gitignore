@@ -4,3 +4,5 @@ node_modules/
 *.db-shm
 *.db-wal
 scratch/
+backups/
+logs/
