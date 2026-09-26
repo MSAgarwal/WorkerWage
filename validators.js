@@ -401,12 +401,13 @@ function validateHolidayInput(body) {
     sanitized.date = String(body.date).trim();
   }
 
-  if (!body.title || typeof body.title !== 'string' || body.title.trim().length === 0) {
+  const rawTitle = body.title || body.name;
+  if (!rawTitle || typeof rawTitle !== 'string' || rawTitle.trim().length === 0) {
     errors.push('Holiday title is required.');
-  } else if (body.title.trim().length > 100) {
+  } else if (rawTitle.trim().length > 100) {
     errors.push('Holiday title cannot exceed 100 characters.');
   } else {
-    sanitized.title = sanitizeString(body.title, 100);
+    sanitized.title = sanitizeString(rawTitle, 100);
   }
 
   sanitized.is_paid = body.is_paid === false || body.is_paid === 0 || body.is_paid === '0' ? 0 : 1;
@@ -440,6 +441,10 @@ function validateChangePinInput(body) {
     } else {
       sanitized.newPin = trimmed;
     }
+  }
+
+  if (body.confirmPin !== undefined && String(body.confirmPin).trim() !== String(body.newPin).trim()) {
+    errors.push('New PIN and Confirm PIN do not match.');
   }
 
   return {

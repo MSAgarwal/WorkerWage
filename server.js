@@ -6,6 +6,16 @@ const path = require('path');
 const os = require('os');
 const QRCode = require('qrcode');
 const { db, DB_PATH, getJwtSecret, verifyAdminPin, updateAdminPin, withTransaction, checkDatabaseIntegrity } = require('./db');
+const { isPieceCategory, calculateWage } = require('./wageCalculator');
+const {
+  AppError,
+  ValidationError,
+  UnauthorizedError,
+  ForbiddenError,
+  NotFoundError,
+  ConflictError,
+  errorHandler
+} = require('./errors');
 const {
   isValidDate,
   sanitizeString,
@@ -40,6 +50,20 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Structured Request Logger
+app.use((req, res, next) => {
+  if (req.url.startsWith('/css') || req.url.startsWith('/js') || req.url.startsWith('/img') || req.url === '/favicon.ico') {
+    return next();
+  }
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '-';
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl || req.url} ${res.statusCode} (${duration}ms) - IP: ${ip}`);
+  });
+  next();
+});
 
 // Rate Limiter for PIN authentication (brute-force protection)
 const authAttempts = new Map(); // ip -> { count, firstAttempt, lockedUntil }
@@ -164,127 +188,8 @@ function getDateMeta(dateStr) {
   };
 }
 
-// Helper: Determine if category is piece-based (cards of any type, bangles)
-function isPieceCategory(category) {
-  if (!category) return false;
-  const lower = String(category).toLowerCase();
-  return lower.includes('card') || lower.includes('bangle');
-}
+// Note: isPieceCategory and calculateWage are imported from ./wageCalculator
 
-// Helper: Wage calculation (Day-based wages, extra box/piece overtime for packaging workers, manager exemption)
-function calculateWage(
-  dailyWage,
-  status,
-  otDays = 0,
-  otMultiplier = 0.0,
-  isHolidayWork = false,
-  bonus = 0,
-  deduction = 0,
-  extraBoxes = 0,
-  boxRate = 30.0,
-  workerType = 'WORKER',
-  workCategory = '',
-  extraPieces = 0,
-  isPaidDayOff = false
-) {
-  dailyWage = Number(dailyWage) || 0;
-  bonus = Number(bonus) || 0;
-  deduction = Number(deduction) || 0;
-
-  let basePay = 0;
-  let statusDays = 0;
-
-  if (status === 'PRESENT') {
-    statusDays = 1.0;
-    basePay = dailyWage;
-  } else if (status === 'HALF_DAY') {
-    statusDays = 0.5;
-    basePay = dailyWage * 0.5;
-  } else if (status === 'PAID_LEAVE' || status === 'PAID_HOLIDAY') {
-    statusDays = 1.0;
-    basePay = dailyWage; // Paid day off gives full daily wage!
-  } else {
-    // ABSENT
-    statusDays = 0.0;
-    basePay = 0.0;
-  }
-
-  let overtimePay = 0;
-  let parsedBoxes = 0;
-  let parsedPieces = 0;
-  let parsedBoxRate = 30.0;
-  let parsedOtDays = 0;
-  let parsedOtMultiplier = 0.0;
-
-  // Determine if this is holiday work on a paid holiday / Tuesday
-  const isHoliday = !!isHolidayWork || (isPaidDayOff && (status === 'PRESENT' || status === 'HALF_DAY'));
-
-  if (workerType === 'MANAGER') {
-    // Manager: Exempt from packaging work categories & box/piece overtime
-    parsedOtDays = Number(otDays) || 0;
-    if (otMultiplier === undefined || otMultiplier === null || isNaN(Number(otMultiplier))) {
-      parsedOtMultiplier = 0.0;
-    } else {
-      parsedOtMultiplier = Math.max(0, Math.min(3.0, Math.round(Number(otMultiplier) * 100) / 100));
-    }
-    overtimePay = parsedOtDays * dailyWage * parsedOtMultiplier;
-    parsedBoxes = 0;
-    parsedPieces = 0;
-    parsedBoxRate = 0.0;
-  } else {
-    // Packaging Worker:
-    const isPiece = isPieceCategory(workCategory);
-
-    if (isPiece) {
-      // User requirement: "only for cards and bangle it will be fixed on hoildays for rest of the categories it should be same like other day"
-      if (isHoliday && status !== 'ABSENT') {
-        overtimePay = 200.0;
-      } else {
-        // Disabled on normal days
-        overtimePay = 0.0;
-      }
-      parsedPieces = 0;
-      parsedBoxes = 0;
-      parsedBoxRate = 0.0;
-    } else {
-      // Rest of the categories: same like other days (extra boxes * boxRate)
-      if (isPaidDayOff && !isHolidayWork) {
-        parsedBoxes = 0;
-        overtimePay = 0.0;
-      } else {
-        parsedBoxRate = (boxRate !== undefined && boxRate !== null && !isNaN(parseFloat(boxRate)))
-          ? Math.max(0, parseFloat(boxRate))
-          : 30.0;
-        parsedBoxes = Math.max(0, parseFloat(extraBoxes) || 0);
-        overtimePay = parsedBoxes * parsedBoxRate;
-      }
-      parsedPieces = 0;
-    }
-
-    parsedOtDays = 0;
-    parsedOtMultiplier = 0.0;
-  }
-
-  const totalPay = Math.max(0, basePay + overtimePay + bonus - deduction);
-
-  return {
-    dailyWage,
-    statusDays,
-    workerType: workerType || 'WORKER',
-    workCategory: workCategory || '',
-    basePay: Math.round(basePay * 100) / 100,
-    extraBoxes: Math.round(parsedBoxes * 100) / 100,
-    extraPieces: Math.round(parsedPieces * 100) / 100,
-    boxRate: Math.round(parsedBoxRate * 100) / 100,
-    overtimeDays: Math.round(parsedOtDays * 100) / 100,
-    overtimeMultiplier: parsedOtMultiplier,
-    overtimePay: Math.round(overtimePay * 100) / 100,
-    isHolidayWork: isHoliday && status !== 'ABSENT',
-    bonusAllowance: bonus,
-    deduction: deduction,
-    totalPay: Math.round(totalPay * 100) / 100
-  };
-}
 
 // -------------------------------------------------------------
 // API: Server Info & Mobile Connection QR Code (Public)
@@ -1484,13 +1389,21 @@ app.get('/api/backup', requireAdmin, (req, res) => {
   res.download(DB_PATH, `attendance_backup_${new Date().toISOString().split('T')[0]}.db`);
 });
 
-// Fallback to SPA (Express 5 compatible)
+// Unknown API routes return JSON 404
+app.use('/api', (req, res, next) => {
+  next(new NotFoundError(`API endpoint ${req.method} ${req.originalUrl || req.url} not found`));
+});
+
+// Centralized Express Error Handling Middleware
+app.use(errorHandler);
+
+// Fallback to SPA for client-side routing
 app.use((req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Start Server
-app.listen(PORT, '0.0.0.0', async () => {
+const server = app.listen(PORT, '0.0.0.0', async () => {
   const ip = getLocalNetworkIp();
   const localUrl = `http://localhost:${PORT}`;
   const networkUrl = `http://${ip}:${PORT}`;
@@ -1517,3 +1430,28 @@ app.listen(PORT, '0.0.0.0', async () => {
   console.log('🔒 Security: Admin PIN hashed & server-side JWT auth active');
   console.log('============================================================\n');
 });
+
+// Graceful Shutdown
+function gracefulShutdown(signal) {
+  console.log(`\n[${new Date().toISOString()}] Received ${signal}. Shutting down gracefully...`);
+  server.close(() => {
+    console.log('HTTP server closed.');
+    try {
+      db.exec('PRAGMA wal_checkpoint(TRUNCATE);');
+      db.close();
+      console.log('Database connection cleanly closed.');
+    } catch (e) {
+      console.error('Error closing database:', e);
+    }
+    process.exit(0);
+  });
+
+  setTimeout(() => {
+    console.error('Forced shutdown due to timeout.');
+    process.exit(1);
+  }, 5000).unref();
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
