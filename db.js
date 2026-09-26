@@ -1,6 +1,8 @@
 const { DatabaseSync } = require('node:sqlite');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 
 const DB_PATH = path.join(__dirname, 'attendance.db');
 const db = new DatabaseSync(DB_PATH);
@@ -135,7 +137,6 @@ function initDatabase() {
   ];
 
   const defaultSettings = [
-    { key: 'admin_pin', value: '1234' },
     { key: 'business_name', value: 'Daily Wage Attendance & Payroll' },
     { key: 'currency_symbol', value: '₹' },
     { key: 'default_ot_multiplier', value: '0.0' },
@@ -152,6 +153,28 @@ function initDatabase() {
     if (!checkSettingStmt.get(s.key)) {
       insertSettingStmt.run(s.key, s.value);
     }
+  }
+
+  // Handle Admin PIN migration to bcrypt hash
+  const existingPinRow = checkSettingStmt.get('admin_pin');
+  if (existingPinRow) {
+    const val = existingPinRow.value;
+    if (!val.startsWith('$2a$') && !val.startsWith('$2b$')) {
+      const hashed = bcrypt.hashSync(val, 10);
+      db.prepare('UPDATE settings SET value = ? WHERE key = ?').run(hashed, 'admin_pin');
+      console.log('🔒 Migrated existing admin PIN to bcrypt hash.');
+    }
+  } else {
+    const defaultPin = process.env.DEFAULT_ADMIN_PIN || '1234';
+    const hashed = bcrypt.hashSync(defaultPin, 10);
+    insertSettingStmt.run('admin_pin', hashed);
+  }
+
+  // Handle persistent JWT Secret
+  const existingSecretRow = checkSettingStmt.get('jwt_secret');
+  if (!existingSecretRow) {
+    const secret = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
+    insertSettingStmt.run('jwt_secret', secret);
   }
 
   // Seed sample holidays if table is empty
@@ -185,7 +208,40 @@ function initDatabase() {
 
 initDatabase();
 
+// Auth and Crypto Helpers
+function getJwtSecret() {
+  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('jwt_secret');
+  return row ? row.value : 'workerwage_secure_fallback_secret_key';
+}
+
+function verifyAdminPin(enteredPin) {
+  if (!enteredPin) return false;
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('admin_pin');
+  if (!row) return false;
+  const storedVal = row.value;
+
+  // Auto-migrate if found as plaintext
+  if (!storedVal.startsWith('$2a$') && !storedVal.startsWith('$2b$')) {
+    const isMatch = String(enteredPin).trim() === String(storedVal).trim();
+    if (isMatch) {
+      const hashed = bcrypt.hashSync(String(enteredPin).trim(), 10);
+      db.prepare('UPDATE settings SET value = ? WHERE key = ?').run(hashed, 'admin_pin');
+    }
+    return isMatch;
+  }
+  return bcrypt.compareSync(String(enteredPin).trim(), storedVal);
+}
+
+function updateAdminPin(newPin) {
+  const hashed = bcrypt.hashSync(String(newPin).trim(), 10);
+  db.prepare('UPDATE settings SET value = ? WHERE key = ?').run(hashed, 'admin_pin');
+}
+
 module.exports = {
   db,
-  DB_PATH
+  DB_PATH,
+  getJwtSecret,
+  verifyAdminPin,
+  updateAdminPin
 };

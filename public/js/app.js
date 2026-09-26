@@ -9,20 +9,23 @@ const App = {
     this.bindKeypad();
     this.bindSettingsForms();
 
-    // Check if previously unlocked in this session
-    const savedUnlocked = sessionStorage.getItem('admin_unlocked');
-    if (savedUnlocked === 'true') {
-      this.setUnlockedState(true);
-    } else {
-      this.promptPin();
+    // Check server authentication status
+    let isAuthenticated = false;
+    try {
+      const authStatus = await API.checkAuth();
+      if (authStatus && authStatus.authenticated) {
+        isAuthenticated = true;
+      }
+    } catch (e) {
+      console.warn('Auth check error:', e);
     }
 
-    // Load server settings & mobile server info
-    try {
-      await API.getSettings();
-      this.populateSettingsForm();
-    } catch (e) {
-      console.warn('Initial settings load error:', e);
+    if (isAuthenticated) {
+      this.setUnlockedState(true);
+      await this.loadInitialData();
+    } else {
+      this.setUnlockedState(false);
+      this.promptPin();
     }
 
     // Initialize modules
@@ -30,6 +33,21 @@ const App = {
     EmployeesModule.init();
     PayrollModule.init();
     PaymentsModule.init();
+  },
+
+  async loadInitialData() {
+    try {
+      await API.getSettings();
+      this.populateSettingsForm();
+    } catch (e) {
+      console.warn('Initial settings load error:', e);
+    }
+  },
+
+  handleUnauthorized() {
+    this.setUnlockedState(false);
+    this.promptPin();
+    this.showToast('Admin session expired. Please enter PIN.', 'error');
   },
 
   bindGlobalEvents() {
@@ -80,6 +98,15 @@ const App = {
       e.preventDefault();
       this.submitPin();
     });
+
+    // Database Backup Download Button
+    const btnBackup = document.getElementById('btnDownloadBackup');
+    if (btnBackup) {
+      btnBackup.addEventListener('click', (e) => {
+        e.preventDefault();
+        API.downloadBackup();
+      });
+    }
 
     // Manage Paid Holidays Button in top bar
     const btnManageHolidays = document.getElementById('btnManageHolidays');
@@ -153,6 +180,8 @@ const App = {
         this.setUnlockedState(true);
         this.closeModal('pinModal');
         this.showToast('Welcome, Employer! Admin unlocked.', 'success');
+        await this.loadInitialData();
+        this.switchTab(this.activeTab);
       }
     } catch (err) {
       errorEl.textContent = err.message || 'Incorrect PIN';
@@ -177,7 +206,8 @@ const App = {
     }
   },
 
-  lockApp() {
+  async lockApp() {
+    await API.logout();
     this.setUnlockedState(false);
     this.showToast('Admin session locked', 'success');
     this.promptPin();

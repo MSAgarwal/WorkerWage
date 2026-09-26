@@ -1,17 +1,117 @@
 const express = require('express');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
+const jwt = require('jsonwebtoken');
 const path = require('path');
 const os = require('os');
 const QRCode = require('qrcode');
-const { db, DB_PATH } = require('./db');
+const { db, DB_PATH, getJwtSecret, verifyAdminPin, updateAdminPin } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors());
+// Security Headers Middleware
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'"
+  );
+  next();
+});
+
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
+app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Rate Limiter for PIN authentication (brute-force protection)
+const authAttempts = new Map(); // ip -> { count, firstAttempt, lockedUntil }
+const AUTH_MAX_ATTEMPTS = 5;
+const AUTH_WINDOW_MS = 60 * 1000; // 1 minute window
+const AUTH_LOCK_MS = 2 * 60 * 1000; // 2 minutes lockout
+
+function checkAuthRateLimit(req, res, next) {
+  const clientIp = req.ip || req.connection?.remoteAddress || 'unknown';
+  const now = Date.now();
+  const record = authAttempts.get(clientIp);
+
+  if (record) {
+    if (record.lockedUntil && now < record.lockedUntil) {
+      const remainingSec = Math.ceil((record.lockedUntil - now) / 1000);
+      return res.status(429).json({
+        error: `Too many failed PIN attempts. Please wait ${remainingSec} seconds before trying again.`,
+        retryAfter: remainingSec
+      });
+    }
+    if (now - record.firstAttempt > AUTH_WINDOW_MS) {
+      authAttempts.set(clientIp, { count: 0, firstAttempt: now, lockedUntil: 0 });
+    }
+  } else {
+    authAttempts.set(clientIp, { count: 0, firstAttempt: now, lockedUntil: 0 });
+  }
+
+  next();
+}
+
+function recordAuthFailure(clientIp) {
+  const now = Date.now();
+  const record = authAttempts.get(clientIp) || { count: 0, firstAttempt: now, lockedUntil: 0 };
+  record.count += 1;
+  if (record.count >= AUTH_MAX_ATTEMPTS) {
+    record.lockedUntil = now + AUTH_LOCK_MS;
+  }
+  authAttempts.set(clientIp, record);
+}
+
+function recordAuthSuccess(clientIp) {
+  authAttempts.delete(clientIp);
+}
+
+// Authentication Middleware: Require Admin
+function requireAdmin(req, res, next) {
+  let token = null;
+
+  // 1. Authorization header: Bearer <token>
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7).trim();
+  }
+
+  // 2. HttpOnly Cookie
+  if (!token && req.cookies && req.cookies.admin_token) {
+    token = req.cookies.admin_token;
+  }
+
+  // 3. Query string token (for file download endpoints e.g. /api/backup)
+  if (!token && req.method === 'GET' && req.query.token) {
+    token = req.query.token;
+  }
+
+  if (!token) {
+    return res.status(401).json({
+      error: 'Admin authentication required. Please unlock with PIN.',
+      code: 'UNAUTHORIZED'
+    });
+  }
+
+  try {
+    const decoded = jwt.verify(token, getJwtSecret());
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({
+      error: 'Invalid or expired session. Please unlock again.',
+      code: 'SESSION_EXPIRED'
+    });
+  }
+}
 
 // Helper: Get Primary Local Network IP Address
 function getLocalNetworkIp() {
@@ -177,7 +277,7 @@ function calculateWage(
 }
 
 // -------------------------------------------------------------
-// API: Server Info & Mobile Connection QR Code
+// API: Server Info & Mobile Connection QR Code (Public)
 // -------------------------------------------------------------
 app.get('/api/server-info', async (req, res) => {
   try {
@@ -209,34 +309,79 @@ app.get('/api/server-info', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// API: Admin Authentication (PIN based for Employer)
+// API: Admin Authentication (PIN based with rate-limiting & JWT)
 // -------------------------------------------------------------
-app.post('/api/auth/verify', (req, res) => {
+app.post('/api/auth/verify', checkAuthRateLimit, (req, res) => {
   const { pin } = req.body;
+  const clientIp = req.ip || req.connection?.remoteAddress || 'unknown';
+
   if (!pin) {
     return res.status(400).json({ error: 'PIN is required' });
   }
 
-  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('admin_pin');
-  const storedPin = row ? row.value : '1234';
-
-  if (String(pin).trim() === String(storedPin).trim()) {
-    return res.json({ success: true, message: 'Admin verified successfully' });
-  } else {
+  const isValid = verifyAdminPin(pin);
+  if (!isValid) {
+    recordAuthFailure(clientIp);
     return res.status(401).json({ error: 'Incorrect Admin PIN. Please try again.' });
+  }
+
+  recordAuthSuccess(clientIp);
+
+  // Generate 7-day signed JWT token
+  const token = jwt.sign(
+    { role: 'admin' },
+    getJwtSecret(),
+    { expiresIn: '7d' }
+  );
+
+  // Set HTTP-only cookie for browser navigation & downloads
+  res.cookie('admin_token', token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+  });
+
+  res.json({
+    success: true,
+    token,
+    message: 'Admin verified successfully'
+  });
+});
+
+app.get('/api/auth/check', (req, res) => {
+  let token = null;
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7).trim();
+  }
+  if (!token && req.cookies && req.cookies.admin_token) {
+    token = req.cookies.admin_token;
+  }
+
+  if (!token) {
+    return res.json({ authenticated: false });
+  }
+
+  try {
+    const decoded = jwt.verify(token, getJwtSecret());
+    return res.json({ authenticated: true, user: decoded });
+  } catch (err) {
+    return res.json({ authenticated: false });
   }
 });
 
-app.post('/api/auth/change-pin', (req, res) => {
+app.post('/api/auth/logout', (req, res) => {
+  res.clearCookie('admin_token');
+  res.json({ success: true, message: 'Logged out successfully' });
+});
+
+app.post('/api/auth/change-pin', requireAdmin, (req, res) => {
   const { currentPin, newPin } = req.body;
   if (!currentPin || !newPin) {
     return res.status(400).json({ error: 'Both current PIN and new PIN are required' });
   }
 
-  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('admin_pin');
-  const storedPin = row ? row.value : '1234';
-
-  if (String(currentPin).trim() !== String(storedPin).trim()) {
+  if (!verifyAdminPin(currentPin)) {
     return res.status(401).json({ error: 'Current PIN does not match' });
   }
 
@@ -244,15 +389,15 @@ app.post('/api/auth/change-pin', (req, res) => {
     return res.status(400).json({ error: 'New PIN must be at least 4 digits' });
   }
 
-  db.prepare('UPDATE settings SET value = ? WHERE key = ?').run(String(newPin).trim(), 'admin_pin');
+  updateAdminPin(newPin);
   res.json({ success: true, message: 'Admin PIN updated successfully' });
 });
 
 // -------------------------------------------------------------
-// API: Settings
+// API: Settings (Protected)
 // -------------------------------------------------------------
-app.get('/api/settings', (req, res) => {
-  const rows = db.prepare('SELECT key, value FROM settings WHERE key != ?').all('admin_pin');
+app.get('/api/settings', requireAdmin, (req, res) => {
+  const rows = db.prepare("SELECT key, value FROM settings WHERE key NOT IN ('admin_pin', 'jwt_secret')").all();
   const settings = {};
   for (const r of rows) {
     settings[r.key] = r.value;
@@ -268,7 +413,7 @@ app.get('/api/settings', (req, res) => {
   res.json({ success: true, settings });
 });
 
-app.put('/api/settings', (req, res) => {
+app.put('/api/settings', requireAdmin, (req, res) => {
   const allowedKeys = ['business_name', 'currency_symbol', 'default_ot_multiplier', 'default_box_rate', 'work_categories', 'site_location'];
   const updateStmt = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value');
 
@@ -286,9 +431,9 @@ app.put('/api/settings', (req, res) => {
 });
 
 // -------------------------------------------------------------
-// API: Employees
+// API: Employees (Protected)
 // -------------------------------------------------------------
-app.get('/api/employees', (req, res) => {
+app.get('/api/employees', requireAdmin, (req, res) => {
   const { status } = req.query;
   let query = 'SELECT * FROM employees';
   const params = [];
@@ -303,7 +448,7 @@ app.get('/api/employees', (req, res) => {
   res.json({ success: true, employees });
 });
 
-app.post('/api/employees', (req, res) => {
+app.post('/api/employees', requireAdmin, (req, res) => {
   const { name, phone, role, worker_type, daily_wage, default_ot_multiplier, default_box_rate, notes } = req.body;
 
   if (!name || name.trim() === '') {
@@ -353,7 +498,7 @@ app.post('/api/employees', (req, res) => {
   }
 });
 
-app.put('/api/employees/:id', (req, res) => {
+app.put('/api/employees/:id', requireAdmin, (req, res) => {
   const { id } = req.params;
   const { name, phone, role, worker_type, daily_wage, default_ot_multiplier, default_box_rate, notes, status } = req.body;
 
@@ -397,7 +542,7 @@ app.put('/api/employees/:id', (req, res) => {
   }
 });
 
-app.delete('/api/employees/:id', (req, res) => {
+app.delete('/api/employees/:id', requireAdmin, (req, res) => {
   const { id } = req.params;
   const { hardDelete } = req.query;
 
@@ -416,9 +561,9 @@ app.delete('/api/employees/:id', (req, res) => {
 });
 
 // -------------------------------------------------------------
-// API: Holidays & Paid Leaves Management
+// API: Holidays & Paid Leaves Management (Protected)
 // -------------------------------------------------------------
-app.get('/api/holidays', (req, res) => {
+app.get('/api/holidays', requireAdmin, (req, res) => {
   try {
     const holidays = db.prepare('SELECT * FROM holidays ORDER BY date ASC').all();
     res.json({ success: true, holidays });
@@ -427,7 +572,7 @@ app.get('/api/holidays', (req, res) => {
   }
 });
 
-app.post('/api/holidays', (req, res) => {
+app.post('/api/holidays', requireAdmin, (req, res) => {
   const { date, title, is_paid } = req.body;
   if (!date || !title) {
     return res.status(400).json({ error: 'Date and Title are required' });
@@ -448,7 +593,7 @@ app.post('/api/holidays', (req, res) => {
   }
 });
 
-app.delete('/api/holidays/:id', (req, res) => {
+app.delete('/api/holidays/:id', requireAdmin, (req, res) => {
   const { id } = req.params;
   try {
     db.prepare('DELETE FROM holidays WHERE id = ?').run(id);
@@ -459,10 +604,10 @@ app.delete('/api/holidays/:id', (req, res) => {
 });
 
 // -------------------------------------------------------------
-// API: Daily Attendance (Day-Wise with Tuesday / Holiday Auto-Pay)
+// API: Daily Attendance (Day-Wise with Tuesday / Holiday Auto-Pay) (Protected)
 // -------------------------------------------------------------
 // Get attendance list for a specific date (merged with all active employees)
-app.get('/api/attendance', (req, res) => {
+app.get('/api/attendance', requireAdmin, (req, res) => {
   const date = req.query.date || new Date().toISOString().split('T')[0];
   const meta = getDateMeta(date);
 
@@ -631,7 +776,7 @@ app.get('/api/attendance', (req, res) => {
 });
 
 // Save or Update Attendance for single employee (Day-Wise & Packaging Box/Piece OT)
-app.post('/api/attendance', (req, res) => {
+app.post('/api/attendance', requireAdmin, (req, res) => {
   const {
     employee_id,
     date,
@@ -757,7 +902,7 @@ app.post('/api/attendance', (req, res) => {
 });
 
 // Batch Save Attendance (Day-Wise & Packaging Box/Piece OT)
-app.post('/api/attendance/batch', (req, res) => {
+app.post('/api/attendance/batch', requireAdmin, (req, res) => {
   const { date, records } = req.body;
   if (!date || !Array.isArray(records)) {
     return res.status(400).json({ error: 'date and records array are required' });
@@ -869,9 +1014,9 @@ app.post('/api/attendance/batch', (req, res) => {
 });
 
 // -------------------------------------------------------------
-// API: Advances & Payouts (Payments)
+// API: Advances & Payouts (Payments) (Protected)
 // -------------------------------------------------------------
-app.get('/api/payments', (req, res) => {
+app.get('/api/payments', requireAdmin, (req, res) => {
   const { employee_id, startDate, endDate } = req.query;
   let query = `
     SELECT p.*, e.name as employee_name, e.employee_code, e.role
@@ -899,7 +1044,7 @@ app.get('/api/payments', (req, res) => {
   res.json({ success: true, payments });
 });
 
-app.post('/api/payments', (req, res) => {
+app.post('/api/payments', requireAdmin, (req, res) => {
   const { employee_id, date, amount, type, payment_method, notes } = req.body;
   if (!employee_id || !date || !amount) {
     return res.status(400).json({ error: 'employee_id, date, and amount are required' });
@@ -932,7 +1077,7 @@ app.post('/api/payments', (req, res) => {
   }
 });
 
-app.delete('/api/payments/:id', (req, res) => {
+app.delete('/api/payments/:id', requireAdmin, (req, res) => {
   const { id } = req.params;
   try {
     db.prepare('DELETE FROM payments WHERE id = ?').run(id);
@@ -943,9 +1088,9 @@ app.delete('/api/payments/:id', (req, res) => {
 });
 
 // -------------------------------------------------------------
-// API: Payroll Reports & Wage Calculations
+// API: Payroll Reports & Wage Calculations (Protected)
 // -------------------------------------------------------------
-app.get('/api/reports/payroll', (req, res) => {
+app.get('/api/reports/payroll', requireAdmin, (req, res) => {
   const { startDate, endDate, employee_id } = req.query;
 
   // Default to current month if no dates provided
@@ -1137,8 +1282,8 @@ app.get('/api/reports/payroll', (req, res) => {
   }
 });
 
-// CSV Export (Day-Wise & Packaging Metrics)
-app.get('/api/reports/export-csv', (req, res) => {
+// CSV Export (Day-Wise & Packaging Metrics) (Protected)
+app.get('/api/reports/export-csv', requireAdmin, (req, res) => {
   const { startDate, endDate } = req.query;
   const now = new Date();
   const start = startDate || new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
@@ -1226,8 +1371,8 @@ app.get('/api/reports/export-csv', (req, res) => {
   }
 });
 
-// Database Backup Download
-app.get('/api/backup', (req, res) => {
+// Database Backup Download (Protected)
+app.get('/api/backup', requireAdmin, (req, res) => {
   res.download(DB_PATH, `attendance_backup_${new Date().toISOString().split('T')[0]}.db`);
 });
 
@@ -1261,6 +1406,6 @@ app.listen(PORT, '0.0.0.0', async () => {
     console.log('(QR code generation preview omitted in console)');
   }
 
-  console.log('Default Admin PIN: 1234');
+  console.log('🔒 Security: Admin PIN hashed & server-side JWT auth active');
   console.log('============================================================\n');
 });

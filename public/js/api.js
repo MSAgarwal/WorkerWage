@@ -16,14 +16,35 @@ const API = {
     return lower.includes('card') || lower.includes('bangle');
   },
 
-  // Generic fetch wrapper
+  // Token management
+  getToken() {
+    return localStorage.getItem('admin_token') || sessionStorage.getItem('admin_token') || '';
+  },
+
+  setToken(token) {
+    if (token) {
+      localStorage.setItem('admin_token', token);
+      sessionStorage.setItem('admin_token', token);
+    } else {
+      localStorage.removeItem('admin_token');
+      sessionStorage.removeItem('admin_token');
+    }
+  },
+
+  // Generic fetch wrapper with Bearer token & 401 interception
   async request(endpoint, options = {}) {
     const defaultHeaders = {
       'Content-Type': 'application/json'
     };
 
+    const token = this.getToken();
+    if (token) {
+      defaultHeaders['Authorization'] = `Bearer ${token}`;
+    }
+
     const config = {
       ...options,
+      credentials: 'include',
       headers: {
         ...defaultHeaders,
         ...(options.headers || {})
@@ -38,6 +59,12 @@ const API = {
       const response = await fetch(endpoint, config);
       const data = await response.json();
       if (!response.ok) {
+        if (response.status === 401 && endpoint !== '/api/auth/verify' && endpoint !== '/api/auth/check') {
+          this.setToken(null);
+          if (window.App && typeof window.App.handleUnauthorized === 'function') {
+            window.App.handleUnauthorized();
+          }
+        }
         throw new Error(data.error || 'Server error occurred');
       }
       return data;
@@ -49,11 +76,33 @@ const API = {
 
   // Auth APIs
   async verifyPin(pin) {
-    return this.request('/api/auth/verify', { method: 'POST', body: { pin } });
+    const res = await this.request('/api/auth/verify', { method: 'POST', body: { pin } });
+    if (res.success && res.token) {
+      this.setToken(res.token);
+    }
+    return res;
+  },
+
+  async checkAuth() {
+    return this.request('/api/auth/check');
+  },
+
+  async logout() {
+    this.setToken(null);
+    try {
+      await this.request('/api/auth/logout', { method: 'POST' });
+    } catch (e) {}
   },
 
   async changePin(currentPin, newPin) {
     return this.request('/api/auth/change-pin', { method: 'POST', body: { currentPin, newPin } });
+  },
+
+  // Database Backup Download with Auth token
+  downloadBackup() {
+    const token = this.getToken();
+    const url = `/api/backup${token ? '?token=' + encodeURIComponent(token) : ''}`;
+    window.location.href = url;
   },
 
   // Server Info & Mobile QR Code
