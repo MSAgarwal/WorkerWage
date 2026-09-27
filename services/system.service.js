@@ -1,6 +1,7 @@
 const os = require('os');
 const QRCode = require('qrcode');
 const { db, DB_PATH, checkDatabaseIntegrity } = require('../db');
+const config = require('../config/env');
 
 class SystemService {
   /**
@@ -65,7 +66,7 @@ class SystemService {
         integrity: isHealthy ? 'OK' : 'CORRUPTED',
         journalMode: journalMode
       },
-      version: '2.0.0'
+      version: config.APP_VERSION
     };
   }
 

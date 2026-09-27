@@ -24,19 +24,13 @@ const API = {
     return `${year}-${month}-${day}`;
   },
 
-  // Token management
+  // Token management (rely on secure HttpOnly cookies; no localStorage persistence)
   getToken() {
-    return localStorage.getItem('admin_token') || sessionStorage.getItem('admin_token') || '';
+    return '';
   },
 
   setToken(token) {
-    if (token) {
-      localStorage.setItem('admin_token', token);
-      sessionStorage.setItem('admin_token', token);
-    } else {
-      localStorage.removeItem('admin_token');
-      sessionStorage.removeItem('admin_token');
-    }
+    // HttpOnly cookie handled automatically by browser
   },
 
   // Generic fetch wrapper with Bearer token & 401 interception
@@ -126,11 +120,29 @@ const API = {
     return this.request('/api/auth/change-pin', { method: 'POST', body: { currentPin, newPin } });
   },
 
-  // Database Backup Download with Auth token
-  downloadBackup() {
-    const token = this.getToken();
-    const url = `/api/backup${token ? '?token=' + encodeURIComponent(token) : ''}`;
-    window.location.href = url;
+  // Database Backup Download via secure HttpOnly cookie & Blob (Zero Token in URL)
+  async downloadBackup() {
+    try {
+      const response = await fetch('/api/backup', {
+        method: 'GET',
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        throw new Error(`Backup download failed (HTTP ${response.status})`);
+      }
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      const today = this.getLocalDateString();
+      a.download = `attendance_backup_${today}.db`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (err) {
+      alert('Failed to download backup: ' + err.message);
+    }
   },
 
   // Server Info & Mobile QR Code

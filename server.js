@@ -4,6 +4,7 @@ const cookieParser = require('cookie-parser');
 const path = require('path');
 const QRCode = require('qrcode');
 
+const config = require('./config/env');
 const { db } = require('./db');
 const { NotFoundError, errorHandler } = require('./errors');
 const { securityHeaders } = require('./middleware/security.middleware');
@@ -12,16 +13,24 @@ const systemService = require('./services/system.service');
 const apiRoutes = require('./routes');
 
 const app = express();
-const PORT = parseInt(process.env.PORT, 10) || 5000;
+const PORT = config.PORT;
 
 // Security Headers
 app.use(securityHeaders);
 
-// Core Middleware
-app.use(cors({
-  origin: true,
+// Core Middleware: Strict CORS for Local/LAN Deployments
+const corsOptions = {
+  origin: config.ALLOWED_ORIGINS || function(origin, callback) {
+    if (!origin) return callback(null, true);
+    // Allow loopback and private LAN addresses
+    if (/^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$/.test(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Cross-origin request blocked by CORS policy'));
+  },
   credentials: true
-}));
+};
+app.use(cors(corsOptions));
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

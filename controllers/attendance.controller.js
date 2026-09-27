@@ -38,7 +38,11 @@ class AttendanceController {
     try {
       const validation = validateAttendanceInput(req.body);
       if (!validation.isValid) {
-        return res.status(400).json({ error: 'Validation failed', details: validation.errors });
+        return res.status(400).json({
+          success: false,
+          error: validation.errors.join('; '),
+          details: validation.errors
+        });
       }
 
       const { record, calculation } = attendanceService.saveAttendance(validation.sanitized);
@@ -61,7 +65,11 @@ class AttendanceController {
     try {
       const validation = validateBatchAttendanceInput(req.body);
       if (!validation.isValid) {
-        return res.status(400).json({ error: 'Validation failed', details: validation.errors });
+        return res.status(400).json({
+          success: false,
+          error: validation.errors.join('; '),
+          details: validation.errors
+        });
       }
 
       const count = attendanceService.batchSaveAttendance(

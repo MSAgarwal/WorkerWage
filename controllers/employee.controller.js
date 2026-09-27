@@ -24,7 +24,11 @@ class EmployeeController {
     try {
       const validation = validateEmployeeInput(req.body, false);
       if (!validation.isValid) {
-        return res.status(400).json({ error: 'Validation failed', details: validation.errors });
+        return res.status(400).json({
+          success: false,
+          error: validation.errors.join('; '),
+          details: validation.errors
+        });
       }
 
       const newWorker = employeeService.createEmployee(validation.sanitized);
@@ -46,12 +50,16 @@ class EmployeeController {
     try {
       const id = parseInt(req.params.id, 10);
       if (isNaN(id) || id <= 0) {
-        return res.status(400).json({ error: 'Invalid worker ID' });
+        return res.status(400).json({ success: false, error: 'Invalid worker ID' });
       }
 
       const validation = validateEmployeeInput(req.body, true);
       if (!validation.isValid) {
-        return res.status(400).json({ error: 'Validation failed', details: validation.errors });
+        return res.status(400).json({
+          success: false,
+          error: validation.errors.join('; '),
+          details: validation.errors
+        });
       }
 
       const updated = employeeService.updateEmployee(id, validation.sanitized);
@@ -73,7 +81,7 @@ class EmployeeController {
     try {
       const id = parseInt(req.params.id, 10);
       if (isNaN(id) || id <= 0) {
-        return res.status(400).json({ error: 'Invalid worker ID' });
+        return res.status(400).json({ success: false, error: 'Invalid worker ID' });
       }
 
       const { hardDelete } = req.query;

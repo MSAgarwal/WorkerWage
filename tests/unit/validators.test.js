@@ -38,9 +38,14 @@ describe('Validators Unit Tests', () => {
       assert.equal(sanitizeString('   hello world   '), 'hello world');
     });
 
-    it('escapes HTML tags to prevent XSS injection', () => {
-      assert.equal(sanitizeString('<script>alert("xss")</script>'), '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;');
-      assert.equal(sanitizeString('<b>Bold text</b>'), '&lt;b&gt;Bold text&lt;/b&gt;');
+    it('preserves raw text for database storage without double-escaping entities', () => {
+      assert.equal(sanitizeString('<script>alert("xss")</script>'), '<script>alert("xss")</script>');
+      assert.equal(sanitizeString('<b>Bold text</b>'), '<b>Bold text</b>');
+      assert.equal(sanitizeString("O'Connor & Sons"), "O'Connor & Sons");
+    });
+
+    it('strips dangerous unprintable control characters', () => {
+      assert.equal(sanitizeString('Hello\x00World\x08!'), 'HelloWorld!');
     });
 
     it('bounds max length', () => {
@@ -56,6 +61,13 @@ describe('Validators Unit Tests', () => {
   });
 
   describe('validateEmployeeInput', () => {
+    it('handles null and non-object body safely without 500 error', () => {
+      assert.equal(validateEmployeeInput(null).isValid, false);
+      assert.equal(validateEmployeeInput(undefined).isValid, false);
+      assert.equal(validateEmployeeInput([]).isValid, false);
+      assert.equal(validateEmployeeInput('bad string').isValid, false);
+    });
+
     it('validates a correct worker input', () => {
       const res = validateEmployeeInput({
         name: 'Ramesh Kumar',
@@ -81,17 +93,28 @@ describe('Validators Unit Tests', () => {
     it('rejects worker with negative daily wage', () => {
       const res = validateEmployeeInput({ name: 'Valid Name', daily_wage: -100 });
       assert.equal(res.isValid, false);
-      assert.ok(res.errors.some(e => e.includes('Daily wage must be a valid non-negative number')));
+      assert.ok(res.errors.some(e => e.includes('non-negative number')));
+    });
+
+    it('rejects daily wage exceeding domain limit', () => {
+      const res = validateEmployeeInput({ name: 'Valid Name', daily_wage: 5000000 });
+      assert.equal(res.isValid, false);
+      assert.ok(res.errors.some(e => e.includes('non-negative number up to')));
     });
 
     it('rejects invalid worker_type', () => {
       const res = validateEmployeeInput({ name: 'Valid Name', daily_wage: 400, worker_type: 'CEO' });
       assert.equal(res.isValid, false);
-      assert.ok(res.errors.some(e => e.includes("Worker type must be either 'WORKER' or 'MANAGER'")));
+      assert.ok(res.errors.some(e => e.includes("Worker type must be one of")));
     });
   });
 
   describe('validateAttendanceInput', () => {
+    it('handles null or array body safely without 500', () => {
+      assert.equal(validateAttendanceInput(null).isValid, false);
+      assert.equal(validateAttendanceInput([]).isValid, false);
+    });
+
     it('validates correct attendance payload', () => {
       const res = validateAttendanceInput({
         employee_id: 1,
@@ -117,9 +140,43 @@ describe('Validators Unit Tests', () => {
       assert.equal(res.isValid, false);
       assert.ok(res.errors.some(e => e.includes('Status must be one of')));
     });
+
+    it('rejects overtime multiplier exceeding MAX_OT_MULTIPLIER (3.0)', () => {
+      const res = validateAttendanceInput({
+        employee_id: 1,
+        date: '2026-10-01',
+        status: 'PRESENT',
+        overtime_multiplier: 4.5
+      });
+      assert.equal(res.isValid, false);
+      assert.ok(res.errors.some(e => e.includes('overtime_multiplier must be between 0.0 and 3.0')));
+    });
+  });
+
+  describe('validateBatchAttendanceInput', () => {
+    it('handles null body safely', () => {
+      assert.equal(validateBatchAttendanceInput(null).isValid, false);
+      assert.equal(validateBatchAttendanceInput(undefined).isValid, false);
+    });
+
+    it('detects duplicate worker IDs within the same batch', () => {
+      const res = validateBatchAttendanceInput({
+        date: '2026-10-01',
+        records: [
+          { employee_id: 1, status: 'PRESENT' },
+          { employee_id: 1, status: 'HALF_DAY' }
+        ]
+      });
+      assert.equal(res.isValid, false);
+      assert.ok(res.errors.some(e => e.includes('Duplicate worker ID 1 detected')));
+    });
   });
 
   describe('validatePaymentInput', () => {
+    it('handles null body safely', () => {
+      assert.equal(validatePaymentInput(null).isValid, false);
+    });
+
     it('validates a correct advance payment', () => {
       const res = validatePaymentInput({
         employee_id: 2,
@@ -138,7 +195,13 @@ describe('Validators Unit Tests', () => {
     it('rejects zero or negative payment amount', () => {
       const res = validatePaymentInput({ employee_id: 2, date: '2026-10-01', amount: 0 });
       assert.equal(res.isValid, false);
-      assert.ok(res.errors.some(e => e.includes('greater than 0')));
+      assert.ok(res.errors.some(e => e.includes('positive number up to')));
+    });
+
+    it('rejects payment amount exceeding domain limit', () => {
+      const res = validatePaymentInput({ employee_id: 2, date: '2026-10-01', amount: 999999999 });
+      assert.equal(res.isValid, false);
+      assert.ok(res.errors.some(e => e.includes('positive number up to')));
     });
 
     it('rejects invalid payment type', () => {
@@ -149,6 +212,10 @@ describe('Validators Unit Tests', () => {
   });
 
   describe('validateHolidayInput', () => {
+    it('handles null body safely', () => {
+      assert.equal(validateHolidayInput(null).isValid, false);
+    });
+
     it('validates correct holiday', () => {
       const res = validateHolidayInput({ date: '2026-10-02', name: 'Gandhi Jayanti', is_paid: true });
       assert.equal(res.isValid, true);
@@ -165,6 +232,10 @@ describe('Validators Unit Tests', () => {
   });
 
   describe('validateChangePinInput', () => {
+    it('handles null body safely', () => {
+      assert.equal(validateChangePinInput(null).isValid, false);
+    });
+
     it('validates matching 4-8 digit new pin', () => {
       const res = validateChangePinInput({ currentPin: '1234', newPin: '5678', confirmPin: '5678' });
       assert.equal(res.isValid, true);

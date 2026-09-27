@@ -1,8 +1,27 @@
+# Dependencies
 node_modules/
+
+# Environment Variables & Secrets
 .env
-*.log
+.env.local
+.env.*.local
+
+# SQLite Databases & Ephemeral Storage
+*.db
 *.db-shm
 *.db-wal
-scratch/
+*.sqlite
+*.sqlite3
+test_*.db
+
+# Backups & Logs
 backups/
 logs/
+*.log
+npm-debug.log*
+
+# Scratch & Temporary
+scratch/
+.system_generated/
+.DS_Store
+Thumbs.db

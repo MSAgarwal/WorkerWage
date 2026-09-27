@@ -58,7 +58,6 @@ function recordAuthSuccess(clientIp) {
  * Supports:
  * 1. Authorization: Bearer <token>
  * 2. HttpOnly Cookie: admin_token
- * 3. Query parameter: ?token=<token> (for file downloads like /api/backup)
  */
 function requireAdmin(req, res, next) {
   let token = null;
@@ -72,11 +71,6 @@ function requireAdmin(req, res, next) {
   // 2. HttpOnly Cookie
   if (!token && req.cookies && req.cookies.admin_token) {
     token = req.cookies.admin_token;
-  }
-
-  // 3. Query string token (for file download endpoints e.g. /api/backup)
-  if (!token && req.method === 'GET' && req.query.token) {
-    token = req.query.token;
   }
 
   if (!token) {

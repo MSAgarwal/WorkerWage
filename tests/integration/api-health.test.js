@@ -2,11 +2,14 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('http');
 
+const PORT = parseInt(process.env.PORT, 10) || 5099;
+const ADMIN_PIN = process.env.DEFAULT_ADMIN_PIN || 'test-pin-9876';
+
 function apiRequest(path, method = 'GET', data = null, headers = {}) {
   return new Promise((resolve, reject) => {
     const req = http.request({
       hostname: 'localhost',
-      port: 5000,
+      port: PORT,
       path,
       method,
       headers: {
@@ -46,11 +49,23 @@ describe('Health & Diagnostic API Integration Tests', () => {
     assert.ok(res.body.error.includes('not found'));
   });
 
-  it('GET /api/server-info returns public connection info with host and port', async () => {
-    const res = await apiRequest('/api/server-info');
+  it('GET /api/server-info requires authentication and returns connection details for admin', async () => {
+    // Unauthenticated request should be rejected
+    const unauth = await apiRequest('/api/server-info');
+    assert.equal(unauth.status, 401);
+
+    // Authenticate admin
+    const authRes = await apiRequest('/api/auth/verify', 'POST', { pin: ADMIN_PIN });
+    assert.equal(authRes.status, 200);
+    const token = authRes.body.token;
+
+    // Authenticated request succeeds
+    const res = await apiRequest('/api/server-info', 'GET', null, {
+      'Authorization': `Bearer ${token}`
+    });
     assert.equal(res.status, 200);
     assert.equal(res.body.success, true);
-    assert.equal(Number(res.body.port), 5000);
+    assert.equal(Number(res.body.port), PORT);
     assert.ok(res.body.localUrl);
     assert.ok(res.body.networkUrl);
     assert.ok(res.body.qrCodeDataUrl);

@@ -1,4 +1,5 @@
 const { db } = require('../db');
+const { NotFoundError } = require('../errors');
 
 class HolidayService {
   /**
@@ -23,10 +24,14 @@ class HolidayService {
   }
 
   /**
-   * Delete a holiday by ID
+   * Delete a holiday by ID (throws NotFoundError if ID does not exist)
    */
   deleteHoliday(id) {
-    return db.prepare('DELETE FROM holidays WHERE id = ?').run(id);
+    const result = db.prepare('DELETE FROM holidays WHERE id = ?').run(id);
+    if (result.changes === 0) {
+      throw new NotFoundError('Holiday not found');
+    }
+    return true;
   }
 }
 

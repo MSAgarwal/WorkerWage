@@ -1,19 +1,42 @@
 /**
- * Autonomous Test Runner for WorkerWage
- * Automatically manages server lifecycle during test execution:
- * 1. Checks if server is already running on port 5000.
- * 2. If not running, launches server in background and waits for /api/health.
- * 3. Runs unit & integration test suites.
- * 4. Gracefully shuts down spawned server.
+ * Isolated Automated Test Runner for WorkerWage
+ * Enforces 100% test isolation:
+ * 1. Uses a dedicated, isolated test port (5099) so it never touches a live production server.
+ * 2. Uses an ephemeral test database (test_attendance.db) so it never touches production data.
+ * 3. Injects isolated test credentials (TEST_ADMIN_PIN & TEST_JWT_SECRET).
+ * 4. Automatically tears down the test server and cleans up the test database files on exit.
  */
 
 const { spawn } = require('child_process');
 const http = require('http');
 const path = require('path');
+const fs = require('fs');
 
-function checkServerReady(port = 5000) {
+const TEST_PORT = parseInt(process.env.TEST_PORT, 10) || 5099;
+const TEST_DB = path.join(__dirname, '..', 'test_attendance.db');
+const TEST_ADMIN_PIN = 'test-pin-9876';
+const TEST_JWT_SECRET = 'test-jwt-secret-isolated-automated-runner-987654321';
+
+function cleanupTestDb() {
+  const files = [
+    TEST_DB,
+    `${TEST_DB}-shm`,
+    `${TEST_DB}-wal`
+  ];
+  for (const f of files) {
+    if (fs.existsSync(f)) {
+      try {
+        fs.unlinkSync(f);
+      } catch (e) {
+        // ignore busy/locked cleanup on windows
+      }
+    }
+  }
+}
+
+function checkServerReady(port) {
   return new Promise((resolve) => {
-    const req = http.get(`http://localhost:${port}/api/health`, (res) => {
+    const req = http.get(`http://127.0.0.1:${port}/api/health`, (res) => {
       resolve(res.statusCode === 200);
     });
     req.on('error', () => resolve(false));
@@ -24,7 +47,7 @@ function checkServerReady(port = 5000) {
   });
 }
 
-async function waitForServer(port = 5000, maxRetries = 20, delayMs = 300) {
+async function waitForServer(port, maxRetries = 25, delayMs = 250) {
   for (let i = 0; i < maxRetries; i++) {
     const ready = await checkServerReady(port);
     if (ready) return true;
@@ -34,52 +57,77 @@ async function waitForServer(port = 5000, maxRetries = 20, delayMs = 300) {
 }
 
 async function main() {
-  const isAlreadyRunning = await checkServerReady(5000);
-  let serverProcess = null;
+  cleanupTestDb();
 
-  if (isAlreadyRunning) {
-    console.log('📡 Connected to already running WorkerWage server on port 5000.');
-  } else {
-    console.log('🚀 Spawning WorkerWage server for test suite...');
-    serverProcess = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, PORT: '5000' }
-    });
+  console.log(`🚀 Launching isolated test server on port ${TEST_PORT} with database ${path.basename(TEST_DB)}...`);
 
-    serverProcess.stdout.on('data', () => {});
-    serverProcess.stderr.on('data', (d) => {
-      const err = d.toString();
-      if (!err.includes('ExperimentalWarning: SQLite')) {
-        process.stderr.write(d);
-      }
-    });
+  const serverEnv = {
+    ...process.env,
+    NODE_ENV: 'test',
+    PORT: String(TEST_PORT),
+    DB_PATH: TEST_DB,
+    DEFAULT_ADMIN_PIN: TEST_ADMIN_PIN,
+    JWT_SECRET: TEST_JWT_SECRET
+  };
 
-    const ready = await waitForServer(5000);
-    if (!ready) {
-      console.error('❌ Failed to start WorkerWage server on port 5000 within timeout.');
-      if (serverProcess) serverProcess.kill();
-      process.exit(1);
+  let serverOutput = '';
+  let serverExitedPrematurely = false;
+
+  const serverProcess = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: serverEnv
+  });
+
+  serverProcess.stdout.on('data', (d) => {
+    serverOutput += d.toString();
+  });
+  serverProcess.stderr.on('data', (d) => {
+    serverOutput += d.toString();
+    const err = d.toString();
+    if (!err.includes('ExperimentalWarning: SQLite')) {
+      process.stderr.write(d);
     }
-    console.log('✅ WorkerWage server is healthy and ready on port 5000.');
+  });
+
+  serverProcess.on('exit', (code) => {
+    serverExitedPrematurely = true;
+    if (code !== 0 && code !== null) {
+      console.error(`\n❌ Server process exited prematurely with code ${code}:\n${serverOutput}`);
+    }
+  });
+
+  const ready = await waitForServer(TEST_PORT);
+  if (!ready || serverExitedPrematurely) {
+    console.error(`❌ Failed to start isolated test server on port ${TEST_PORT} within timeout.`);
+    if (serverOutput) {
+      console.error(`Server Output:\n${serverOutput}`);
+    }
+    if (serverProcess) serverProcess.kill();
+    cleanupTestDb();
+    process.exit(1);
   }
 
-  // Run native Node.js test runner
+  console.log(`✅ Isolated test server ready on port ${TEST_PORT}.\n`);
   console.log('🧪 Executing automated test suite...\n');
-  const testProcess = spawn(process.execPath, ['--test', 'tests/**/*.test.js'], {
+
+  const testProcess = spawn(process.execPath, ['--test', '--test-reporter=spec', 'tests/**/*.test.js'], {
     stdio: 'inherit',
-    cwd: path.join(__dirname, '..')
+    cwd: path.join(__dirname, '..'),
+    env: serverEnv
   });
 
   testProcess.on('exit', (code) => {
-    if (serverProcess) {
-      console.log('\n🛑 Shutting down spawned test server...');
-      serverProcess.kill();
-    }
-    process.exit(code || 0);
+    console.log('\n🛑 Shutting down isolated test server and cleaning up test database...');
+    serverProcess.kill();
+    setTimeout(() => {
+      cleanupTestDb();
+      process.exit(code || 0);
+    }, 500);
   });
 }
 
 main().catch(err => {
-  console.error('Test runner error:', err);
+  console.error('Test runner fatal error:', err);
+  cleanupTestDb();
   process.exit(1);
 });

@@ -3,8 +3,10 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
+const config = require('./config/env');
+const { DEFAULT_CATEGORIES } = require('./config/constants');
 
-const DB_PATH = path.join(__dirname, 'attendance.db');
+const DB_PATH = config.DB_PATH;
 const db = new DatabaseSync(DB_PATH);
 
 // Optimize database for reliability, concurrency, and durability
@@ -13,7 +15,38 @@ db.exec('PRAGMA foreign_keys = ON;');
 db.exec('PRAGMA synchronous = NORMAL;');
 db.exec('PRAGMA busy_timeout = 5000;');
 
-// Initialize Tables
+/**
+ * Check if a specific column exists in a SQLite table
+ */
+function hasColumn(tableName, columnName) {
+  try {
+    const columns = db.prepare(`PRAGMA table_info(${tableName})`).all();
+    return columns.some(c => c.name === columnName);
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * Database Transaction Helper (Atomic execution of multi-statement operations)
+ */
+function withTransaction(fn) {
+  db.exec('BEGIN TRANSACTION;');
+  try {
+    const result = fn();
+    db.exec('COMMIT;');
+    return result;
+  } catch (err) {
+    try {
+      db.exec('ROLLBACK;');
+    } catch (rbErr) {
+      // rollback error if already rolled back
+    }
+    throw err;
+  }
+}
+
+// Initialize Tables & Versioned Schema
 function initDatabase() {
   db.exec(`
     CREATE TABLE IF NOT EXISTS settings (
@@ -104,49 +137,65 @@ function initDatabase() {
     {
       version: '20260901_add_overtime_days',
       up: () => {
-        try { db.exec('ALTER TABLE attendance ADD COLUMN overtime_days REAL NOT NULL DEFAULT 0.0;'); } catch (e) {}
+        if (!hasColumn('attendance', 'overtime_days')) {
+          db.exec('ALTER TABLE attendance ADD COLUMN overtime_days REAL NOT NULL DEFAULT 0.0;');
+        }
       }
     },
     {
       version: '20260902_add_is_holiday_work',
       up: () => {
-        try { db.exec('ALTER TABLE attendance ADD COLUMN is_holiday_work INTEGER NOT NULL DEFAULT 0;'); } catch (e) {}
+        if (!hasColumn('attendance', 'is_holiday_work')) {
+          db.exec('ALTER TABLE attendance ADD COLUMN is_holiday_work INTEGER NOT NULL DEFAULT 0;');
+        }
       }
     },
     {
       version: '20260903_add_worker_type',
       up: () => {
-        try { db.exec("ALTER TABLE employees ADD COLUMN worker_type TEXT NOT NULL DEFAULT 'WORKER';"); } catch (e) {}
+        if (!hasColumn('employees', 'worker_type')) {
+          db.exec("ALTER TABLE employees ADD COLUMN worker_type TEXT NOT NULL DEFAULT 'WORKER';");
+        }
       }
     },
     {
       version: '20260904_add_default_box_rate',
       up: () => {
-        try { db.exec('ALTER TABLE employees ADD COLUMN default_box_rate REAL NOT NULL DEFAULT 30.0;'); } catch (e) {}
+        if (!hasColumn('employees', 'default_box_rate')) {
+          db.exec('ALTER TABLE employees ADD COLUMN default_box_rate REAL NOT NULL DEFAULT 30.0;');
+        }
       }
     },
     {
       version: '20260905_add_work_category',
       up: () => {
-        try { db.exec("ALTER TABLE attendance ADD COLUMN work_category TEXT DEFAULT '';"); } catch (e) {}
+        if (!hasColumn('attendance', 'work_category')) {
+          db.exec("ALTER TABLE attendance ADD COLUMN work_category TEXT DEFAULT '';");
+        }
       }
     },
     {
       version: '20260906_add_extra_boxes',
       up: () => {
-        try { db.exec('ALTER TABLE attendance ADD COLUMN extra_boxes REAL NOT NULL DEFAULT 0.0;'); } catch (e) {}
+        if (!hasColumn('attendance', 'extra_boxes')) {
+          db.exec('ALTER TABLE attendance ADD COLUMN extra_boxes REAL NOT NULL DEFAULT 0.0;');
+        }
       }
     },
     {
       version: '20260907_add_box_rate',
       up: () => {
-        try { db.exec('ALTER TABLE attendance ADD COLUMN box_rate REAL NOT NULL DEFAULT 30.0;'); } catch (e) {}
+        if (!hasColumn('attendance', 'box_rate')) {
+          db.exec('ALTER TABLE attendance ADD COLUMN box_rate REAL NOT NULL DEFAULT 30.0;');
+        }
       }
     },
     {
       version: '20260908_add_extra_pieces',
       up: () => {
-        try { db.exec('ALTER TABLE attendance ADD COLUMN extra_pieces REAL NOT NULL DEFAULT 0.0;'); } catch (e) {}
+        if (!hasColumn('attendance', 'extra_pieces')) {
+          db.exec('ALTER TABLE attendance ADD COLUMN extra_pieces REAL NOT NULL DEFAULT 0.0;');
+        }
       }
     }
   ];
@@ -156,38 +205,25 @@ function initDatabase() {
 
   for (const m of migrations) {
     if (!checkMigStmt.get(m.version)) {
-      m.up();
-      insertMigStmt.run(m.version);
+      try {
+        withTransaction(() => {
+          m.up();
+          insertMigStmt.run(m.version);
+        });
+      } catch (err) {
+        console.error(`❌ Migration failed for version ${m.version}:`, err);
+        throw new Error(`Database migration failed on ${m.version}: ${err.message}`);
+      }
     }
   }
 
   // Initialize Default Settings if not present
-  const defaultWorkCategories = [
-    'Sp 100',
-    'Sp 80',
-    'Sp 80 kishanganj',
-    'Pd 80',
-    'Pd 100',
-    'S 50',
-    'Pd 40',
-    'Pd 50',
-    'P 100',
-    'p 95',
-    'P card',
-    'Sp card',
-    'pd orange card',
-    'pd pink card',
-    'pd big card',
-    'sp big card',
-    'bangles(special)'
-  ];
-
   const defaultSettings = [
     { key: 'business_name', value: 'Daily Wage Attendance & Payroll' },
     { key: 'currency_symbol', value: '₹' },
     { key: 'default_ot_multiplier', value: '0.0' },
     { key: 'default_box_rate', value: '30.0' },
-    { key: 'work_categories', value: JSON.stringify(defaultWorkCategories) },
+    { key: 'work_categories', value: JSON.stringify(DEFAULT_CATEGORIES) },
     { key: 'weekly_paid_off_day', value: 'Tuesday' },
     { key: 'site_location', value: 'Main Work Site' }
   ];
@@ -201,29 +237,38 @@ function initDatabase() {
     }
   }
 
-  // Handle Admin PIN migration to bcrypt hash
+  // Admin PIN setup / initialization logic
   const existingPinRow = checkSettingStmt.get('admin_pin');
   if (existingPinRow) {
     const val = existingPinRow.value;
-    if (!val.startsWith('$2a$') && !val.startsWith('$2b$')) {
+    if (val && !val.startsWith('$2a$') && !val.startsWith('$2b$')) {
       const hashed = bcrypt.hashSync(val, 10);
       db.prepare('UPDATE settings SET value = ? WHERE key = ?').run(hashed, 'admin_pin');
-      console.log('🔒 Migrated existing admin PIN to bcrypt hash.');
     }
   } else {
-    const defaultPin = process.env.DEFAULT_ADMIN_PIN || '1234';
-    const hashed = bcrypt.hashSync(defaultPin, 10);
-    insertSettingStmt.run('admin_pin', hashed);
+    // If environment specifies DEFAULT_ADMIN_PIN, use it
+    if (config.DEFAULT_ADMIN_PIN) {
+      const hashed = bcrypt.hashSync(config.DEFAULT_ADMIN_PIN, 10);
+      insertSettingStmt.run('admin_pin', hashed);
+    } else if (config.IS_TEST) {
+      // In test mode, initialize with test PIN
+      const hashed = bcrypt.hashSync('test-admin-pin-1234', 10);
+      insertSettingStmt.run('admin_pin', hashed);
+    }
+    // In production without DEFAULT_ADMIN_PIN, admin_pin remains unset until first-run setup
   }
 
-  // Handle persistent JWT Secret
+  // Persistent JWT Secret (prefer process.env.JWT_SECRET)
   const existingSecretRow = checkSettingStmt.get('jwt_secret');
   if (!existingSecretRow) {
-    const secret = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
+    const secret = config.JWT_SECRET || crypto.randomBytes(32).toString('hex');
     insertSettingStmt.run('jwt_secret', secret);
+  } else if (config.JWT_SECRET && existingSecretRow.value !== config.JWT_SECRET) {
+    // Override DB secret if environment variable is explicitly provided
+    db.prepare('UPDATE settings SET value = ? WHERE key = ?').run(config.JWT_SECRET, 'jwt_secret');
   }
 
-  // Seed sample holidays if table is empty
+  // Seed default holidays if table is empty
   const countHol = db.prepare('SELECT COUNT(*) as count FROM holidays').get();
   if (countHol && countHol.count === 0) {
     const seedHoliday = db.prepare('INSERT OR IGNORE INTO holidays (date, title, is_paid) VALUES (?, ?, ?)');
@@ -233,41 +278,39 @@ function initDatabase() {
     seedHoliday.run('2026-01-26', 'Republic Day', 1);
     seedHoliday.run('2026-08-15', 'Independence Day', 1);
   }
-
-  // Seed sample workers if table is empty
-  const countEmp = db.prepare('SELECT COUNT(*) as count FROM employees').get();
-  if (countEmp && countEmp.count === 0) {
-    const seedEmp = db.prepare(`
-      INSERT INTO employees (employee_code, name, phone, role, daily_wage, default_ot_multiplier, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    seedEmp.run('EMP001', 'Ramesh Kumar', '9876543210', 'Head Mason', 750.0, 0.0, 'Experienced brick layer');
-    seedEmp.run('EMP002', 'Suresh Singh', '9876543211', 'Carpenter', 700.0, 0.0, 'Formwork and finishing');
-    seedEmp.run('EMP003', 'Rajesh Sharma', '9876543212', 'Welder / Fabricator', 800.0, 0.0, 'Heavy metal works');
-    seedEmp.run('EMP004', 'Amit Patel', '9876543213', 'General Helper', 500.0, 0.0, 'Loading and site support');
-    seedEmp.run('EMP005', 'Vikram Yadav', '9876543214', 'Electrician', 750.0, 0.0, 'Wiring and power setup');
-
-    console.log('🌱 Seeded 5 sample daily wage workers for initial setup.');
-  }
 }
 
 initDatabase();
 
 // Auth and Crypto Helpers
 function getJwtSecret() {
-  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+  if (config.JWT_SECRET) return config.JWT_SECRET;
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('jwt_secret');
-  return row ? row.value : 'workerwage_secure_fallback_secret_key';
+  if (row && row.value) return row.value;
+
+  // Generate on the fly and persist
+  const newSecret = crypto.randomBytes(32).toString('hex');
+  db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('jwt_secret', newSecret);
+  return newSecret;
+}
+
+function rotateJwtSecret() {
+  const newSecret = crypto.randomBytes(32).toString('hex');
+  db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('jwt_secret', newSecret);
+  return newSecret;
+}
+
+function isAdminInitialized() {
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('admin_pin');
+  return !!(row && row.value && row.value.trim().length > 0);
 }
 
 function verifyAdminPin(enteredPin) {
   if (!enteredPin) return false;
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('admin_pin');
-  if (!row) return false;
+  if (!row || !row.value) return false;
   const storedVal = row.value;
 
-  // Auto-migrate if found as plaintext
   if (!storedVal.startsWith('$2a$') && !storedVal.startsWith('$2b$')) {
     const isMatch = String(enteredPin).trim() === String(storedVal).trim();
     if (isMatch) {
@@ -281,20 +324,7 @@ function verifyAdminPin(enteredPin) {
 
 function updateAdminPin(newPin) {
   const hashed = bcrypt.hashSync(String(newPin).trim(), 10);
-  db.prepare('UPDATE settings SET value = ? WHERE key = ?').run(hashed, 'admin_pin');
-}
-
-// Database Transaction Helper (Atomic execution of multi-statement operations)
-function withTransaction(fn) {
-  db.exec('BEGIN TRANSACTION;');
-  try {
-    const result = fn();
-    db.exec('COMMIT;');
-    return result;
-  } catch (err) {
-    db.exec('ROLLBACK;');
-    throw err;
-  }
+  db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('admin_pin', hashed);
 }
 
 // Database Health & Integrity Check
@@ -314,6 +344,8 @@ module.exports = {
   withTransaction,
   checkDatabaseIntegrity,
   getJwtSecret,
+  rotateJwtSecret,
+  isAdminInitialized,
   verifyAdminPin,
   updateAdminPin
 };

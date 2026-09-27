@@ -31,9 +31,15 @@ class EmployeeService {
   createEmployee(data) {
     let code = data.employee_code;
     if (!code || code.trim() === '') {
+      let candidateId = 1;
       const lastRow = db.prepare('SELECT id FROM employees ORDER BY id DESC LIMIT 1').get();
-      const nextId = lastRow ? lastRow.id + 1 : 1;
-      code = 'EMP' + String(nextId).padStart(3, '0');
+      if (lastRow) candidateId = lastRow.id + 1;
+      code = 'EMP' + String(candidateId).padStart(3, '0');
+      // Retry in case of concurrent sequence
+      while (db.prepare('SELECT id FROM employees WHERE employee_code = ?').get(code)) {
+        candidateId++;
+        code = 'EMP' + String(candidateId).padStart(3, '0');
+      }
     }
 
     const existingCode = db.prepare('SELECT id FROM employees WHERE employee_code = ?').get(code);
@@ -103,6 +109,11 @@ class EmployeeService {
    * Delete or deactivate an employee
    */
   deleteEmployee(id, hardDelete) {
+    const existing = db.prepare('SELECT id FROM employees WHERE id = ?').get(id);
+    if (!existing) {
+      throw new NotFoundError('Worker not found');
+    }
+
     if (hardDelete === 'true' || hardDelete === true) {
       db.prepare('DELETE FROM employees WHERE id = ?').run(id);
       return { hardDeleted: true, message: 'Worker deleted permanently' };

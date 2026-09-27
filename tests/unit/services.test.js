@@ -45,7 +45,7 @@ describe('Services Unit Tests', () => {
       const health = systemService.getHealth();
       assert.ok(health);
       assert.equal(typeof health.isHealthy, 'boolean');
-      assert.equal(health.version, '2.0.0');
+      assert.equal(health.version, '3.0.0');
       assert.ok(health.database);
     });
 

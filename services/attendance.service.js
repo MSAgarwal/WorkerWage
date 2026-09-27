@@ -1,6 +1,6 @@
 const { db, withTransaction } = require('../db');
 const { isPieceCategory, calculateWage } = require('../wageCalculator');
-const { NotFoundError } = require('../errors');
+const { NotFoundError, ValidationError } = require('../errors');
 
 class AttendanceService {
   /**
@@ -202,7 +202,9 @@ class AttendanceService {
   _prepareAttendanceData(worker, date, inputData, dateMeta) {
     const isPaidDayOff = dateMeta.isPaidDayOff;
     const status = inputData.status || 'PRESENT';
-    const holidayWork = (inputData.is_holiday_work === true || (isPaidDayOff && (status === 'PRESENT' || status === 'HALF_DAY'))) ? 1 : 0;
+    // Server authoritatively determines holiday work:
+    // Only valid on actual paid days off (Tuesday or registered paid holiday) when worker attended
+    const holidayWork = (isPaidDayOff && (status === 'PRESENT' || status === 'HALF_DAY')) ? 1 : 0;
     const workerType = worker.worker_type || 'WORKER';
     const isManager = workerType === 'MANAGER';
     const effectiveCategory = isManager ? '' : (inputData.work_category ? String(inputData.work_category).trim() : '');
@@ -318,6 +320,25 @@ class AttendanceService {
    * Batch save attendance in an atomic database transaction
    */
   batchSaveAttendance(date, records) {
+    if (!records || records.length === 0) {
+      return 0;
+    }
+
+    // Validate that all employee IDs exist before beginning transaction
+    const empIds = records.map(r => r.employee_id);
+    const placeholders = empIds.map(() => '?').join(',');
+    const existingWorkers = db.prepare(`SELECT * FROM employees WHERE id IN (${placeholders})`).all(...empIds);
+    const existingMap = new Map();
+    for (const w of existingWorkers) {
+      existingMap.set(w.id, w);
+    }
+
+    for (const r of records) {
+      if (!existingMap.has(r.employee_id)) {
+        throw new ValidationError(`Worker with ID ${r.employee_id} does not exist. Batch operation rejected.`);
+      }
+    }
+
     const upsertStmt = db.prepare(`
       INSERT INTO attendance (
         employee_id, date, status, daily_wage_snapshot,
@@ -349,9 +370,7 @@ class AttendanceService {
 
     withTransaction(() => {
       for (const r of records) {
-        const worker = db.prepare('SELECT * FROM employees WHERE id = ?').get(r.employee_id);
-        if (!worker) continue;
-
+        const worker = existingMap.get(r.employee_id);
         const { calc, holidayWork, effectiveCategory, notes } = this._prepareAttendanceData(worker, date, r, dateMeta);
 
         upsertStmt.run(

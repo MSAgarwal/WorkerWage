@@ -55,7 +55,7 @@ const PaymentsModule = {
     }
 
     listEl.innerHTML = this.payments.map(p => {
-      const typeLabel = p.type === 'ADVANCE' ? '⚠️ Advance / Draw' : (p.type === 'PAYOUT' ? '✅ Wage Settlement' : '🎁 Bonus');
+      const typeLabel = p.type === 'ADVANCE' ? '⚠️ Advance / Draw' : (p.type === 'PAYOUT' ? '✅ Full Payout' : '💵 Wage Settlement');
       const isAdvance = p.type === 'ADVANCE';
 
       return `
