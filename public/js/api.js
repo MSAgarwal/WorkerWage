@@ -24,13 +24,15 @@ const API = {
     return `${year}-${month}-${day}`;
   },
 
-  // Token management (rely on secure HttpOnly cookies; no localStorage persistence)
+  _authToken: null,
+
+  // In-memory token for Authorization: Bearer header alongside HttpOnly cookie
   getToken() {
-    return '';
+    return this._authToken || '';
   },
 
   setToken(token) {
-    // HttpOnly cookie handled automatically by browser
+    this._authToken = token || null;
   },
 
   // Generic fetch wrapper with Bearer token & 401 interception
@@ -106,7 +108,11 @@ const API = {
   },
 
   async checkAuth() {
-    return this.request('/api/auth/check');
+    const res = await this.request('/api/auth/check');
+    if (res && res.authenticated && res.token) {
+      this.setToken(res.token);
+    }
+    return res;
   },
 
   async logout() {

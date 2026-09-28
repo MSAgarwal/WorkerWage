@@ -83,13 +83,23 @@ class EmployeeService {
       throw new NotFoundError('Worker not found');
     }
 
+    let code = existing.employee_code;
+    if (data.employee_code !== undefined && String(data.employee_code).trim() !== '') {
+      code = String(data.employee_code).trim();
+      const duplicateCode = db.prepare('SELECT id FROM employees WHERE employee_code = ? AND id != ?').get(code, id);
+      if (duplicateCode) {
+        throw new ConflictError(`Worker code "${code}" already exists. Please choose a different code.`);
+      }
+    }
+
     const stmt = db.prepare(`
       UPDATE employees
-      SET name = ?, phone = ?, role = ?, worker_type = ?, daily_wage = ?, default_ot_multiplier = ?, default_box_rate = ?, notes = ?, status = ?
+      SET employee_code = ?, name = ?, phone = ?, role = ?, worker_type = ?, daily_wage = ?, default_ot_multiplier = ?, default_box_rate = ?, notes = ?, status = ?
       WHERE id = ?
     `);
 
     stmt.run(
+      code,
       data.name !== undefined ? data.name : existing.name,
       data.phone !== undefined ? data.phone : existing.phone,
       data.role !== undefined ? data.role : existing.role,

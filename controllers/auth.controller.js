@@ -47,6 +47,9 @@ class AuthController {
     }
 
     const status = authService.checkToken(token);
+    if (status.authenticated && token) {
+      status.token = token;
+    }
     return res.json(status);
   }
 

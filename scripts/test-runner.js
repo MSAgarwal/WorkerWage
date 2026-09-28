@@ -47,7 +47,7 @@ function checkServerReady(port) {
   });
 }
 
-async function waitForServer(port, maxRetries = 25, delayMs = 250) {
+async function waitForServer(port, maxRetries = 50, delayMs = 250) {
   for (let i = 0; i < maxRetries; i++) {
     const ready = await checkServerReady(port);
     if (ready) return true;

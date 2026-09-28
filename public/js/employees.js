@@ -37,6 +37,26 @@ const EmployeesModule = {
         if (notice) notice.style.display = isManager ? 'flex' : 'none';
       });
     });
+
+    // Event delegation on workersList container
+    const workersList = document.getElementById('workersList');
+    if (workersList) {
+      workersList.addEventListener('click', (e) => {
+        const editBtn = e.target.closest('[data-action="edit-worker"]');
+        if (editBtn) {
+          const id = parseInt(editBtn.dataset.id, 10);
+          if (!isNaN(id)) this.openWorkerModal(id);
+          return;
+        }
+        const toggleBtn = e.target.closest('[data-action="toggle-status"]');
+        if (toggleBtn) {
+          const id = parseInt(toggleBtn.dataset.id, 10);
+          const status = toggleBtn.dataset.status;
+          if (!isNaN(id)) this.toggleStatus(id, status);
+          return;
+        }
+      });
+    }
   },
 
   async loadWorkers() {
@@ -120,10 +140,10 @@ const EmployeesModule = {
           </div>
 
           <div class="emp-footer">
-            <button class="btn btn-secondary btn-sm" onclick="EmployeesModule.openWorkerModal(${w.id})">
+            <button class="btn btn-secondary btn-sm" data-action="edit-worker" data-id="${w.id}" onclick="EmployeesModule.openWorkerModal(${w.id})">
               ✏️ Edit
             </button>
-            <button class="btn btn-secondary btn-sm ${isActive ? 'text-rose' : 'text-success'}" onclick="EmployeesModule.toggleStatus(${w.id}, '${isActive ? 'INACTIVE' : 'ACTIVE'}')">
+            <button class="btn btn-secondary btn-sm ${isActive ? 'text-rose' : 'text-success'}" data-action="toggle-status" data-id="${w.id}" data-status="${isActive ? 'INACTIVE' : 'ACTIVE'}" onclick="EmployeesModule.toggleStatus(${w.id}, '${isActive ? 'INACTIVE' : 'ACTIVE'}')">
               ${isActive ? 'Deactivate' : 'Reactivate'}
             </button>
           </div>
@@ -271,3 +291,5 @@ const EmployeesModule = {
       .replace(/'/g, '&#039;');
   }
 };
+
+window.EmployeesModule = EmployeesModule;
