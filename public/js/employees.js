@@ -140,6 +140,9 @@ const EmployeesModule = {
           </div>
 
           <div class="emp-footer">
+            <button class="btn btn-secondary btn-sm" onclick="App.viewWorkerPassbookAsAdmin(${w.id})" title="View Worker Passbook">
+              📖 Passbook
+            </button>
             <button class="btn btn-secondary btn-sm" data-action="edit-worker" data-id="${w.id}" onclick="EmployeesModule.openWorkerModal(${w.id})">
               ✏️ Edit
             </button>

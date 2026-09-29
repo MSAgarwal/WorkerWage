@@ -20,7 +20,7 @@
       <div class="brand-icon">⏱️</div>
       <div class="brand-info">
         <h1 id="appBusinessName">Daily Wage Attendance</h1>
-        <span class="brand-sub">Employer Admin Portal</span>
+        <span class="brand-sub" id="appRoleSubtitle">Employer Admin Portal</span>
       </div>
     </div>
     <div class="nav-actions">
@@ -32,6 +32,9 @@
       </button>
       <button id="btnAdminLock" class="btn-chip btn-lock" title="Lock Admin Access">
         <span id="lockIcon">🔒</span> <span class="hide-mobile" id="lockLabel">Unlocked</span>
+      </button>
+      <button id="btnWorkerLogout" class="btn-chip btn-worker-logout" title="Exit Passbook" style="display: none;">
+        <span>🚪</span> <span>Exit</span>
       </button>
     </div>
   </header>
@@ -403,41 +406,226 @@
       </div>
     </section>
 
+    <!-- ======================================================== -->
+    <!-- WORKER PORTAL VIEW: READ-ONLY PASSBOOK                   -->
+    <!-- ======================================================== -->
+    <section id="workerPortalView" class="worker-portal-view" style="display: none;">
+      <!-- Worker Profile Header Banner -->
+      <div class="worker-profile-card">
+        <div class="wp-profile-main">
+          <div class="wp-avatar" id="wpAvatar">👷</div>
+          <div class="wp-info">
+            <div class="wp-name-row">
+              <h2 id="wpWorkerName">Worker Name</h2>
+              <span class="wp-code-badge" id="wpWorkerCode">EMP001</span>
+              <span class="wp-status-badge active" id="wpWorkerStatus">Active</span>
+            </div>
+            <div class="wp-sub-row">
+              <span id="wpWorkerRole">Packaging Worker</span>
+              <span class="wp-divider">•</span>
+              <span>Rate: <strong id="wpDailyWage">₹0</strong>/day</span>
+              <span class="wp-divider">•</span>
+              <span>Phone: <strong id="wpPhone">-</strong></span>
+            </div>
+          </div>
+        </div>
+        <div class="wp-actions-cluster" style="display: flex; align-items: center; gap: 8px;">
+          <button id="btnWpBackToAdmin" class="btn btn-secondary btn-sm" style="display: none;">
+            ⬅️ Back to Admin
+          </button>
+          <div class="wp-read-only-chip">
+            <span>🔒 Read-Only Passbook</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Month Selector Bar -->
+      <div class="worker-month-bar">
+        <button id="btnWpPrevMonth" class="btn-icon" title="Previous Month">◀</button>
+        <div class="wp-month-picker-wrap">
+          <span class="wp-calendar-icon">📅</span>
+          <span id="wpMonthDisplay" class="wp-month-display">Current Month</span>
+          <input type="month" id="wpMonthInput" class="wp-month-input">
+        </div>
+        <button id="btnWpNextMonth" class="btn-icon" title="Next Month">▶</button>
+        <button id="btnWpCurrentMonth" class="btn btn-secondary btn-sm wp-btn-today">This Month</button>
+      </div>
+
+      <!-- 4 Financial & Attendance Summary KPI Cards -->
+      <div class="worker-summary-grid">
+        <div class="wp-stat-card wp-card-net">
+          <div class="wp-stat-header">
+            <span class="wp-stat-label">Net Balance Payable</span>
+            <span class="wp-stat-tag">Due</span>
+          </div>
+          <div class="wp-stat-value" id="wpNetPayable">₹0</div>
+          <div class="wp-stat-sub" id="wpNetPayableSub">Balance to receive after advances</div>
+        </div>
+
+        <div class="wp-stat-card">
+          <div class="wp-stat-header">
+            <span class="wp-stat-label">Days Worked</span>
+            <span class="wp-stat-icon">🗓️</span>
+          </div>
+          <div class="wp-stat-value" id="wpEffectiveDays">0 Days</div>
+          <div class="wp-stat-sub" id="wpDaysBreakdown">Present: 0 | Half: 0 | Off: 0</div>
+        </div>
+
+        <div class="wp-stat-card">
+          <div class="wp-stat-header">
+            <span class="wp-stat-label">Gross Wages Earned</span>
+            <span class="wp-stat-icon">💰</span>
+          </div>
+          <div class="wp-stat-value" id="wpGrossPay">₹0</div>
+          <div class="wp-stat-sub" id="wpGrossBreakdown">Base: ₹0 + OT/Boxes: ₹0</div>
+        </div>
+
+        <div class="wp-stat-card wp-card-adv">
+          <div class="wp-stat-header">
+            <span class="wp-stat-label">Cash Advances Taken</span>
+            <span class="wp-stat-tag tag-deduct">Deducted</span>
+          </div>
+          <div class="wp-stat-value" id="wpTotalAdvances">₹0</div>
+          <div class="wp-stat-sub" id="wpAdvancesSub">Mid-month advances & draws</div>
+        </div>
+      </div>
+
+      <!-- Passbook Tab View: Attendance vs Advances -->
+      <div class="wp-tabs-bar">
+        <button class="wp-tab-btn active" id="btnWpTabAttendance" data-wptab="wpTabAttendance">
+          <span>📋</span> Daily Attendance Log (<span id="wpAttendanceCount">0</span>)
+        </button>
+        <button class="wp-tab-btn" id="btnWpTabPayments" data-wptab="wpTabPayments">
+          <span>💵</span> Advances & Payments (<span id="wpPaymentCount">0</span>)
+        </button>
+      </div>
+
+      <!-- Section A: Attendance Log -->
+      <div id="wpTabAttendance" class="wp-tab-content active">
+        <div class="table-container">
+          <table class="payroll-table wp-table">
+            <thead>
+              <tr>
+                <th>Date & Day</th>
+                <th>Status</th>
+                <th>Work Category</th>
+                <th>Extra Boxes / OT</th>
+                <th>Total Day Wage</th>
+                <th>Notes / Details</th>
+              </tr>
+            </thead>
+            <tbody id="wpAttendanceBody">
+              <tr>
+                <td colspan="6" class="text-center py-4 text-muted">Loading attendance records...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Section B: Payments & Advances Log -->
+      <div id="wpTabPayments" class="wp-tab-content" style="display: none;">
+        <div class="table-container">
+          <table class="payroll-table wp-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Payment Method</th>
+                <th>Amount</th>
+                <th>Notes / Reason</th>
+              </tr>
+            </thead>
+            <tbody id="wpPaymentsBody">
+              <tr>
+                <td colspan="5" class="text-center py-4 text-muted">Loading advance records...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Security & Disclaimer Footer -->
+      <div class="wp-footer-disclaimer">
+        <span>ℹ️</span>
+        <span>This passbook record is updated in real-time by factory management. For questions regarding your attendance, box counts, or wage calculations, please speak with your factory supervisor.</span>
+      </div>
+    </section>
+
   </main>
 
   <!-- ======================================================== -->
-  <!-- MODAL: ADMIN PIN UNLOCK                                  -->
+  <!-- MODAL: AUTHENTICATION (WORKER PASSBOOK & ADMIN UNLOCK)    -->
   <!-- ======================================================== -->
   <div id="pinModal" class="modal-backdrop">
-    <div class="modal-card modal-pin">
-      <div class="modal-header-center">
-        <div class="lock-avatar">🔐</div>
-        <h2>Admin Authentication</h2>
-        <p class="text-muted">Enter Employer Admin PIN to access attendance tracker</p>
+    <div class="modal-card modal-auth">
+      <!-- Role Toggle Tabs -->
+      <div class="auth-role-tabs">
+        <button type="button" class="auth-role-tab active" id="tabModeWorker">
+          <span class="auth-role-icon">📦</span>
+          <span>Worker Passbook</span>
+        </button>
+        <button type="button" class="auth-role-tab" id="tabModeAdmin">
+          <span class="auth-role-icon">👔</span>
+          <span>Employer Admin</span>
+        </button>
       </div>
-      <form id="pinForm">
-        <div class="pin-display">
-          <input type="password" id="modalPinInput" class="pin-input" maxlength="8" placeholder="••••" autofocus required>
+
+      <!-- Section 1: Worker Login -->
+      <div id="workerAuthSection" class="auth-section">
+        <div class="modal-header-center">
+          <div class="lock-avatar worker-avatar">📦</div>
+          <h2>Worker Passbook</h2>
+          <p class="text-muted">Enter your Employee Code or Registered Mobile to view your attendance and wage balance</p>
         </div>
-        <div id="pinErrorMsg" class="error-msg" style="display: none;"></div>
-        <!-- Quick Pin Keypad for Mobile -->
-        <div class="keypad-grid">
-          <button type="button" class="key-btn" data-key="1">1</button>
-          <button type="button" class="key-btn" data-key="2">2</button>
-          <button type="button" class="key-btn" data-key="3">3</button>
-          <button type="button" class="key-btn" data-key="4">4</button>
-          <button type="button" class="key-btn" data-key="5">5</button>
-          <button type="button" class="key-btn" data-key="6">6</button>
-          <button type="button" class="key-btn" data-key="7">7</button>
-          <button type="button" class="key-btn" data-key="8">8</button>
-          <button type="button" class="key-btn" data-key="9">9</button>
-          <button type="button" class="key-btn clear" data-key="CLEAR">C</button>
-          <button type="button" class="key-btn" data-key="0">0</button>
-          <button type="button" class="key-btn backspace" data-key="BACK">⌫</button>
+        <form id="workerLoginForm">
+          <div class="form-group mt-3">
+            <label>Worker Code or Phone Number</label>
+            <input type="text" id="workerLoginIdentifier" class="worker-code-input" placeholder="e.g. EMP001 or 9876543210" autocomplete="off" required>
+          </div>
+          <div id="workerErrorMsg" class="error-msg" style="display: none;"></div>
+          <button type="submit" class="btn btn-primary btn-block mt-3" id="btnWorkerLogin">
+            <span>📖</span> Open My Passbook
+          </button>
+          <div class="worker-login-features">
+            <div class="feature-item"><span>✅</span> Real-time attendance log</div>
+            <div class="feature-item"><span>✅</span> Daily box packing & OT details</div>
+            <div class="feature-item"><span>✅</span> Advances & net wage balance</div>
+          </div>
+        </form>
+      </div>
+
+      <!-- Section 2: Employer Admin PIN -->
+      <div id="adminAuthSection" class="auth-section" style="display: none;">
+        <div class="modal-header-center">
+          <div class="lock-avatar">🔐</div>
+          <h2>Admin Authentication</h2>
+          <p class="text-muted">Enter Employer Admin PIN to access attendance tracker</p>
         </div>
-        <button type="submit" class="btn btn-primary btn-block mt-3">Unlock System</button>
-        <p class="text-center text-muted text-xs mt-2">Default initial PIN is <strong>1234</strong> (can be changed in Settings)</p>
-      </form>
+        <form id="pinForm">
+          <div class="pin-display">
+            <input type="password" id="modalPinInput" class="pin-input" maxlength="8" placeholder="••••" required>
+          </div>
+          <div id="pinErrorMsg" class="error-msg" style="display: none;"></div>
+          <!-- Quick Pin Keypad for Mobile -->
+          <div class="keypad-grid">
+            <button type="button" class="key-btn" data-key="1">1</button>
+            <button type="button" class="key-btn" data-key="2">2</button>
+            <button type="button" class="key-btn" data-key="3">3</button>
+            <button type="button" class="key-btn" data-key="4">4</button>
+            <button type="button" class="key-btn" data-key="5">5</button>
+            <button type="button" class="key-btn" data-key="6">6</button>
+            <button type="button" class="key-btn" data-key="7">7</button>
+            <button type="button" class="key-btn" data-key="8">8</button>
+            <button type="button" class="key-btn" data-key="9">9</button>
+            <button type="button" class="key-btn clear" data-key="CLEAR">C</button>
+            <button type="button" class="key-btn" data-key="0">0</button>
+            <button type="button" class="key-btn backspace" data-key="BACK">⌫</button>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block mt-3">Unlock System</button>
+          <p class="text-center text-muted text-xs mt-2">Default initial PIN is <strong>1234</strong> (can be changed in Settings)</p>
+        </form>
+      </div>
     </div>
   </div>
 
@@ -679,6 +867,7 @@
   <script src="/js/employees.js"></script>
   <script src="/js/payroll.js"></script>
   <script src="/js/payments.js"></script>
+  <script src="/js/worker-portal.js"></script>
   <script src="/js/app.js"></script>
 </body>
 </html>

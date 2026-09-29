@@ -33,6 +33,37 @@ class AuthController {
   }
 
   /**
+   * POST /api/auth/worker-login
+   * Authenticate worker via Employee Code or Phone
+   */
+  async workerLogin(req, res, next) {
+    try {
+      const { identifier } = req.body;
+      const clientIp = req.ip || req.connection?.remoteAddress || 'unknown';
+
+      const result = authService.verifyWorkerLogin(identifier, clientIp);
+      if (!result.success) {
+        return res.status(result.statusCode || 401).json({ error: result.error });
+      }
+
+      res.cookie('worker_token', result.token, {
+        httpOnly: true,
+        sameSite: 'lax',
+        maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
+      });
+
+      return res.json({
+        success: true,
+        token: result.token,
+        worker: result.worker,
+        message: result.message
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
    * GET /api/auth/check
    * Check if current session/token is valid
    */
@@ -42,23 +73,26 @@ class AuthController {
     if (authHeader && authHeader.startsWith('Bearer ')) {
       token = authHeader.substring(7).trim();
     }
-    if (!token && req.cookies && req.cookies.admin_token) {
-      token = req.cookies.admin_token;
+    if (!token && req.cookies) {
+      if (req.cookies.admin_token) token = req.cookies.admin_token;
+      else if (req.cookies.worker_token) token = req.cookies.worker_token;
     }
 
     const status = authService.checkToken(token);
     if (status.authenticated && token) {
       status.token = token;
+      status.role = status.user?.role || 'admin';
     }
     return res.json(status);
   }
 
   /**
    * POST /api/auth/logout
-   * Clear admin authentication cookie
+   * Clear both admin and worker authentication cookies
    */
   logout(req, res) {
     res.clearCookie('admin_token');
+    res.clearCookie('worker_token');
     return res.json({ success: true, message: 'Logged out successfully' });
   }
 

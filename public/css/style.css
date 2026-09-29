@@ -1853,4 +1853,401 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* ========================================================= */
+/* Worker Passbook & Dual-Mode Auth Styles                   */
+/* ========================================================= */
+
+.modal-auth {
+  max-width: 400px;
+}
+
+.auth-role-tabs {
+  display: flex;
+  gap: 8px;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: var(--radius-md);
+  margin-bottom: 20px;
+}
+
+.auth-role-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 12px;
+  font-weight: 700;
+  font-size: 0.84rem;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.auth-role-tab.active {
+  background: #ffffff;
+  color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.auth-role-icon {
+  font-size: 1.1rem;
+}
+
+.worker-avatar {
+  background: #ecfdf5 !important;
+  color: #10b981;
+}
+
+.worker-code-input {
+  width: 100%;
+  font-size: 1.25rem;
+  font-weight: 700;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 12px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  outline: none;
+  transition: border-color 0.2s;
+  font-family: var(--font-mono);
+}
+
+.worker-code-input:focus {
+  border-color: var(--primary);
+}
+
+.worker-login-features {
+  margin-top: 18px;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.feature-item {
+  font-size: 0.78rem;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-worker-logout {
+  background: #fef2f2 !important;
+  color: #dc2626 !important;
+  border-color: #fecaca !important;
+  cursor: pointer;
+}
+
+.btn-worker-logout:hover {
+  background: #fee2e2 !important;
+}
+
+/* Worker Portal Layout */
+.worker-portal-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.worker-profile-card {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.wp-profile-main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.wp-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-md);
+  background: #eff6ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  border: 1px solid #bfdbfe;
+  flex-shrink: 0;
+}
+
+.wp-info h2 {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--text-main);
+  line-height: 1.2;
+}
+
+.wp-name-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.wp-code-badge {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: #f1f5f9;
+  color: var(--text-muted);
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+}
+
+.wp-status-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.wp-sub-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.wp-divider {
+  color: #cbd5e1;
+}
+
+.wp-read-only-chip {
+  background: #f8fafc;
+  border: 1px dashed #94a3b8;
+  color: #475569;
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Worker Month Bar */
+.worker-month-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 16px;
+  box-shadow: var(--shadow-sm);
+  position: relative;
+}
+
+.wp-month-picker-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  font-size: 1.05rem;
+  cursor: pointer;
+}
+
+.wp-month-input {
+  position: absolute;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  left: 0;
+  top: 0;
+  cursor: pointer;
+}
+
+.wp-btn-today {
+  margin-left: 8px;
+}
+
+/* Worker KPI Grid */
+.worker-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+}
+
+.wp-stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: var(--shadow-sm);
+}
+
+.wp-card-net {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.wp-card-adv {
+  background: #fff1f2;
+  border-color: #fecdd3;
+}
+
+.wp-stat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.wp-stat-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.wp-stat-tag {
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  background: #22c55e;
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.wp-stat-tag.tag-deduct {
+  background: #e11d48 !important;
+}
+
+.wp-stat-value {
+  font-family: var(--font-mono);
+  font-size: 1.7rem;
+  font-weight: 800;
+  line-height: 1.2;
+  margin: 4px 0;
+  color: var(--text-main);
+}
+
+.wp-card-net .wp-stat-value {
+  color: #15803d;
+  font-size: 1.9rem;
+}
+
+.wp-card-adv .wp-stat-value {
+  color: #be123c;
+}
+
+.wp-stat-sub {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+/* Worker Passbook Tabs Bar */
+.wp-tabs-bar {
+  display: flex;
+  gap: 8px;
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 2px;
+  margin-top: 8px;
+}
+
+.wp-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.wp-tab-btn.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+.wp-table th {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.wp-table td {
+  font-size: 0.84rem;
+}
+
+.wp-status-pill {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  text-align: center;
+}
+
+.wp-status-pill.present {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.wp-status-pill.half-day {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.wp-status-pill.paid-off {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+.wp-status-pill.absent {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.wp-footer-disclaimer {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  line-height: 1.5;
+  margin-top: 12px;
+}
+
+
 

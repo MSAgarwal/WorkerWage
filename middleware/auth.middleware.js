@@ -82,6 +82,12 @@ function requireAdmin(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, getJwtSecret());
+    if (decoded.role !== 'admin') {
+      return res.status(403).json({
+        error: 'Admin authorization required. Access denied.',
+        code: 'FORBIDDEN'
+      });
+    }
     req.user = decoded;
     next();
   } catch (err) {
@@ -92,9 +98,48 @@ function requireAdmin(req, res, next) {
   }
 }
 
+/**
+ * Middleware: Require Worker or Admin Authentication via JWT token
+ * Allows packaging workers to view their own profile/passbook, or admins to view any profile.
+ */
+function requireWorkerOrAdmin(req, res, next) {
+  let token = null;
+
+  // 1. Authorization header: Bearer <token>
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7).trim();
+  }
+
+  // 2. HttpOnly Cookie (check both admin and worker cookies)
+  if (!token && req.cookies) {
+    if (req.cookies.admin_token) token = req.cookies.admin_token;
+    else if (req.cookies.worker_token) token = req.cookies.worker_token;
+  }
+
+  if (!token) {
+    return res.status(401).json({
+      error: 'Authentication required. Please enter your worker code or admin PIN.',
+      code: 'UNAUTHORIZED'
+    });
+  }
+
+  try {
+    const decoded = jwt.verify(token, getJwtSecret());
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({
+      error: 'Invalid or expired session. Please log in again.',
+      code: 'SESSION_EXPIRED'
+    });
+  }
+}
+
 module.exports = {
   checkAuthRateLimit,
   recordAuthFailure,
   recordAuthSuccess,
-  requireAdmin
+  requireAdmin,
+  requireWorkerOrAdmin
 };

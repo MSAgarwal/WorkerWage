@@ -8,6 +8,7 @@ const holidayRoutes = require('./holiday.routes');
 const attendanceRoutes = require('./attendance.routes');
 const paymentRoutes = require('./payment.routes');
 const payrollRoutes = require('./payroll.routes');
+const workerRoutes = require('./worker.routes');
 const systemRoutes = require('./system.routes');
 
 // System and health diagnostics routes
@@ -21,5 +22,6 @@ router.use('/holidays', holidayRoutes);
 router.use('/attendance', attendanceRoutes);
 router.use('/payments', paymentRoutes);
 router.use('/reports', payrollRoutes);
+router.use('/worker', workerRoutes);
 
 module.exports = router;

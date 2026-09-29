@@ -107,6 +107,14 @@ const API = {
     return res;
   },
 
+  async workerLogin(identifier) {
+    const res = await this.request('/api/auth/worker-login', { method: 'POST', body: { identifier } });
+    if (res.success && res.token) {
+      this.setToken(res.token);
+    }
+    return res;
+  },
+
   async checkAuth() {
     const res = await this.request('/api/auth/check');
     if (res && res.authenticated && res.token) {
@@ -124,6 +132,14 @@ const API = {
 
   async changePin(currentPin, newPin) {
     return this.request('/api/auth/change-pin', { method: 'POST', body: { currentPin, newPin } });
+  },
+
+  // Worker Passbook API
+  async getWorkerPassbook(month = '', employeeId = '') {
+    let url = '/api/worker/passbook?';
+    if (month) url += `month=${encodeURIComponent(month)}&`;
+    if (employeeId) url += `employee_id=${encodeURIComponent(employeeId)}&`;
+    return this.request(url);
   },
 
   // Database Backup Download via secure HttpOnly cookie & Blob (Zero Token in URL)

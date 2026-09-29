@@ -1,38 +1,45 @@
 // Main Application Orchestrator
 const App = {
   isUnlocked: false,
+  currentRole: null, // 'admin' | 'worker' | null
+  currentUser: null,
+  authMode: 'worker', // 'worker' | 'admin'
   activeTab: 'tabAttendance',
   categoriesList: [],
 
   async init() {
     this.bindGlobalEvents();
     this.bindKeypad();
+    this.bindAuthModeTabs();
     this.bindSettingsForms();
 
-    // Check server authentication status
-    let isAuthenticated = false;
-    try {
-      const authStatus = await API.checkAuth();
-      if (authStatus && authStatus.authenticated) {
-        isAuthenticated = true;
-      }
-    } catch (e) {
-      console.warn('Auth check error:', e);
-    }
-
-    if (isAuthenticated) {
-      this.setUnlockedState(true);
-      await this.loadInitialData();
-    } else {
-      this.setUnlockedState(false);
-      this.promptPin();
-    }
-
-    // Initialize modules
+    // Initialize feature modules
     AttendanceModule.init();
     EmployeesModule.init();
     PayrollModule.init();
     PaymentsModule.init();
+    WorkerPortalModule.init();
+
+    // Check server authentication status
+    let authStatus = null;
+    try {
+      authStatus = await API.checkAuth();
+    } catch (e) {
+      console.warn('Auth check error:', e);
+    }
+
+    if (authStatus && authStatus.authenticated) {
+      if (authStatus.role === 'worker') {
+        this.setWorkerState(true, authStatus.user);
+      } else {
+        this.setUnlockedState(true);
+        await this.loadInitialData();
+      }
+    } else {
+      this.setUnlockedState(false);
+      this.setWorkerState(false);
+      this.promptAuth('worker');
+    }
   },
 
   async loadInitialData() {
@@ -46,8 +53,9 @@ const App = {
 
   handleUnauthorized() {
     this.setUnlockedState(false);
-    this.promptPin();
-    this.showToast('Admin session expired. Please enter PIN.', 'error');
+    this.setWorkerState(false);
+    this.promptAuth('worker');
+    this.showToast('Session expired. Please log in again.', 'error');
   },
 
   bindGlobalEvents() {
@@ -64,6 +72,8 @@ const App = {
       this.showToast('Connection restored! Syncing data...', 'success');
       if (this.isUnlocked) {
         this.switchTab(this.activeTab);
+      } else if (this.currentRole === 'worker' && this.currentUser) {
+        WorkerPortalModule.loadPassbook(WorkerPortalModule.currentMonth);
       }
     });
 
@@ -108,7 +118,7 @@ const App = {
       });
     });
 
-    // PIN Form submission
+    // PIN Form submission (Employer Admin)
     const pinForm = document.getElementById('pinForm');
     pinForm.addEventListener('submit', (e) => {
       e.preventDefault();
@@ -142,7 +152,51 @@ const App = {
     }
   },
 
-  // Switch Active Tab
+  // Auth Mode Switcher (Worker Passbook vs Admin PIN)
+  bindAuthModeTabs() {
+    const tabWorker = document.getElementById('tabModeWorker');
+    const tabAdmin = document.getElementById('tabModeAdmin');
+    if (tabWorker) {
+      tabWorker.addEventListener('click', () => this.switchAuthMode('worker'));
+    }
+    if (tabAdmin) {
+      tabAdmin.addEventListener('click', () => this.switchAuthMode('admin'));
+    }
+
+    const workerForm = document.getElementById('workerLoginForm');
+    if (workerForm) {
+      workerForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await this.submitWorkerLogin();
+      });
+    }
+  },
+
+  switchAuthMode(mode) {
+    this.authMode = mode;
+    const tabWorker = document.getElementById('tabModeWorker');
+    const tabAdmin = document.getElementById('tabModeAdmin');
+    const secWorker = document.getElementById('workerAuthSection');
+    const secAdmin = document.getElementById('adminAuthSection');
+
+    if (mode === 'admin') {
+      if (tabWorker) tabWorker.classList.remove('active');
+      if (tabAdmin) tabAdmin.classList.add('active');
+      if (secWorker) secWorker.style.display = 'none';
+      if (secAdmin) secAdmin.style.display = 'block';
+      const pinInput = document.getElementById('modalPinInput');
+      if (pinInput) setTimeout(() => pinInput.focus(), 150);
+    } else {
+      if (tabWorker) tabWorker.classList.add('active');
+      if (tabAdmin) tabAdmin.classList.remove('active');
+      if (secWorker) secWorker.style.display = 'block';
+      if (secAdmin) secAdmin.style.display = 'none';
+      const workerInput = document.getElementById('workerLoginIdentifier');
+      if (workerInput) setTimeout(() => workerInput.focus(), 150);
+    }
+  },
+
+  // Switch Active Tab (Admin Views)
   switchTab(tabId) {
     this.activeTab = tabId;
 
@@ -170,15 +224,62 @@ const App = {
     }
   },
 
-  // Admin PIN Authentication
-  promptPin() {
-    const modalPinInput = document.getElementById('modalPinInput');
-    modalPinInput.value = '';
-    document.getElementById('pinErrorMsg').style.display = 'none';
+  // Prompt Authentication Modal
+  promptAuth(mode = 'worker') {
+    this.switchAuthMode(mode);
+    const pinInput = document.getElementById('modalPinInput');
+    const workerInput = document.getElementById('workerLoginIdentifier');
+    if (pinInput) pinInput.value = '';
+    if (workerInput) workerInput.value = '';
+    const pinErr = document.getElementById('pinErrorMsg');
+    const workerErr = document.getElementById('workerErrorMsg');
+    if (pinErr) pinErr.style.display = 'none';
+    if (workerErr) workerErr.style.display = 'none';
+
     this.openModal('pinModal');
-    setTimeout(() => modalPinInput.focus(), 200);
+    setTimeout(() => {
+      if (this.authMode === 'admin') {
+        if (pinInput) pinInput.focus();
+      } else {
+        if (workerInput) workerInput.focus();
+      }
+    }, 200);
   },
 
+  promptPin() {
+    this.promptAuth('admin');
+  },
+
+  // Worker Login Submission
+  async submitWorkerLogin() {
+    const input = document.getElementById('workerLoginIdentifier');
+    const identifier = input ? input.value.trim() : '';
+    const errorEl = document.getElementById('workerErrorMsg');
+
+    if (!identifier) {
+      if (errorEl) {
+        errorEl.textContent = 'Please enter your Worker Code or Phone';
+        errorEl.style.display = 'block';
+      }
+      return;
+    }
+
+    try {
+      const res = await API.workerLogin(identifier);
+      if (res.success && res.worker) {
+        this.setWorkerState(true, res.worker);
+        this.closeModal('pinModal');
+        this.showToast(`Welcome, ${res.worker.name}! Passbook loaded.`, 'success');
+      }
+    } catch (err) {
+      if (errorEl) {
+        errorEl.textContent = err.message || 'Worker not found. Please verify code or phone.';
+        errorEl.style.display = 'block';
+      }
+    }
+  },
+
+  // Admin PIN Submission
   async submitPin() {
     const pinInput = document.getElementById('modalPinInput');
     const pin = pinInput.value.trim();
@@ -193,9 +294,10 @@ const App = {
     try {
       const res = await API.verifyPin(pin);
       if (res.success) {
+        this.setWorkerState(false);
         this.setUnlockedState(true);
         this.closeModal('pinModal');
-        this.showToast('Welcome, Employer! Admin unlocked.', 'success');
+        this.showToast('Welcome, Employer! Admin portal unlocked.', 'success');
         await this.loadInitialData();
         this.switchTab(this.activeTab);
       }
@@ -206,19 +308,69 @@ const App = {
     }
   },
 
+  setWorkerState(active, workerUser) {
+    this.currentRole = active ? 'worker' : null;
+    this.currentUser = workerUser || null;
+
+    const mainTabs = document.getElementById('mainTabs');
+    const adminPanes = document.querySelectorAll('.tab-pane');
+    const btnWorkerLogout = document.getElementById('btnWorkerLogout');
+    const btnAdminLock = document.getElementById('btnAdminLock');
+    const btnConnectMobile = document.getElementById('btnConnectMobile');
+    const btnManageHolidays = document.getElementById('btnManageHolidays');
+    const appRoleSubtitle = document.getElementById('appRoleSubtitle');
+
+    if (active) {
+      this.isUnlocked = false;
+      if (mainTabs) mainTabs.style.display = 'none';
+      adminPanes.forEach(pane => {
+        pane.style.display = 'none';
+        pane.classList.remove('active');
+      });
+      if (btnAdminLock) btnAdminLock.style.display = 'none';
+      if (btnConnectMobile) btnConnectMobile.style.display = 'none';
+      if (btnManageHolidays) btnManageHolidays.style.display = 'none';
+      if (btnWorkerLogout) btnWorkerLogout.style.display = 'inline-flex';
+      if (appRoleSubtitle) appRoleSubtitle.textContent = 'Worker Passbook (Read Only)';
+
+      this.closeModal('pinModal');
+      WorkerPortalModule.show(workerUser);
+    } else {
+      WorkerPortalModule.hide();
+      if (btnWorkerLogout) btnWorkerLogout.style.display = 'none';
+    }
+  },
+
   setUnlockedState(unlocked) {
     this.isUnlocked = unlocked;
+    this.currentRole = unlocked ? 'admin' : null;
+
     const lockIcon = document.getElementById('lockIcon');
     const lockLabel = document.getElementById('lockLabel');
+    const mainTabs = document.getElementById('mainTabs');
+    const btnWorkerLogout = document.getElementById('btnWorkerLogout');
+    const btnAdminLock = document.getElementById('btnAdminLock');
+    const btnConnectMobile = document.getElementById('btnConnectMobile');
+    const btnManageHolidays = document.getElementById('btnManageHolidays');
+    const appRoleSubtitle = document.getElementById('appRoleSubtitle');
+    const workerPortalView = document.getElementById('workerPortalView');
 
     if (unlocked) {
       sessionStorage.setItem('admin_unlocked', 'true');
-      lockIcon.textContent = '🔓';
-      lockLabel.textContent = 'Unlocked';
+      if (lockIcon) lockIcon.textContent = '🔓';
+      if (lockLabel) lockLabel.textContent = 'Unlocked';
+      if (mainTabs) mainTabs.style.display = 'flex';
+      if (workerPortalView) workerPortalView.style.display = 'none';
+      if (btnAdminLock) btnAdminLock.style.display = 'inline-flex';
+      if (btnConnectMobile) btnConnectMobile.style.display = 'inline-flex';
+      if (btnManageHolidays) btnManageHolidays.style.display = 'inline-flex';
+      if (btnWorkerLogout) btnWorkerLogout.style.display = 'none';
+      if (appRoleSubtitle) appRoleSubtitle.textContent = 'Employer Admin Portal';
+      this.closeModal('pinModal');
     } else {
       sessionStorage.removeItem('admin_unlocked');
-      lockIcon.textContent = '🔒';
-      lockLabel.textContent = 'Locked';
+      if (lockIcon) lockIcon.textContent = '🔒';
+      if (lockLabel) lockLabel.textContent = 'Locked';
     }
   },
 
@@ -226,7 +378,44 @@ const App = {
     await API.logout();
     this.setUnlockedState(false);
     this.showToast('Admin session locked', 'success');
-    this.promptPin();
+    this.promptAuth('admin');
+  },
+
+  async logoutWorker() {
+    await API.logout();
+    this.setWorkerState(false);
+    this.showToast('Exited worker passbook.', 'success');
+    this.promptAuth('worker');
+  },
+
+  // Admin view worker passbook preview
+  viewWorkerPassbookAsAdmin(workerId) {
+    let worker = null;
+    if (window.EmployeesModule && Array.isArray(window.EmployeesModule.workers)) {
+      worker = window.EmployeesModule.workers.find(w => w.id === workerId);
+    }
+    if (!worker) {
+      worker = { id: workerId, employee_id: workerId };
+    }
+
+    // Hide admin panes, show worker portal
+    document.querySelectorAll('.tab-pane').forEach(p => {
+      p.classList.remove('active');
+      p.style.display = 'none';
+    });
+
+    const mainTabs = document.getElementById('mainTabs');
+    if (mainTabs) mainTabs.style.display = 'none';
+
+    WorkerPortalModule.show(worker);
+    this.showToast(`Viewing passbook for ${worker.name || 'Worker'}`, 'info');
+  },
+
+  returnToAdminFromPassbook() {
+    WorkerPortalModule.hide();
+    const mainTabs = document.getElementById('mainTabs');
+    if (mainTabs) mainTabs.style.display = 'flex';
+    this.switchTab(this.activeTab);
   },
 
   // Onscreen Numeric Keypad for Mobile PIN Entry
