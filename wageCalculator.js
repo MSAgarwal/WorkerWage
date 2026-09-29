@@ -135,7 +135,7 @@ function calculateWage(
     dailyWage,
     statusDays,
     workerType: workerType || 'WORKER',
-    workCategory: workCategory || '',
+    workCategory: workerType === 'MANAGER' ? '' : (workCategory || ''),
     basePay: Math.round(basePay * 100) / 100,
     extraBoxes: Math.round(parsedBoxes * 100) / 100,
     extraPieces: Math.round(parsedPieces * 100) / 100,
@@ -143,7 +143,7 @@ function calculateWage(
     overtimeDays: Math.round(parsedOtDays * 100) / 100,
     overtimeMultiplier: parsedOtMultiplier,
     overtimePay: Math.round(overtimePay * 100) / 100,
-    isHolidayWork: isHoliday && status !== 'ABSENT',
+    isHolidayWork: workerType === 'MANAGER' ? false : (isHoliday && status !== 'ABSENT'),
     bonusAllowance: bonus,
     deduction: deduction,
     totalPay: Math.round(totalPay * 100) / 100

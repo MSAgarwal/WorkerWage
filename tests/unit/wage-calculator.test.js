@@ -183,9 +183,33 @@ describe('Wage Calculator Unit Tests', () => {
         'MANAGER',
         'Sweet Box'
       );
+      assert.equal(calc.workCategory, '', 'Manager workCategory must always be empty string');
       assert.equal(calc.extraBoxes, 0, 'Manager extraBoxes must be 0');
+      assert.equal(calc.extraPieces, 0, 'Manager extraPieces must be 0');
       assert.equal(calc.boxRate, 0, 'Manager boxRate must be 0');
       assert.equal(calc.overtimePay, 0);
+      assert.equal(calc.isHolidayWork, false);
+      assert.equal(calc.totalPay, 1000);
+    });
+
+    it('manager is exempt from piece categories and does not receive ₹200 holiday bonus on worked holiday', () => {
+      const calc = calculateWage(
+        managerDailyWage,
+        'PRESENT',
+        0, 0, true, 0, 0,
+        0, 0,
+        'MANAGER',
+        'Wedding Card', // Piece category passed
+        5000,           // 5000 pieces passed
+        true            // Paid Day Off (Tuesday / Holiday)
+      );
+      assert.equal(calc.workCategory, '', 'Manager workCategory must be empty even if category provided');
+      assert.equal(calc.extraBoxes, 0);
+      assert.equal(calc.extraPieces, 0);
+      assert.equal(calc.boxRate, 0);
+      assert.equal(calc.isHolidayWork, false, 'Manager isHolidayWork must be false');
+      assert.equal(calc.overtimePay, 0, 'Manager must NOT receive ₹200 holiday piece bonus');
+      assert.equal(calc.basePay, 1000);
       assert.equal(calc.totalPay, 1000);
     });
 

@@ -48,6 +48,7 @@ class AttendanceService {
     const records = activeWorkers.map(w => {
       const rec = attMap[w.id];
       const workerType = w.worker_type || 'WORKER';
+      const isManager = workerType === 'MANAGER';
       const defaultBoxRate = (w.default_box_rate !== undefined && w.default_box_rate !== null) ? w.default_box_rate : 30.0;
 
       if (rec) {
@@ -70,14 +71,14 @@ class AttendanceService {
           is_marked: true,
           daily_wage: rec.daily_wage_snapshot,
           base_pay: rec.base_pay,
-          work_category: rec.work_category || '',
-          extra_boxes: rec.extra_boxes || 0,
-          extra_pieces: pieces,
-          box_rate: (rec.box_rate !== undefined && rec.box_rate !== null) ? rec.box_rate : defaultBoxRate,
+          work_category: isManager ? '' : (rec.work_category || ''),
+          extra_boxes: isManager ? 0 : (rec.extra_boxes || 0),
+          extra_pieces: isManager ? 0 : pieces,
+          box_rate: isManager ? 0 : ((rec.box_rate !== undefined && rec.box_rate !== null) ? rec.box_rate : defaultBoxRate),
           overtime_days: otDays,
           overtime_multiplier: rec.overtime_multiplier,
           overtime_pay: rec.overtime_pay,
-          is_holiday_work: rec.is_holiday_work === 1,
+          is_holiday_work: isManager ? false : (rec.is_holiday_work === 1),
           bonus_allowance: rec.bonus_allowance,
           deduction: rec.deduction,
           total_pay: rec.total_pay,
@@ -105,7 +106,7 @@ class AttendanceService {
             work_category: '',
             extra_boxes: 0,
             extra_pieces: 0,
-            box_rate: defaultBoxRate,
+            box_rate: isManager ? 0 : defaultBoxRate,
             overtime_days: 0,
             overtime_multiplier: workerDefaultOt,
             overtime_pay: 0,
@@ -133,7 +134,7 @@ class AttendanceService {
             work_category: '',
             extra_boxes: 0,
             extra_pieces: 0,
-            box_rate: defaultBoxRate,
+            box_rate: isManager ? 0 : defaultBoxRate,
             overtime_days: 0,
             overtime_multiplier: workerDefaultOt,
             overtime_pay: 0,
@@ -205,11 +206,11 @@ class AttendanceService {
     const isClientHolidayWork = inputData.is_holiday_work === true || inputData.is_holiday_work === 1 || inputData.is_holiday_work === '1';
     const hasBoxes = parseFloat(inputData.extra_boxes || 0) > 0;
     const hasPieces = parseFloat(inputData.extra_pieces || 0) > 0;
-    // Server authoritatively determines holiday work:
-    // Only valid on actual paid days off (Tuesday or registered paid holiday) when worker attended (not ABSENT)
-    const holidayWork = (isPaidDayOff && status !== 'ABSENT' && (status === 'PRESENT' || status === 'HALF_DAY' || isClientHolidayWork || hasBoxes || hasPieces)) ? 1 : 0;
     const workerType = worker.worker_type || 'WORKER';
     const isManager = workerType === 'MANAGER';
+    // Server authoritatively determines holiday work:
+    // Only valid for non-managers on actual paid days off (Tuesday or registered paid holiday) when worker attended (not ABSENT)
+    const holidayWork = (!isManager && isPaidDayOff && status !== 'ABSENT' && (status === 'PRESENT' || status === 'HALF_DAY' || isClientHolidayWork || hasBoxes || hasPieces)) ? 1 : 0;
     const effectiveCategory = isManager ? '' : (inputData.work_category ? String(inputData.work_category).trim() : '');
     const isPiece = isPieceCategory(effectiveCategory);
 
@@ -224,9 +225,9 @@ class AttendanceService {
       parsedExtraPieces = 0;
     }
 
-    const effectiveBoxRate = (!isNaN(parseFloat(inputData.box_rate)) && parseFloat(inputData.box_rate) >= 0)
+    const effectiveBoxRate = isManager ? 0.0 : ((!isNaN(parseFloat(inputData.box_rate)) && parseFloat(inputData.box_rate) >= 0)
       ? parseFloat(inputData.box_rate)
-      : (worker.default_box_rate !== undefined && worker.default_box_rate !== null ? worker.default_box_rate : 30.0);
+      : (worker.default_box_rate !== undefined && worker.default_box_rate !== null ? worker.default_box_rate : 30.0));
 
     const otDays = parseFloat(inputData.overtime_days || 0);
     const otMult = (inputData.overtime_multiplier !== undefined && inputData.overtime_multiplier !== null && !isNaN(parseFloat(inputData.overtime_multiplier)))

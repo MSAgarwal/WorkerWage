@@ -266,6 +266,51 @@ describe('CRUD API & Business Workflow Integration Tests', () => {
     assert.equal(netCsv, workerJson.netPayable, 'CSV net payable must equal JSON net payable');
   });
 
+  it('MANAGER role is exempt from work categories, piece bonuses, and box overtime in API and Payroll', async () => {
+    // 1. Create a Manager
+    const mgrRes = await apiRequest('/api/employees', 'POST', {
+      employee_code: 'TEST-MGR-001',
+      name: 'Test Manager Alice',
+      role: 'Operations Manager',
+      worker_type: 'MANAGER',
+      daily_wage: 1200,
+      phone: '9988776655'
+    }, authHeaders);
+    assert.equal(mgrRes.status, 201);
+    const mgrId = mgrRes.body.employee.id;
+
+    // 2. Mark attendance for Manager with work category and extra boxes provided in request body
+    const attRes = await apiRequest('/api/attendance', 'POST', {
+      employee_id: mgrId,
+      date: '2026-11-10',
+      status: 'PRESENT',
+      work_category: 'Pd 100',
+      extra_boxes: 25,
+      notes: 'Supervised factory floor'
+    }, authHeaders);
+    assert.equal(attRes.status, 200);
+    // Work category should be empty, extra boxes 0, box rate 0, overtime pay 0
+    assert.equal(attRes.body.record.work_category, '');
+    assert.equal(attRes.body.record.extra_boxes, 0);
+    assert.equal(attRes.body.record.box_rate, 0);
+    assert.equal(attRes.body.record.overtime_pay, 0);
+    assert.equal(attRes.body.record.total_pay, 1200);
+
+    // 3. Check Payroll report for Manager
+    const payRes = await apiRequest(`/api/reports/payroll?startDate=2026-11-01&endDate=2026-11-30&employee_id=${mgrId}`, 'GET', null, authHeaders);
+    assert.equal(payRes.status, 200);
+    const mgrReport = payRes.body.workers[0];
+    assert.equal(mgrReport.worker_type, 'MANAGER');
+    assert.equal(mgrReport.categoriesSummary, '-');
+    assert.equal(mgrReport.totalExtraBoxes, 0);
+    assert.equal(mgrReport.totalExtraPieces, 0);
+    assert.equal(mgrReport.holidayWorkDays, 0);
+    assert.equal(mgrReport.grossPayTotal, 1200);
+
+    // Clean up test manager
+    await apiRequest(`/api/employees/${mgrId}?hardDelete=true`, 'DELETE', null, authHeaders);
+  });
+
   it('DELETE nonexistent records returns 404', async () => {
     const resWorker = await apiRequest('/api/employees/999999', 'DELETE', null, authHeaders);
     assert.equal(resWorker.status, 404);

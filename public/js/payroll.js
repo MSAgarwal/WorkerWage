@@ -133,8 +133,12 @@ const PayrollModule = {
 
       // Extra Boxes / Pieces / OT column
       let otCol = '-';
-      if (isManager && (!w.holidayWorkDays || w.holidayWorkDays === 0)) {
-        otCol = '<span class="text-muted text-xs">Exempt</span>';
+      if (isManager) {
+        if (w.totalOtDays > 0) {
+          otCol = `<div class="text-xs text-muted">${w.totalOtDays}d (${this.escapeHtml(w.otSummaryText || '')})</div>`;
+        } else {
+          otCol = '<span class="text-muted text-xs">Exempt</span>';
+        }
       } else {
         const parts = [];
         if (w.holidayWorkDays > 0) {
@@ -158,7 +162,7 @@ const PayrollModule = {
       let catCol = '-';
       if (isManager) {
         catCol = '<span class="text-muted text-xs">Exempt</span>';
-      } else if (w.categoriesSummary) {
+      } else if (w.categoriesSummary && w.categoriesSummary !== '-') {
         catCol = `<span class="text-xs" style="color: #475569; font-weight: 500;">${this.escapeHtml(w.categoriesSummary)}</span>`;
       }
 

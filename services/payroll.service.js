@@ -39,28 +39,32 @@ class PayrollService {
     let deductionTotal = 0;
     let grossPayTotal = 0;
 
+    const isManager = workerType === 'MANAGER';
+
     for (const a of attRecords) {
       if (a.status === 'PRESENT') presentDays++;
       else if (a.status === 'HALF_DAY') halfDays++;
       else if (a.status === 'PAID_LEAVE' || a.status === 'PAID_HOLIDAY') paidLeaveDays++;
       else if (a.status === 'ABSENT') absentDays++;
 
-      if (a.is_holiday_work) holidayWorkDays++;
+      if (!isManager && a.is_holiday_work) holidayWorkDays++;
 
-      if (isPieceCategory(a.work_category)) {
-        const pieces = (a.extra_pieces !== undefined && a.extra_pieces !== null && a.extra_pieces > 0)
-          ? a.extra_pieces
-          : ((a.extra_boxes || 0) * 500);
-        totalExtraPieces += pieces;
-      } else {
-        if (a.extra_boxes > 0) {
-          totalExtraBoxes += a.extra_boxes;
+      if (!isManager) {
+        if (isPieceCategory(a.work_category)) {
+          const pieces = (a.extra_pieces !== undefined && a.extra_pieces !== null && a.extra_pieces > 0)
+            ? a.extra_pieces
+            : ((a.extra_boxes || 0) * 500);
+          totalExtraPieces += pieces;
+        } else {
+          if (a.extra_boxes > 0) {
+            totalExtraBoxes += a.extra_boxes;
+          }
         }
-      }
 
-      if (a.work_category && a.work_category.trim()) {
-        const cat = a.work_category.trim();
-        categoriesMap[cat] = (categoriesMap[cat] || 0) + 1;
+        if (a.work_category && a.work_category.trim()) {
+          const cat = a.work_category.trim();
+          categoriesMap[cat] = (categoriesMap[cat] || 0) + 1;
+        }
       }
 
       const otDays = a.overtime_days || 0;
@@ -85,7 +89,9 @@ class PayrollService {
     const otSummaryText = otSummaryParts.join(', ');
 
     // Format Work Categories summary string, e.g. "Sp 100 (5d), Pd 80 (3d)"
-    const categoriesSummary = Object.keys(categoriesMap).sort().map(c => `${c} (${categoriesMap[c]}d)`).join(', ');
+    const categoriesSummary = isManager 
+      ? '-' 
+      : (Object.keys(categoriesMap).sort().map(c => `${c} (${categoriesMap[c]}d)`).join(', ') || '-');
 
     let totalAdvances = 0;
     let totalSettlements = 0;
@@ -112,12 +118,12 @@ class PayrollService {
       halfDays,
       paidLeaveDays,
       absentDays,
-      holidayWorkDays,
+      holidayWorkDays: isManager ? 0 : holidayWorkDays,
       effectiveDays: Math.round((presentDays + (halfDays * 0.5) + paidLeaveDays) * 100) / 100,
       totalOtDays: Math.round(totalOtDays * 100) / 100,
-      totalExtraBoxes: Math.round(totalExtraBoxes * 100) / 100,
-      totalExtraPieces: Math.round(totalExtraPieces * 100) / 100,
-      categoriesMap,
+      totalExtraBoxes: isManager ? 0 : Math.round(totalExtraBoxes * 100) / 100,
+      totalExtraPieces: isManager ? 0 : Math.round(totalExtraPieces * 100) / 100,
+      categoriesMap: isManager ? {} : categoriesMap,
       categoriesSummary,
       otMultiplierMap,
       otSummaryText,
