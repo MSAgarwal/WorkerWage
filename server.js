@@ -15,15 +15,21 @@ const apiRoutes = require('./routes');
 const app = express();
 const PORT = config.PORT;
 
+// Trust reverse proxy headers (Cloudflare, tunnels, load balancers)
+app.set('trust proxy', 1);
+
 // Security Headers
 app.use(securityHeaders);
 
-// Core Middleware: Strict CORS for Local/LAN Deployments
+// Core Middleware: CORS for Local, LAN, and Cloudflare Tunnels
 const corsOptions = {
   origin: config.ALLOWED_ORIGINS || function(origin, callback) {
     if (!origin) return callback(null, true);
-    // Allow loopback and private LAN addresses
-    if (/^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$/.test(origin)) {
+    // Allow loopback, private LAN addresses, and Cloudflare tunnel origins
+    if (
+      /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$/.test(origin) ||
+      /^https?:\/\/([a-zA-Z0-9-]+\.)*trycloudflare\.com(:\d+)?$/.test(origin)
+    ) {
       return callback(null, true);
     }
     return callback(new Error('Cross-origin request blocked by CORS policy'));
