@@ -200,11 +200,14 @@ class AttendanceService {
    * Helper to normalize input, evaluate wage calculations, and prepare SQL upsert values
    */
   _prepareAttendanceData(worker, date, inputData, dateMeta) {
-    const isPaidDayOff = dateMeta.isPaidDayOff;
-    const status = inputData.status || 'PRESENT';
+    const isPaidDayOff = !!dateMeta.isPaidDayOff;
+    const status = inputData.status || (isPaidDayOff ? 'PAID_LEAVE' : 'PRESENT');
+    const isClientHolidayWork = inputData.is_holiday_work === true || inputData.is_holiday_work === 1 || inputData.is_holiday_work === '1';
+    const hasBoxes = parseFloat(inputData.extra_boxes || 0) > 0;
+    const hasPieces = parseFloat(inputData.extra_pieces || 0) > 0;
     // Server authoritatively determines holiday work:
-    // Only valid on actual paid days off (Tuesday or registered paid holiday) when worker attended
-    const holidayWork = (isPaidDayOff && (status === 'PRESENT' || status === 'HALF_DAY')) ? 1 : 0;
+    // Only valid on actual paid days off (Tuesday or registered paid holiday) when worker attended (not ABSENT)
+    const holidayWork = (isPaidDayOff && status !== 'ABSENT' && (status === 'PRESENT' || status === 'HALF_DAY' || isClientHolidayWork || hasBoxes || hasPieces)) ? 1 : 0;
     const workerType = worker.worker_type || 'WORKER';
     const isManager = workerType === 'MANAGER';
     const effectiveCategory = isManager ? '' : (inputData.work_category ? String(inputData.work_category).trim() : '');
