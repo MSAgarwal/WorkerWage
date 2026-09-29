@@ -65,6 +65,23 @@ const WorkerPortalModule = {
         }
       });
     }
+
+    // Change Secret Key button in Worker Passbook Header
+    const btnChangeKey = document.getElementById('btnWpChangeKey');
+    if (btnChangeKey) {
+      btnChangeKey.addEventListener('click', () => {
+        this.openChangeKeyModal();
+      });
+    }
+
+    // Change Key Form Submit
+    const changeKeyForm = document.getElementById('workerChangeKeyForm');
+    if (changeKeyForm) {
+      changeKeyForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await this.submitChangeKey();
+      });
+    }
   },
 
   switchSubTab(tabId) {
@@ -371,5 +388,79 @@ const WorkerPortalModule = {
     }
 
     body.innerHTML = html;
+  },
+
+  openChangeKeyModal() {
+    const form = document.getElementById('workerChangeKeyForm');
+    if (form) form.reset();
+    const errEl = document.getElementById('wpChangeKeyError');
+    if (errEl) {
+      errEl.style.display = 'none';
+      errEl.textContent = '';
+    }
+    // Reset eye toggle icons and input types
+    document.querySelectorAll('#workerChangeKeyModal .btn-toggle-eye').forEach(b => b.textContent = '👁️');
+    document.querySelectorAll('#workerChangeKeyModal input').forEach(input => {
+      if (input.id && input.id.startsWith('wp')) input.type = 'password';
+    });
+
+    if (window.App && typeof window.App.openModal === 'function') {
+      window.App.openModal('workerChangeKeyModal');
+      setTimeout(() => {
+        const curInput = document.getElementById('wpCurrentKey');
+        if (curInput) curInput.focus();
+      }, 150);
+    }
+  },
+
+  async submitChangeKey() {
+    const curKey = document.getElementById('wpCurrentKey')?.value.trim();
+    const newKey = document.getElementById('wpNewKey')?.value.trim();
+    const confirmKey = document.getElementById('wpConfirmKey')?.value.trim();
+    const errEl = document.getElementById('wpChangeKeyError');
+    const submitBtn = document.getElementById('btnSaveNewKey');
+
+    const showError = (msg) => {
+      if (errEl) {
+        errEl.textContent = msg;
+        errEl.style.display = 'block';
+      }
+    };
+
+    if (!curKey) {
+      showError('Please enter your current secret key.');
+      return;
+    }
+    if (!newKey || newKey.length < 5) {
+      showError('New secret key must be at least 5 digits / characters long.');
+      return;
+    }
+    if (newKey !== confirmKey) {
+      showError('New secret key and confirmation do not match.');
+      return;
+    }
+
+    try {
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Updating...';
+      }
+      const res = await API.changeWorkerKey(curKey, newKey);
+      if (res && res.success) {
+        if (window.App && typeof window.App.closeModal === 'function') {
+          window.App.closeModal('workerChangeKeyModal');
+          window.App.showToast('Secret key updated successfully! Use your new key next time you log in.', 'success');
+        }
+      } else {
+        showError(res.error || res.message || 'Failed to update key. Please verify your current key.');
+      }
+    } catch (err) {
+      showError(err.message || 'Failed to update secret key. Check your current key.');
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Update Key';
+      }
+    }
   }
 };

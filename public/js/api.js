@@ -142,6 +142,10 @@ const API = {
     return this.request(url);
   },
 
+  async changeWorkerKey(currentPin, newPin) {
+    return this.request('/api/worker/change-key', { method: 'POST', body: { currentPin, newPin } });
+  },
+
   // Database Backup Download via secure HttpOnly cookie & Blob (Zero Token in URL)
   async downloadBackup() {
     try {

@@ -223,4 +223,48 @@ describe('Worker Passbook & RBAC Security Integration Tests', () => {
     }, { Authorization: `Bearer ${worker1Token}` });
     assert.equal(resSet.status, 403);
   });
+
+  it('POST /api/worker/change-key allows worker to update their 5-digit key and enforces validity', async () => {
+    // 1. Missing or unauthenticated
+    const resNoAuth = await apiRequest('/api/worker/change-key', 'POST', { currentPin: '98765', newPin: '54321' });
+    assert.equal(resNoAuth.status, 401);
+
+    // 2. Short new PIN (< 5 characters)
+    const resShort = await apiRequest('/api/worker/change-key', 'POST', {
+      currentPin: '98765',
+      newPin: '123'
+    }, { Authorization: `Bearer ${worker1Token}` });
+    assert.equal(resShort.status, 400);
+
+    // 3. Wrong current PIN
+    const resWrongCur = await apiRequest('/api/worker/change-key', 'POST', {
+      currentPin: 'wrong999',
+      newPin: '54321'
+    }, { Authorization: `Bearer ${worker1Token}` });
+    assert.equal(resWrongCur.status, 401);
+
+    // 4. Successful key change
+    const resSuccess = await apiRequest('/api/worker/change-key', 'POST', {
+      currentPin: '98765',
+      newPin: '54321'
+    }, { Authorization: `Bearer ${worker1Token}` });
+    assert.equal(resSuccess.status, 200);
+    assert.equal(resSuccess.body.success, true);
+
+    // 5. Verify old key now fails login
+    const resOldLogin = await apiRequest('/api/auth/worker-login', 'POST', {
+      identifier: 'testemp01',
+      pin: '98765'
+    });
+    assert.equal(resOldLogin.status, 401);
+
+    // 6. Verify new key successfully logs in
+    const resNewLogin = await apiRequest('/api/auth/worker-login', 'POST', {
+      identifier: 'testemp01',
+      pin: '54321'
+    });
+    assert.equal(resNewLogin.status, 200);
+    assert.equal(resNewLogin.body.success, true);
+    assert.equal(resNewLogin.body.worker.id, worker1.id);
+  });
 });

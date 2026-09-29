@@ -118,6 +118,24 @@ const App = {
       });
     });
 
+    // Password / Key Visibility Toggles (Eye Buttons) - Event delegation
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('.btn-toggle-eye');
+      if (!btn) return;
+      e.preventDefault();
+      const targetId = btn.dataset.toggleFor || (btn.id === 'btnToggleWorkerPin' ? 'workerLoginPin' : null);
+      if (!targetId) return;
+      const input = document.getElementById(targetId);
+      if (!input) return;
+      if (input.type === 'password') {
+        input.type = 'text';
+        btn.textContent = '🙈';
+      } else {
+        input.type = 'password';
+        btn.textContent = '👁️';
+      }
+    });
+
     // PIN Form submission (Employer Admin)
     const pinForm = document.getElementById('pinForm');
     pinForm.addEventListener('submit', (e) => {

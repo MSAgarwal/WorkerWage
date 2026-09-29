@@ -1,5 +1,6 @@
+const bcrypt = require('bcryptjs');
 const { db } = require('../db');
-const { NotFoundError } = require('../errors');
+const { NotFoundError, ValidationError, UnauthorizedError } = require('../errors');
 const payrollService = require('./payroll.service');
 
 class WorkerService {
@@ -93,6 +94,40 @@ class WorkerService {
       attendance: attendanceRecords,
       payments: paymentRecords
     };
+  }
+
+  /**
+   * Change worker passbook secret key
+   */
+  changeWorkerPin(workerId, currentPin, newPin) {
+    if (!currentPin || String(currentPin).trim() === '') {
+      throw new ValidationError('Current secret key is required');
+    }
+    const cleanNew = String(newPin || '').trim();
+    if (!cleanNew || cleanNew.length < 5) {
+      throw new ValidationError('New secret key must be at least 5 digits/characters long');
+    }
+
+    const worker = db.prepare('SELECT id, pin_hash FROM employees WHERE id = ?').get(workerId);
+    if (!worker) {
+      throw new NotFoundError('Worker not found');
+    }
+
+    const cleanCurrent = String(currentPin).trim();
+    let isCurrentValid = false;
+    if (worker.pin_hash) {
+      isCurrentValid = bcrypt.compareSync(cleanCurrent, worker.pin_hash);
+    } else {
+      isCurrentValid = (cleanCurrent === '12345');
+    }
+
+    if (!isCurrentValid) {
+      throw new UnauthorizedError('Current secret key is incorrect');
+    }
+
+    const hashed = bcrypt.hashSync(cleanNew, 10);
+    db.prepare('UPDATE employees SET pin_hash = ? WHERE id = ?').run(hashed, workerId);
+    return { success: true, message: 'Passbook secret key updated successfully' };
   }
 }
 

@@ -32,6 +32,25 @@ class WorkerController {
       next(err);
     }
   }
+
+  /**
+   * POST /api/worker/change-key
+   * Allow logged-in worker to change their own passbook secret key
+   */
+  async changeKey(req, res, next) {
+    try {
+      if (!req.user || req.user.role !== 'worker') {
+        return res.status(403).json({ error: 'Worker authentication required', code: 'FORBIDDEN' });
+      }
+
+      const { currentPin, newPin } = req.body;
+      const result = workerService.changeWorkerPin(req.user.employee_id, currentPin, newPin);
+
+      return res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = new WorkerController();

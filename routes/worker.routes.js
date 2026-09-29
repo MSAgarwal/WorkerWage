@@ -11,4 +11,7 @@ const { requireWorkerOrAdmin } = require('../middleware/auth.middleware');
 // GET /api/worker/passbook?month=YYYY-MM(&employee_id=ID for admin)
 router.get('/passbook', requireWorkerOrAdmin, (req, res, next) => workerController.getPassbook(req, res, next));
 
+// POST /api/worker/change-key
+router.post('/change-key', requireWorkerOrAdmin, (req, res, next) => workerController.changeKey(req, res, next));
+
 module.exports = router;

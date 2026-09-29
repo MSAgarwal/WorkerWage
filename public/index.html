@@ -388,6 +388,18 @@
           </form>
         </div>
 
+        <!-- Worker Passbook Security & Privacy -->
+        <div class="settings-card">
+          <h3>🔑 Worker Passbook & Privacy Key Policy</h3>
+          <p class="text-muted text-sm mb-3">Every worker has a confidential 5+ digit secret key to access their own passbook, wage slip, and attendance records on mobile. This guarantees zero peer snooping.</p>
+          <div class="worker-security-info-box" style="background: var(--bg-hover, #f8fafc); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; font-size: 0.85rem; line-height: 1.6;">
+            <div>• <strong>Default Password:</strong> <code>12345</code> is automatically assigned to new or existing workers unless customized.</div>
+            <div>• <strong>Worker Self-Service:</strong> Workers can change their password directly inside their mobile passbook using the <em>🔑 Change Key</em> option.</div>
+            <div>• <strong>Admin Override:</strong> If a worker forgets their secret key, employer/admin can reset it anytime by editing the worker profile in the <strong>Workers</strong> tab.</div>
+            <div>• <strong>Minimum Complexity:</strong> Minimum 5 digits / characters required by security policy.</div>
+          </div>
+        </div>
+
         <!-- Laptop Server & Database Backup -->
         <div class="settings-card">
           <h3>💻 Laptop Server & Database</h3>
@@ -430,11 +442,14 @@
           </div>
         </div>
         <div class="wp-actions-cluster" style="display: flex; align-items: center; gap: 8px;">
+          <button id="btnWpChangeKey" class="btn btn-secondary btn-sm" title="Change your 5+ digit passbook password">
+            🔑 Change Key
+          </button>
           <button id="btnWpBackToAdmin" class="btn btn-secondary btn-sm" style="display: none;">
             ⬅️ Back to Admin
           </button>
           <div class="wp-read-only-chip">
-            <span>🔒 Read-Only Passbook</span>
+            <span>🔒 Protected Passbook</span>
           </div>
         </div>
       </div>
@@ -585,7 +600,10 @@
           </div>
           <div class="form-group">
             <label>Secret Passbook Key / PIN (Min 5 Digits)</label>
-            <input type="password" id="workerLoginPin" class="worker-code-input" placeholder="•••••" minlength="5" autocomplete="off" required>
+            <div class="pin-input-container">
+              <input type="password" id="workerLoginPin" class="worker-code-input" placeholder="•••••" minlength="5" autocomplete="off" required>
+              <button type="button" class="btn-toggle-eye" id="btnToggleWorkerPin" data-toggle-for="workerLoginPin" title="Show/Hide Password" aria-label="Toggle password visibility">👁️</button>
+            </div>
             <span class="helper-text text-center">Default initial password is <strong>12345</strong></span>
           </div>
           <div id="workerErrorMsg" class="error-msg" style="display: none;"></div>
@@ -656,9 +674,10 @@
         <div class="connection-guide">
           <h4>💡 Quick Instructions:</h4>
           <ol>
-            <li>Ensure your <strong>Phone and Laptop</strong> are on the <strong>same Wi-Fi network</strong>.</li>
+            <li>Ensure your <strong>Phone and Laptop</strong> are on the <strong>same Wi-Fi network</strong> (or Cloudflare Tunnel URL).</li>
             <li><em>No Wi-Fi at site?</em> Turn on your <strong>Phone Hotspot</strong> and connect your laptop to it!</li>
-            <li>Point your phone camera at the QR code above or type the link in mobile browser.</li>
+            <li>Point your phone camera at the QR code above or open the link on mobile browser.</li>
+            <li><strong>Worker Login:</strong> Enter Worker Code (e.g. <code>EMP001</code>) and personal <strong>5-digit secret key</strong> (Default: <code>12345</code>).</li>
             <li>Add to Phone Home Screen for full app experience.</li>
           </ol>
         </div>
@@ -868,6 +887,49 @@
       <div class="modal-footer">
         <button class="btn btn-secondary" data-close="holidayModal">Close</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL: WORKER CHANGE SECRET KEY                          -->
+  <!-- ======================================================== -->
+  <div id="workerChangeKeyModal" class="modal-backdrop">
+    <div class="modal-card" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3>🔑 Change Passbook Secret Key</h3>
+        <button class="modal-close" data-close="workerChangeKeyModal">&times;</button>
+      </div>
+      <form id="workerChangeKeyForm">
+        <div class="modal-body">
+          <p class="text-muted text-sm mb-3">Update your personal password so other workers cannot open your passbook.</p>
+          <div class="form-group">
+            <label>Current Key / Password *</label>
+            <div class="pin-input-container">
+              <input type="password" id="wpCurrentKey" placeholder="Current key (e.g. 12345)" minlength="5" required>
+              <button type="button" class="btn-toggle-eye" data-toggle-for="wpCurrentKey" title="Toggle visibility">👁️</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>New Secret Key (Min 5 Digits) *</label>
+            <div class="pin-input-container">
+              <input type="password" id="wpNewKey" placeholder="At least 5 digits/characters" minlength="5" required>
+              <button type="button" class="btn-toggle-eye" data-toggle-for="wpNewKey" title="Toggle visibility">👁️</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Confirm New Secret Key *</label>
+            <div class="pin-input-container">
+              <input type="password" id="wpConfirmKey" placeholder="Re-enter new key" minlength="5" required>
+              <button type="button" class="btn-toggle-eye" data-toggle-for="wpConfirmKey" title="Toggle visibility">👁️</button>
+            </div>
+          </div>
+          <div id="wpChangeKeyError" class="error-msg" style="display: none;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-close="workerChangeKeyModal">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveNewKey">Update Key</button>
+        </div>
+      </form>
     </div>
   </div>
 

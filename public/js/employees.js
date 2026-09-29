@@ -110,9 +110,12 @@ const EmployeesModule = {
                 <span class="emp-name">${this.escapeHtml(w.name)}</span>
                 <span class="worker-badge ${isManager ? 'manager-badge' : ''}">${isManager ? '👔 Manager' : '📦 Packaging Worker'}</span>
               </div>
-              <span class="badge ${isActive ? 'text-success' : 'text-muted'}" style="font-weight: 700; font-size: 0.75rem;">
-                ${isActive ? '🟢 Active' : '⚪ Inactive'}
-              </span>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span class="btn-key-badge" title="Passbook protected by 5+ digit secret key (changeable in Edit)">🔑 Key Protected</span>
+                <span class="badge ${isActive ? 'text-success' : 'text-muted'}" style="font-weight: 700; font-size: 0.75rem;">
+                  ${isActive ? '🟢 Active' : '⚪ Inactive'}
+                </span>
+              </div>
             </div>
 
             <div class="text-sm text-muted mb-2">
