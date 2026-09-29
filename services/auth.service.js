@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const { db, getJwtSecret, verifyAdminPin, updateAdminPin } = require('../db');
 const { recordAuthFailure, recordAuthSuccess } = require('../middleware/auth.middleware');
 
@@ -36,17 +37,26 @@ class AuthService {
   }
 
   /**
-   * Verify worker login via Employee Code or Phone number
+   * Verify worker login via Employee Code or Phone number and 5+ digit Secret Key
    */
-  verifyWorkerLogin(identifier, clientIp) {
+  verifyWorkerLogin(identifier, pin, clientIp) {
     if (!identifier || String(identifier).trim() === '') {
       return { success: false, statusCode: 400, error: 'Worker Code or Phone Number is required' };
+    }
+
+    if (!pin || String(pin).trim() === '') {
+      return { success: false, statusCode: 400, error: 'Passbook Secret Key / PIN is required (minimum 5 digits).' };
+    }
+
+    const cleanPin = String(pin).trim();
+    if (cleanPin.length < 5) {
+      return { success: false, statusCode: 400, error: 'Worker password / PIN must be at least 5 digits long.' };
     }
 
     const clean = String(identifier).trim();
     // Search active worker by employee_code (case-insensitive) or phone number
     const worker = db.prepare(`
-      SELECT id, employee_code, name, role, worker_type, phone, daily_wage, default_box_rate, status
+      SELECT id, employee_code, name, role, worker_type, phone, daily_wage, default_box_rate, pin_hash, status
       FROM employees
       WHERE (LOWER(employee_code) = LOWER(?) OR phone = ?) AND status = 'ACTIVE'
     `).get(clean, clean);
@@ -54,6 +64,24 @@ class AuthService {
     if (!worker) {
       recordAuthFailure(clientIp);
       return { success: false, statusCode: 404, error: 'Active worker not found. Please verify your Worker Code (e.g. EMP001) or phone number.' };
+    }
+
+    // Verify worker secret key
+    let pinValid = false;
+    if (worker.pin_hash) {
+      pinValid = bcrypt.compareSync(cleanPin, worker.pin_hash);
+    } else {
+      // Default initial password for existing workers before pin was set: '12345'
+      pinValid = (cleanPin === '12345');
+      if (pinValid) {
+        const hashed = bcrypt.hashSync(cleanPin, 10);
+        db.prepare('UPDATE employees SET pin_hash = ? WHERE id = ?').run(hashed, worker.id);
+      }
+    }
+
+    if (!pinValid) {
+      recordAuthFailure(clientIp);
+      return { success: false, statusCode: 401, error: 'Incorrect Passbook password. Please enter your 5+ digit worker secret key.' };
     }
 
     recordAuthSuccess(clientIp);

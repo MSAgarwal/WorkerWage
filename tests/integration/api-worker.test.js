@@ -42,19 +42,31 @@ describe('Worker Passbook & RBAC Security Integration Tests', () => {
     assert.equal(authRes.status, 200);
     adminToken = authRes.body.token;
 
-    // Create worker 1 (Packaging Worker)
+    // Create worker 1 with custom 5-digit PIN
     const res1 = await apiRequest('/api/employees', 'POST', {
       name: 'Sunil Packaging Worker',
       employee_code: 'TESTEMP01',
       daily_wage: 600,
       phone: '9876500001',
       worker_type: 'WORKER',
-      default_box_rate: 30
+      default_box_rate: 30,
+      pin: '98765'
     }, { Authorization: `Bearer ${adminToken}` });
     assert.equal(res1.status, 201);
     worker1 = res1.body.employee;
+    assert.equal(worker1.has_pin, true);
+    assert.equal(worker1.pin_hash, undefined, 'pin_hash must not be exposed');
 
-    // Create worker 2 (Manager)
+    // Reject worker creation with PIN shorter than 5 digits
+    const resShortPin = await apiRequest('/api/employees', 'POST', {
+      name: 'Invalid Short Pin Worker',
+      daily_wage: 500,
+      pin: '1234' // Only 4 digits
+    }, { Authorization: `Bearer ${adminToken}` });
+    assert.equal(resShortPin.status, 400);
+    assert.ok(resShortPin.body.details.some(d => d.includes('at least 5 digits')));
+
+    // Create worker 2 (Manager) without explicit PIN (defaults to '12345')
     const res2 = await apiRequest('/api/employees', 'POST', {
       name: 'Anil Factory Manager',
       employee_code: 'TESTEMP02',
@@ -88,16 +100,31 @@ describe('Worker Passbook & RBAC Security Integration Tests', () => {
   });
 
   it('POST /api/auth/worker-login rejects invalid or empty identifiers', async () => {
-    const res1 = await apiRequest('/api/auth/worker-login', 'POST', { identifier: '' });
+    const res1 = await apiRequest('/api/auth/worker-login', 'POST', { identifier: '', pin: '98765' });
     assert.equal(res1.status, 400);
 
-    const res2 = await apiRequest('/api/auth/worker-login', 'POST', { identifier: 'NONEXISTENT999' });
+    const res2 = await apiRequest('/api/auth/worker-login', 'POST', { identifier: 'NONEXISTENT999', pin: '98765' });
     assert.equal(res2.status, 404);
   });
 
-  it('POST /api/auth/worker-login authenticates by worker code (case-insensitive) and phone', async () => {
-    // Authenticate with code in lowercase
-    const resCode = await apiRequest('/api/auth/worker-login', 'POST', { identifier: 'testemp01' });
+  it('POST /api/auth/worker-login enforces minimum 5-digit PIN and rejects wrong password', async () => {
+    // 1. Missing PIN
+    const resNoPin = await apiRequest('/api/auth/worker-login', 'POST', { identifier: 'testemp01' });
+    assert.equal(resNoPin.status, 400);
+
+    // 2. Short PIN (< 5 digits)
+    const resShortPin = await apiRequest('/api/auth/worker-login', 'POST', { identifier: 'testemp01', pin: '1234' });
+    assert.equal(resShortPin.status, 400);
+
+    // 3. Incorrect PIN
+    const resWrongPin = await apiRequest('/api/auth/worker-login', 'POST', { identifier: 'testemp01', pin: '00000' });
+    assert.equal(resWrongPin.status, 401);
+    assert.ok(resWrongPin.body.error.includes('Incorrect Passbook password'));
+  });
+
+  it('POST /api/auth/worker-login authenticates by worker code and phone with correct PIN', async () => {
+    // Authenticate worker 1 with custom pin '98765' and lowercase code
+    const resCode = await apiRequest('/api/auth/worker-login', 'POST', { identifier: 'testemp01', pin: '98765' });
     assert.equal(resCode.status, 200);
     assert.equal(resCode.body.success, true);
     assert.equal(resCode.body.worker.id, worker1.id);
@@ -105,10 +132,15 @@ describe('Worker Passbook & RBAC Security Integration Tests', () => {
     assert.ok(resCode.headers['set-cookie'], 'Should set worker_token cookie');
     worker1Token = resCode.body.token;
 
-    // Authenticate with phone number
-    const resPhone = await apiRequest('/api/auth/worker-login', 'POST', { identifier: '9876500001' });
+    // Authenticate worker 1 with phone number and PIN
+    const resPhone = await apiRequest('/api/auth/worker-login', 'POST', { identifier: '9876500001', pin: '98765' });
     assert.equal(resPhone.status, 200);
     assert.equal(resPhone.body.worker.employee_code, 'TESTEMP01');
+
+    // Authenticate worker 2 with default pin '12345'
+    const resWorker2 = await apiRequest('/api/auth/worker-login', 'POST', { identifier: 'TESTEMP02', pin: '12345' });
+    assert.equal(resWorker2.status, 200);
+    assert.equal(resWorker2.body.worker.id, worker2.id);
   });
 
   it('GET /api/worker/passbook returns read-only data for worker session', async () => {

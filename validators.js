@@ -158,6 +158,20 @@ function validateEmployeeInput(body, isUpdate = false) {
     sanitized.status = 'ACTIVE';
   }
 
+  // Passbook Key / PIN (minimum 5 digits/characters)
+  if (body.pin !== undefined && body.pin !== null && String(body.pin).trim() !== '') {
+    const pinStr = String(body.pin).trim();
+    if (pinStr.length < 5) {
+      errors.push('Worker password / PIN must be at least 5 digits/characters long.');
+    } else if (pinStr.length > 32) {
+      errors.push('Worker password / PIN cannot exceed 32 characters.');
+    } else {
+      sanitized.pin = pinStr;
+    }
+  } else if (!isUpdate) {
+    sanitized.pin = '12345';
+  }
+
   return {
     isValid: errors.length === 0,
     errors,

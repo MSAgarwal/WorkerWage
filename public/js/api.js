@@ -107,8 +107,8 @@ const API = {
     return res;
   },
 
-  async workerLogin(identifier) {
-    const res = await this.request('/api/auth/worker-login', { method: 'POST', body: { identifier } });
+  async workerLogin(identifier, pin) {
+    const res = await this.request('/api/auth/worker-login', { method: 'POST', body: { identifier, pin } });
     if (res.success && res.token) {
       this.setToken(res.token);
     }

@@ -583,11 +583,17 @@
             <label>Worker Code or Phone Number</label>
             <input type="text" id="workerLoginIdentifier" class="worker-code-input" placeholder="e.g. EMP001 or 9876543210" autocomplete="off" required>
           </div>
+          <div class="form-group">
+            <label>Secret Passbook Key / PIN (Min 5 Digits)</label>
+            <input type="password" id="workerLoginPin" class="worker-code-input" placeholder="•••••" minlength="5" autocomplete="off" required>
+            <span class="helper-text text-center">Default initial password is <strong>12345</strong></span>
+          </div>
           <div id="workerErrorMsg" class="error-msg" style="display: none;"></div>
           <button type="submit" class="btn btn-primary btn-block mt-3" id="btnWorkerLogin">
             <span>📖</span> Open My Passbook
           </button>
           <div class="worker-login-features">
+            <div class="feature-item"><span>🔒</span> Protected by personal 5+ digit secret key</div>
             <div class="feature-item"><span>✅</span> Real-time attendance log</div>
             <div class="feature-item"><span>✅</span> Daily box packing & OT details</div>
             <div class="feature-item"><span>✅</span> Advances & net wage balance</div>
@@ -735,16 +741,23 @@
               <input type="tel" id="workerPhone" placeholder="Mobile number">
             </div>
           </div>
-          <div class="form-group">
-            <label>Status</label>
-            <select id="workerStatus">
-              <option value="ACTIVE">Active (Working)</option>
-              <option value="INACTIVE">Inactive (Deactivated)</option>
-            </select>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label>Status</label>
+              <select id="workerStatus">
+                <option value="ACTIVE">Active (Working)</option>
+                <option value="INACTIVE">Inactive (Deactivated)</option>
+              </select>
+            </div>
+            <div class="form-group flex-1">
+              <label>Passbook Secret Key (Min 5 Digits)</label>
+              <input type="text" id="workerPin" placeholder="e.g. 12345 (Default: 12345)" minlength="5">
+            </div>
           </div>
           <div class="form-group">
             <label>Notes / Skills</label>
             <textarea id="workerNotes" rows="2" placeholder="Special skills, site preference, emergency contact..."></textarea>
+            <span class="helper-text">Worker uses their secret key to unlock their mobile passbook so others cannot peek.</span>
           </div>
         </div>
         <div class="modal-footer">

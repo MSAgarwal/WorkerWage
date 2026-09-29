@@ -65,6 +65,7 @@ function initDatabase() {
       standard_hours REAL DEFAULT 8.0,
       default_ot_multiplier REAL NOT NULL DEFAULT 0.0,
       default_box_rate REAL NOT NULL DEFAULT 30.0,
+      pin_hash TEXT,
       status TEXT NOT NULL DEFAULT 'ACTIVE',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       notes TEXT
@@ -196,6 +197,16 @@ function initDatabase() {
         if (!hasColumn('attendance', 'extra_pieces')) {
           db.exec('ALTER TABLE attendance ADD COLUMN extra_pieces REAL NOT NULL DEFAULT 0.0;');
         }
+      }
+    },
+    {
+      version: '20260909_add_worker_pin_hash',
+      up: () => {
+        if (!hasColumn('employees', 'pin_hash')) {
+          db.exec('ALTER TABLE employees ADD COLUMN pin_hash TEXT;');
+        }
+        const defaultHash = bcrypt.hashSync('12345', 10);
+        db.prepare('UPDATE employees SET pin_hash = ? WHERE pin_hash IS NULL').run(defaultHash);
       }
     }
   ];

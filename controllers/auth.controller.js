@@ -38,10 +38,11 @@ class AuthController {
    */
   async workerLogin(req, res, next) {
     try {
-      const { identifier } = req.body;
+      const { identifier, pin, password } = req.body;
+      const workerPin = pin || password;
       const clientIp = req.ip || req.connection?.remoteAddress || 'unknown';
 
-      const result = authService.verifyWorkerLogin(identifier, clientIp);
+      const result = authService.verifyWorkerLogin(identifier, workerPin, clientIp);
       if (!result.success) {
         return res.status(result.statusCode || 401).json({ error: result.error });
       }

@@ -229,8 +229,10 @@ const App = {
     this.switchAuthMode(mode);
     const pinInput = document.getElementById('modalPinInput');
     const workerInput = document.getElementById('workerLoginIdentifier');
+    const workerPinInput = document.getElementById('workerLoginPin');
     if (pinInput) pinInput.value = '';
     if (workerInput) workerInput.value = '';
+    if (workerPinInput) workerPinInput.value = '';
     const pinErr = document.getElementById('pinErrorMsg');
     const workerErr = document.getElementById('workerErrorMsg');
     if (pinErr) pinErr.style.display = 'none';
@@ -253,19 +255,39 @@ const App = {
   // Worker Login Submission
   async submitWorkerLogin() {
     const input = document.getElementById('workerLoginIdentifier');
+    const pinInput = document.getElementById('workerLoginPin');
     const identifier = input ? input.value.trim() : '';
+    const pin = pinInput ? pinInput.value.trim() : '';
     const errorEl = document.getElementById('workerErrorMsg');
 
     if (!identifier) {
       if (errorEl) {
-        errorEl.textContent = 'Please enter your Worker Code or Phone';
+        errorEl.textContent = 'Please enter your Worker Code or Phone Number';
         errorEl.style.display = 'block';
       }
       return;
     }
 
+    if (!pin) {
+      if (errorEl) {
+        errorEl.textContent = 'Please enter your 5+ digit Secret Passbook Key (Default: 12345)';
+        errorEl.style.display = 'block';
+      }
+      if (pinInput) pinInput.focus();
+      return;
+    }
+
+    if (pin.length < 5) {
+      if (errorEl) {
+        errorEl.textContent = 'Secret Passbook Key must be at least 5 digits long';
+        errorEl.style.display = 'block';
+      }
+      if (pinInput) pinInput.focus();
+      return;
+    }
+
     try {
-      const res = await API.workerLogin(identifier);
+      const res = await API.workerLogin(identifier, pin);
       if (res.success && res.worker) {
         this.setWorkerState(true, res.worker);
         this.closeModal('pinModal');
@@ -273,7 +295,7 @@ const App = {
       }
     } catch (err) {
       if (errorEl) {
-        errorEl.textContent = err.message || 'Worker not found. Please verify code or phone.';
+        errorEl.textContent = err.message || 'Worker not found or incorrect secret key. Please try again.';
         errorEl.style.display = 'block';
       }
     }

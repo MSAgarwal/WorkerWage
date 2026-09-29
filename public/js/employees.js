@@ -180,6 +180,12 @@ const EmployeesModule = {
       document.getElementById('workerStatus').value = worker.status || 'ACTIVE';
       document.getElementById('workerNotes').value = worker.notes || '';
 
+      const pinInput = document.getElementById('workerPin');
+      if (pinInput) {
+        pinInput.value = '';
+        pinInput.placeholder = 'Leave blank to keep existing password';
+      }
+
       if (isManager) {
         document.getElementById('workerTypeManager').checked = true;
         if (boxRateWrap) boxRateWrap.style.display = 'none';
@@ -195,6 +201,13 @@ const EmployeesModule = {
       document.getElementById('workerTypeWorker').checked = true;
       document.getElementById('workerDefaultBoxRate').value = API.defaultBoxRate || 30;
       document.getElementById('workerStatus').value = 'ACTIVE';
+
+      const pinInput = document.getElementById('workerPin');
+      if (pinInput) {
+        pinInput.value = '12345';
+        pinInput.placeholder = 'e.g. 12345 (Default: 12345)';
+      }
+
       if (boxRateWrap) boxRateWrap.style.display = 'block';
       if (notice) notice.style.display = 'none';
     }
@@ -213,10 +226,16 @@ const EmployeesModule = {
     if (isNaN(defaultBoxRate) || defaultBoxRate < 0) defaultBoxRate = 30.0;
     const phone = document.getElementById('workerPhone').value.trim();
     const status = document.getElementById('workerStatus').value;
+    const pin = document.getElementById('workerPin') ? document.getElementById('workerPin').value.trim() : '';
     const notes = document.getElementById('workerNotes').value.trim();
 
     if (!name || isNaN(dailyWage)) {
       App.showToast('Please enter worker name and valid daily wage', 'error');
+      return;
+    }
+
+    if (pin && pin.length < 5) {
+      App.showToast('Worker passbook secret key must be at least 5 digits', 'error');
       return;
     }
 
@@ -233,6 +252,7 @@ const EmployeesModule = {
       notes
     };
 
+    if (pin) payload.pin = pin;
     if (id) payload.id = id;
 
     try {

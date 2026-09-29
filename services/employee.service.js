@@ -1,7 +1,19 @@
+const bcrypt = require('bcryptjs');
 const { db } = require('../db');
 const { ConflictError, NotFoundError } = require('../errors');
 
 class EmployeeService {
+  /**
+   * Helper to strip internal password hashes from returned employee objects
+   */
+  _sanitizeEmployee(emp) {
+    if (!emp) return emp;
+    const sanitized = { ...emp };
+    sanitized.has_pin = !!sanitized.pin_hash;
+    delete sanitized.pin_hash;
+    return sanitized;
+  }
+
   /**
    * Get all employees, optionally filtered by status
    */
@@ -15,14 +27,16 @@ class EmployeeService {
     }
 
     query += ' ORDER BY status ASC, name ASC';
-    return db.prepare(query).all(...params);
+    const rows = db.prepare(query).all(...params);
+    return rows.map(r => this._sanitizeEmployee(r));
   }
 
   /**
    * Get a single employee by ID
    */
   getEmployeeById(id) {
-    return db.prepare('SELECT * FROM employees WHERE id = ?').get(id);
+    const emp = db.prepare('SELECT * FROM employees WHERE id = ?').get(id);
+    return this._sanitizeEmployee(emp);
   }
 
   /**
@@ -47,10 +61,13 @@ class EmployeeService {
       throw new ConflictError(`Worker code "${code}" already exists. Please choose a different code.`);
     }
 
+    const pinToHash = data.pin && String(data.pin).trim() ? String(data.pin).trim() : '12345';
+    const pinHash = bcrypt.hashSync(pinToHash, 10);
+
     try {
       const stmt = db.prepare(`
-        INSERT INTO employees (employee_code, name, phone, role, worker_type, daily_wage, default_ot_multiplier, default_box_rate, notes, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+        INSERT INTO employees (employee_code, name, phone, role, worker_type, daily_wage, default_ot_multiplier, default_box_rate, pin_hash, notes, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
       `);
 
       const result = stmt.run(
@@ -62,10 +79,11 @@ class EmployeeService {
         data.daily_wage,
         data.default_ot_multiplier,
         data.default_box_rate,
+        pinHash,
         data.notes
       );
 
-      return db.prepare('SELECT * FROM employees WHERE id = ?').get(result.lastInsertRowid);
+      return this._sanitizeEmployee(db.prepare('SELECT * FROM employees WHERE id = ?').get(result.lastInsertRowid));
     } catch (error) {
       if (error.message && error.message.includes('UNIQUE constraint failed: employees.employee_code')) {
         throw new ConflictError(`Worker code "${code}" already exists. Please choose a different code.`);
@@ -112,7 +130,13 @@ class EmployeeService {
       id
     );
 
-    return db.prepare('SELECT * FROM employees WHERE id = ?').get(id);
+    // If new PIN is provided, hash and update
+    if (data.pin && String(data.pin).trim()) {
+      const pinHash = bcrypt.hashSync(String(data.pin).trim(), 10);
+      db.prepare('UPDATE employees SET pin_hash = ? WHERE id = ?').run(pinHash, id);
+    }
+
+    return this._sanitizeEmployee(db.prepare('SELECT * FROM employees WHERE id = ?').get(id));
   }
 
   /**
