@@ -810,15 +810,21 @@ const App = {
   // Progressive Web App (PWA) Registration & Install Prompt Handlers
   registerServiceWorker() {
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
+      const doRegister = () => {
         navigator.serviceWorker.register('/sw.js')
           .then((reg) => {
-            console.log('PWA Service Worker registered:', reg.scope);
+            console.log('PWA Service Worker registered successfully:', reg.scope);
           })
           .catch((err) => {
             console.warn('PWA Service Worker registration warning:', err);
           });
-      });
+      };
+
+      if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        doRegister();
+      } else {
+        window.addEventListener('load', doRegister);
+      }
     }
   },
 
