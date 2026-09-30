@@ -20,6 +20,10 @@ const App = {
     PaymentsModule.init();
     WorkerPortalModule.init();
 
+    // PWA Service Worker & Install Prompt Setup
+    this.registerServiceWorker();
+    this.setupPwaInstall();
+
     // Check server authentication status
     let authStatus = null;
     try {
@@ -801,6 +805,67 @@ const App = {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
+  },
+
+  // Progressive Web App (PWA) Registration & Install Prompt Handlers
+  registerServiceWorker() {
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then((reg) => {
+            console.log('PWA Service Worker registered:', reg.scope);
+          })
+          .catch((err) => {
+            console.warn('PWA Service Worker registration warning:', err);
+          });
+      });
+    }
+  },
+
+  deferredInstallPrompt: null,
+
+  setupPwaInstall() {
+    const btnInstall = document.getElementById('btnInstallPwa');
+    const modalInstallBtn = document.getElementById('btnModalInstallPwa');
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      // Prevent standard browser mini-infobar on mobile Chrome
+      e.preventDefault();
+      this.deferredInstallPrompt = e;
+
+      // Make in-app install buttons visible
+      if (btnInstall) btnInstall.style.display = 'inline-flex';
+      if (modalInstallBtn) modalInstallBtn.style.display = 'inline-flex';
+    });
+
+    const triggerInstall = async () => {
+      if (!this.deferredInstallPrompt) {
+        this.showToast('To install, tap browser menu (⋮) -> "Add to Home screen"', 'info');
+        return;
+      }
+      this.deferredInstallPrompt.prompt();
+      const { outcome } = await this.deferredInstallPrompt.userChoice;
+      if (outcome === 'accepted') {
+        this.showToast('Installing Attendance App...', 'success');
+      }
+      this.deferredInstallPrompt = null;
+      if (btnInstall) btnInstall.style.display = 'none';
+      if (modalInstallBtn) modalInstallBtn.style.display = 'none';
+    };
+
+    if (btnInstall) {
+      btnInstall.addEventListener('click', triggerInstall);
+    }
+    if (modalInstallBtn) {
+      modalInstallBtn.addEventListener('click', triggerInstall);
+    }
+
+    window.addEventListener('appinstalled', () => {
+      this.deferredInstallPrompt = null;
+      if (btnInstall) btnInstall.style.display = 'none';
+      if (modalInstallBtn) modalInstallBtn.style.display = 'none';
+      this.showToast('Attendance App successfully installed to your Home Screen! 🎉', 'success');
+    });
   }
 };
 

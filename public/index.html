@@ -5,9 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Daily Wage Attendance & Overtime Tracker</title>
   <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <meta name="theme-color" content="#2563eb">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Attendance">
   <link rel="stylesheet" href="/css/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -24,6 +27,9 @@
       </div>
     </div>
     <div class="nav-actions">
+      <button id="btnInstallPwa" class="btn-chip" title="Install App to Home Screen" style="display: none; background: #ecfdf5; color: #047857; border-color: #a7f3d0; font-weight: 700;">
+        <span>📲</span> <span class="hide-mobile">Install App</span>
+      </button>
       <button id="btnManageHolidays" class="btn-chip btn-holiday-chip" title="Manage Paid Holidays">
         <span>🗓️</span> <span class="hide-mobile">Paid Holidays</span>
       </button>
@@ -671,14 +677,24 @@
           <code id="mobileUrlDisplay">http://...</code>
           <button id="btnCopyUrl" class="btn-copy">Copy</button>
         </div>
+        <div class="mt-3 mb-2" style="text-align: center;">
+          <button id="btnModalInstallPwa" class="btn btn-primary" style="display: none; width: 100%; justify-content: center; gap: 8px;">
+            <span>📲</span> Install App to Phone Home Screen
+          </button>
+        </div>
         <div class="connection-guide">
-          <h4>💡 Quick Instructions:</h4>
+          <h4>💡 Quick Instructions & Mobile App:</h4>
           <ol>
-            <li>Ensure your <strong>Phone and Laptop</strong> are on the <strong>same Wi-Fi network</strong> (or Cloudflare Tunnel URL).</li>
-            <li><em>No Wi-Fi at site?</em> Turn on your <strong>Phone Hotspot</strong> and connect your laptop to it!</li>
-            <li>Point your phone camera at the QR code above or open the link on mobile browser.</li>
+            <li>Ensure <strong>Phone and Laptop</strong> are on the <strong>same Wi-Fi or Hotspot</strong> (or Cloudflare Tunnel URL).</li>
+            <li>Point phone camera at the QR code above or open the link on mobile browser.</li>
             <li><strong>Worker Login:</strong> Enter Worker Code (e.g. <code>EMP001</code>) and personal <strong>5-digit secret key</strong> (Default: <code>12345</code>).</li>
-            <li>Add to Phone Home Screen for full app experience.</li>
+            <li><strong>Install as Phone App:</strong>
+              <div style="font-size: 0.78rem; margin-top: 4px; color: var(--text-muted);">
+                • <strong>Android (Wi-Fi / Local IP):</strong> Tap browser menu (⋮) $\rightarrow$ select <strong>"Add to Home screen" / "Create shortcut"</strong>.<br>
+                • <strong>Android (Cloudflare HTTPS):</strong> Tap <strong>"Install App"</strong> for full native app experience.<br>
+                • <strong>iPhone / Safari:</strong> Tap Share icon (⎋ / ↥) $\rightarrow$ tap <strong>"Add to Home Screen"</strong>.
+              </div>
+            </li>
           </ol>
         </div>
       </div>
