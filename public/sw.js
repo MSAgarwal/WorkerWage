@@ -1,5 +1,5 @@
 // Service Worker for Daily Wage Attendance PWA
-const CACHE_NAME = 'workerwage-pwa-v1';
+const CACHE_NAME = 'workerwage-pwa-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
