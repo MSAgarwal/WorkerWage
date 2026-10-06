@@ -28,7 +28,7 @@ module.exports = {
   },
 
   // Payment Types
-  PAYMENT_TYPES: ['ADVANCE', 'PAYOUT', 'SETTLEMENT'],
+  PAYMENT_TYPES: ['ADVANCE', 'PAYOUT', 'SETTLEMENT', 'BONUS'],
   PAYMENT_METHODS: ['CASH', 'UPI', 'BANK_TRANSFER'],
 
   // Worker Types

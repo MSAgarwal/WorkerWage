@@ -192,6 +192,21 @@ describe('Validators Unit Tests', () => {
       assert.equal(res.sanitized.payment_method, 'CASH');
     });
 
+    it('validates a correct BONUS payment', () => {
+      const res = validatePaymentInput({
+        employee_id: 2,
+        date: '2026-10-01',
+        amount: 4000,
+        type: 'BONUS',
+        payment_method: 'CASH',
+        notes: 'Festival bonus'
+      });
+      assert.equal(res.isValid, true);
+      assert.equal(res.sanitized.amount, 4000);
+      assert.equal(res.sanitized.type, 'BONUS');
+      assert.equal(res.sanitized.payment_method, 'CASH');
+    });
+
     it('rejects zero or negative payment amount', () => {
       const res = validatePaymentInput({ employee_id: 2, date: '2026-10-01', amount: 0 });
       assert.equal(res.isValid, false);

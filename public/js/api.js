@@ -81,7 +81,9 @@ const API = {
             window.App.handleUnauthorized();
           }
         }
-        const errorMsg = data.error || (data.details ? data.details.join(', ') : 'Server error occurred');
+        const errorMsg = (data.details && Array.isArray(data.details) && data.details.length)
+          ? data.details.join(', ')
+          : (data.error || 'Server error occurred');
         throw new Error(errorMsg);
       }
       return data;

@@ -55,8 +55,23 @@ const PaymentsModule = {
     }
 
     listEl.innerHTML = this.payments.map(p => {
-      const typeLabel = p.type === 'ADVANCE' ? '⚠️ Advance / Draw' : (p.type === 'PAYOUT' ? '✅ Full Payout' : '💵 Wage Settlement');
-      const isAdvance = p.type === 'ADVANCE';
+      let typeLabel = '💵 Wage Settlement';
+      let amountClass = 'text-success';
+      let sign = '';
+
+      if (p.type === 'ADVANCE') {
+        typeLabel = '⚠️ Advance / Draw';
+        amountClass = 'text-rose';
+        sign = '-';
+      } else if (p.type === 'PAYOUT') {
+        typeLabel = '✅ Full Payout';
+        amountClass = 'text-success';
+        sign = '';
+      } else if (p.type === 'BONUS') {
+        typeLabel = '🎁 Bonus / Reward';
+        amountClass = 'text-purple';
+        sign = '+';
+      }
 
       return `
         <div class="payment-item">
@@ -72,8 +87,8 @@ const PaymentsModule = {
           </div>
 
           <div style="text-align: right;">
-            <div class="payment-amount ${isAdvance ? 'text-rose' : 'text-success'}">
-              ${isAdvance ? '-' : ''}${API.formatMoney(p.amount)}
+            <div class="payment-amount ${amountClass}">
+              ${sign}${API.formatMoney(p.amount)}
             </div>
             <button class="btn btn-secondary btn-sm mt-1" style="font-size: 0.7rem; padding: 2px 6px;" onclick="PaymentsModule.deletePaymentEntry(${p.id})">
               🗑️ Delete

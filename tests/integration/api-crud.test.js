@@ -311,6 +311,26 @@ describe('CRUD API & Business Workflow Integration Tests', () => {
     await apiRequest(`/api/employees/${mgrId}?hardDelete=true`, 'DELETE', null, authHeaders);
   });
 
+  it('POST /api/payments records a BONUS payment and reflects in payroll calculation', async () => {
+    const res = await apiRequest('/api/payments', 'POST', {
+      employee_id: testWorkerId,
+      date: '2026-11-04',
+      amount: 1000,
+      type: 'BONUS',
+      payment_method: 'CASH',
+      notes: 'Festival reward'
+    }, authHeaders);
+
+    assert.equal(res.status, 200);
+    assert.equal(res.body.success, true);
+    assert.equal(res.body.payment.type, 'BONUS');
+    assert.equal(res.body.payment.amount, 1000);
+
+    const payRes = await apiRequest(`/api/reports/payroll?startDate=2026-11-01&endDate=2026-11-30&employee_id=${testWorkerId}`, 'GET', null, authHeaders);
+    const workerReport = payRes.body.workers[0];
+    assert.equal(workerReport.bonusTotal >= 1000, true);
+  });
+
   it('DELETE nonexistent records returns 404', async () => {
     const resWorker = await apiRequest('/api/employees/999999', 'DELETE', null, authHeaders);
     assert.equal(resWorker.status, 404);

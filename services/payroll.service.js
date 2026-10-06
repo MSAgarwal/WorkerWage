@@ -100,6 +100,10 @@ class PayrollService {
         totalAdvances += p.amount;
       } else if (p.type === 'PAYOUT' || p.type === 'SETTLEMENT') {
         totalSettlements += p.amount;
+      } else if (p.type === 'BONUS') {
+        bonusTotal += p.amount;
+        grossPayTotal += p.amount;
+        totalSettlements += p.amount;
       }
     }
 

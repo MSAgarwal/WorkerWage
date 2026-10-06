@@ -45,7 +45,7 @@ class PaymentController {
     try {
       const validation = validatePaymentInput(req.body);
       if (!validation.isValid) {
-        return res.status(400).json({ error: 'Validation failed', details: validation.errors });
+        return res.status(400).json({ error: validation.errors.join(', '), details: validation.errors });
       }
 
       const payment = paymentService.createPayment(validation.sanitized);
