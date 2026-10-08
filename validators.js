@@ -3,7 +3,7 @@
  * Protects against malformed data, null payloads, out-of-range values, and control characters.
  */
 
-const { LIMITS, MAX_OT_MULTIPLIER, PAYMENT_TYPES, PAYMENT_METHODS, WORKER_TYPES } = require('./config/constants');
+const { LIMITS, MAX_OT_MULTIPLIER, PAYMENT_TYPES, PAYMENT_METHODS, WORKER_TYPES, MAX_VALID_YEAR } = require('./config/constants');
 
 /**
  * Helper: Sanitize string for persistent database storage.
@@ -29,7 +29,7 @@ function isValidDate(dateStr) {
   const month = parseInt(parts[1], 10);
   const day = parseInt(parts[2], 10);
 
-  if (year < 1900 || year > 2100) return false;
+  if (year < 1900 || year > MAX_VALID_YEAR) return false;
   if (month < 1 || month > 12) return false;
 
   const daysInMonth = new Date(year, month, 0).getDate();

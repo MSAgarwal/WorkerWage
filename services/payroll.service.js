@@ -1,5 +1,6 @@
 const { db } = require('../db');
 const { isPieceCategory } = require('../wageCalculator');
+const { PIECES_PER_BOX } = require('../config/constants');
 
 class PayrollService {
   /**
@@ -53,7 +54,7 @@ class PayrollService {
         if (isPieceCategory(a.work_category)) {
           const pieces = (a.extra_pieces !== undefined && a.extra_pieces !== null && a.extra_pieces > 0)
             ? a.extra_pieces
-            : ((a.extra_boxes || 0) * 500);
+            : ((a.extra_boxes || 0) * PIECES_PER_BOX);
           totalExtraPieces += pieces;
         } else {
           if (a.extra_boxes > 0) {
@@ -95,6 +96,7 @@ class PayrollService {
 
     let totalAdvances = 0;
     let totalSettlements = 0;
+    let totalBonuses = 0;
     for (const p of payRecords) {
       if (p.type === 'ADVANCE') {
         totalAdvances += p.amount;
@@ -103,12 +105,12 @@ class PayrollService {
       } else if (p.type === 'BONUS') {
         bonusTotal += p.amount;
         grossPayTotal += p.amount;
-        totalSettlements += p.amount;
+        totalBonuses += p.amount;
       }
     }
 
-    // Net payable formula: Gross Earnings minus Advances and previous Settlements
-    const netPayable = Math.max(0, grossPayTotal - totalAdvances - totalSettlements);
+    // Net payable formula: Gross Earnings minus Advances, previous Settlements, and paid Bonuses
+    const netPayable = Math.max(0, grossPayTotal - totalAdvances - totalSettlements - totalBonuses);
 
     return {
       employee_id: worker.id,
@@ -138,6 +140,7 @@ class PayrollService {
       grossPayTotal: Math.round(grossPayTotal * 100) / 100,
       totalAdvances: Math.round(totalAdvances * 100) / 100,
       totalSettlements: Math.round(totalSettlements * 100) / 100,
+      totalBonuses: Math.round(totalBonuses * 100) / 100,
       netPayable: Math.round(netPayable * 100) / 100,
       attendanceRecords: attRecords,
       paymentRecords: payRecords
@@ -170,7 +173,7 @@ class PayrollService {
 
     const paymentsStmt = db.prepare(`
       SELECT * FROM payments
-      WHERE employee_id = ? AND date >= ? AND date <= ?
+      WHERE employee_id = ? AND date >= ? AND date <= ? AND deleted_at IS NULL
       ORDER BY date ASC
     `);
 
@@ -251,7 +254,7 @@ class PayrollService {
       'Code', 'Name', 'Worker Type', 'Role', 'Daily Wage',
       'Present (Days)', 'Half Days', 'Paid Leave/Tuesdays', 'Effective Paid Days',
       'Work Categories', 'Extra Boxes Packed', 'Extra Pieces (Cards/Bangles)',
-      'Base Wage', 'OT Wage', 'Gross Earnings', 'Advances Paid', 'Settlements Paid', 'Net Balance Payable'
+      'Base Wage', 'OT Wage', 'Bonus / Rewards', 'Gross Earnings', 'Advances Paid', 'Settlements Paid', 'Net Balance Payable'
     ].join(','));
 
     for (const w of reportData.workers) {
@@ -270,6 +273,7 @@ class PayrollService {
         w.totalExtraPieces,
         w.basePayTotal.toFixed(2),
         w.otPayTotal.toFixed(2),
+        w.bonusTotal.toFixed(2),
         w.grossPayTotal.toFixed(2),
         w.totalAdvances.toFixed(2),
         w.totalSettlements.toFixed(2),

@@ -1,5 +1,6 @@
 const { db, withTransaction } = require('../db');
 const { isPieceCategory, calculateWage } = require('../wageCalculator');
+const { PIECES_PER_BOX } = require('../config/constants');
 const { NotFoundError, ValidationError } = require('../errors');
 
 class AttendanceService {
@@ -56,7 +57,7 @@ class AttendanceService {
         const isPiece = isPieceCategory(rec.work_category);
         const pieces = (rec.extra_pieces !== undefined && rec.extra_pieces !== null)
           ? rec.extra_pieces
-          : (isPiece ? (rec.extra_boxes || 0) * 500 : 0);
+          : (isPiece ? (rec.extra_boxes || 0) * PIECES_PER_BOX : 0);
 
         return {
           id: rec.id,
@@ -147,6 +148,31 @@ class AttendanceService {
         }
       }
     });
+
+    // Auto-save Tuesday / Paid Holiday defaults to DB if any workers are unmarked on this paid day off
+    if (meta.isPaidDayOff && records.some(r => !r.is_marked)) {
+      try {
+        const unmarkedToSave = records.filter(r => !r.is_marked).map(r => ({
+          employee_id: r.employee_id,
+          status: 'PAID_LEAVE',
+          work_category: '',
+          extra_boxes: 0,
+          extra_pieces: 0,
+          box_rate: r.box_rate,
+          overtime_days: 0,
+          overtime_multiplier: r.overtime_multiplier,
+          is_holiday_work: 0,
+          notes: meta.dayOffReason
+        }));
+        if (unmarkedToSave.length > 0) {
+          this.batchSaveAttendance(date, unmarkedToSave);
+          // Reload from DB so ids and snapshots are fully persistent
+          return this.getAttendanceForDate(date);
+        }
+      } catch (e) {
+        // Fallback to in-memory preview if background auto-save encounters transient issue
+      }
+    }
 
     // Summary calculations for the date
     let totalPresent = 0;

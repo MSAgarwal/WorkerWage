@@ -9,6 +9,12 @@ module.exports = {
   MAX_OT_MULTIPLIER: 3.0,
   HOLIDAY_PIECE_OVERTIME_BONUS: 200.0,
 
+  // Piece category conversion: how many pieces per box (used in payroll & attendance services)
+  PIECES_PER_BOX: 500,
+
+  // Date validation: reject dates more than 1 year in the future
+  get MAX_VALID_YEAR() { return new Date().getFullYear() + 1; },
+
   // Financial & Numeric Domain Upper Bounds for Input Validation
   LIMITS: {
     MIN_DAILY_WAGE: 0,

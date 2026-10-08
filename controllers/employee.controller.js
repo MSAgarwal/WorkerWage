@@ -84,8 +84,8 @@ class EmployeeController {
         return res.status(400).json({ success: false, error: 'Invalid worker ID' });
       }
 
-      const { hardDelete } = req.query;
-      const result = employeeService.deleteEmployee(id, hardDelete);
+      const { hardDelete, force } = req.query;
+      const result = employeeService.deleteEmployee(id, hardDelete, force);
       res.json({
         success: true,
         message: result.message

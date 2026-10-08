@@ -254,12 +254,15 @@ describe('CRUD API & Business Workflow Integration Tests', () => {
     };
 
     const cols = parseCsv(workerLine);
-    // Gross is col 14, Advances is col 15, Settlements is col 16, Net is col 17
-    const grossCsv = parseFloat(cols[14]);
-    const advancesCsv = parseFloat(cols[15]);
-    const settlementsCsv = parseFloat(cols[16]);
-    const netCsv = parseFloat(cols[17]);
+    // Header includes 'Bonus / Rewards' (col 14):
+    // Gross is col 15, Advances is col 16, Settlements is col 17, Net is col 18
+    const bonusCsv = parseFloat(cols[14]);
+    const grossCsv = parseFloat(cols[15]);
+    const advancesCsv = parseFloat(cols[16]);
+    const settlementsCsv = parseFloat(cols[17]);
+    const netCsv = parseFloat(cols[18]);
 
+    assert.equal(bonusCsv, workerJson.bonusTotal, 'CSV bonus must equal JSON bonus');
     assert.equal(grossCsv, workerJson.grossPayTotal, 'CSV gross must equal JSON gross');
     assert.equal(advancesCsv, workerJson.totalAdvances, 'CSV advances must equal JSON advances');
     assert.equal(settlementsCsv, workerJson.totalSettlements, 'CSV settlements must equal JSON settlements');
@@ -340,7 +343,7 @@ describe('CRUD API & Business Workflow Integration Tests', () => {
   });
 
   it('DELETE /api/employees/:id removes worker and cascades associated records', async () => {
-    const res = await apiRequest(`/api/employees/${testWorkerId}?hardDelete=true`, 'DELETE', null, authHeaders);
+    const res = await apiRequest(`/api/employees/${testWorkerId}?hardDelete=true&force=true`, 'DELETE', null, authHeaders);
     assert.equal(res.status, 200);
 
     const exists = db.prepare('SELECT id FROM employees WHERE id = ?').get(testWorkerId);

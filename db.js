@@ -208,6 +208,17 @@ function initDatabase() {
         const defaultHash = bcrypt.hashSync('12345', 10);
         db.prepare('UPDATE employees SET pin_hash = ? WHERE pin_hash IS NULL').run(defaultHash);
       }
+    },
+    {
+      version: '20261009_payments_soft_delete',
+      up: () => {
+        if (!hasColumn('payments', 'deleted_at')) {
+          db.exec('ALTER TABLE payments ADD COLUMN deleted_at DATETIME DEFAULT NULL;');
+        }
+        if (!hasColumn('payments', 'deleted_by')) {
+          db.exec("ALTER TABLE payments ADD COLUMN deleted_by TEXT DEFAULT NULL;");
+        }
+      }
     }
   ];
 

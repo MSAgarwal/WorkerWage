@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const { db } = require('../db');
-const { ConflictError, NotFoundError } = require('../errors');
+const { ConflictError, NotFoundError, ValidationError } = require('../errors');
 
 class EmployeeService {
   /**
@@ -40,56 +40,65 @@ class EmployeeService {
   }
 
   /**
-   * Create a new employee
+   * Create a new employee.
+   * Employee code generation and INSERT are wrapped in a transaction to
+   * prevent race conditions under concurrent requests (BUG 4 fix).
    */
   createEmployee(data) {
-    let code = data.employee_code;
-    if (!code || code.trim() === '') {
-      let candidateId = 1;
-      const lastRow = db.prepare('SELECT id FROM employees ORDER BY id DESC LIMIT 1').get();
-      if (lastRow) candidateId = lastRow.id + 1;
-      code = 'EMP' + String(candidateId).padStart(3, '0');
-      // Retry in case of concurrent sequence
-      while (db.prepare('SELECT id FROM employees WHERE employee_code = ?').get(code)) {
-        candidateId++;
-        code = 'EMP' + String(candidateId).padStart(3, '0');
-      }
-    }
-
-    const existingCode = db.prepare('SELECT id FROM employees WHERE employee_code = ?').get(code);
-    if (existingCode) {
-      throw new ConflictError(`Worker code "${code}" already exists. Please choose a different code.`);
-    }
+    const { withTransaction } = require('../db');
 
     const pinToHash = data.pin && String(data.pin).trim() ? String(data.pin).trim() : '12345';
     const pinHash = bcrypt.hashSync(pinToHash, 10);
 
+    let newEmpId;
     try {
-      const stmt = db.prepare(`
-        INSERT INTO employees (employee_code, name, phone, role, worker_type, daily_wage, default_ot_multiplier, default_box_rate, pin_hash, notes, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
-      `);
+      withTransaction(() => {
+        let code = data.employee_code;
+        if (!code || String(code).trim() === '') {
+          // Generate code inside the transaction — atomic with the insert
+          const lastRow = db.prepare('SELECT id FROM employees ORDER BY id DESC LIMIT 1').get();
+          let candidateId = lastRow ? lastRow.id + 1 : 1;
+          code = 'EMP' + String(candidateId).padStart(3, '0');
+          while (db.prepare('SELECT id FROM employees WHERE employee_code = ?').get(code)) {
+            candidateId++;
+            code = 'EMP' + String(candidateId).padStart(3, '0');
+          }
+        } else {
+          code = String(code).trim();
+        }
 
-      const result = stmt.run(
-        code,
-        data.name,
-        data.phone,
-        data.role,
-        data.worker_type,
-        data.daily_wage,
-        data.default_ot_multiplier,
-        data.default_box_rate,
-        pinHash,
-        data.notes
-      );
+        const existingCode = db.prepare('SELECT id FROM employees WHERE employee_code = ?').get(code);
+        if (existingCode) {
+          throw new ConflictError(`Worker code "${code}" already exists. Please choose a different code.`);
+        }
 
-      return this._sanitizeEmployee(db.prepare('SELECT * FROM employees WHERE id = ?').get(result.lastInsertRowid));
+        const stmt = db.prepare(`
+          INSERT INTO employees (employee_code, name, phone, role, worker_type, daily_wage, default_ot_multiplier, default_box_rate, pin_hash, notes, status)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+        `);
+
+        const result = stmt.run(
+          code,
+          data.name,
+          data.phone,
+          data.role,
+          data.worker_type,
+          data.daily_wage,
+          data.default_ot_multiplier,
+          data.default_box_rate,
+          pinHash,
+          data.notes
+        );
+        newEmpId = result.lastInsertRowid;
+      });
     } catch (error) {
       if (error.message && error.message.includes('UNIQUE constraint failed: employees.employee_code')) {
-        throw new ConflictError(`Worker code "${code}" already exists. Please choose a different code.`);
+        throw new ConflictError(`Worker code already exists. Please choose a different code.`);
       }
       throw error;
     }
+
+    return this._sanitizeEmployee(db.prepare('SELECT * FROM employees WHERE id = ?').get(newEmpId));
   }
 
   /**
@@ -140,20 +149,35 @@ class EmployeeService {
   }
 
   /**
-   * Delete or deactivate an employee
+   * Delete or deactivate an employee.
+   * Hard delete is blocked if the worker has any attendance or payment history
+   * to prevent irreversible financial data loss.
    */
-  deleteEmployee(id, hardDelete) {
-    const existing = db.prepare('SELECT id FROM employees WHERE id = ?').get(id);
+  deleteEmployee(id, hardDelete, force = false) {
+    const existing = db.prepare('SELECT id, name FROM employees WHERE id = ?').get(id);
     if (!existing) {
       throw new NotFoundError('Worker not found');
     }
 
+    const isForce = force === 'true' || force === true;
     if (hardDelete === 'true' || hardDelete === true) {
+      // Safety check: refuse hard delete if financial records exist unless force is specified
+      const attCount = db.prepare('SELECT COUNT(*) as cnt FROM attendance WHERE employee_id = ?').get(id);
+      const payCount = db.prepare('SELECT COUNT(*) as cnt FROM payments WHERE employee_id = ?').get(id);
+
+      if ((attCount.cnt > 0 || payCount.cnt > 0) && !isForce) {
+        throw new ValidationError(
+          `Cannot permanently delete worker "${existing.name}" — they have ${attCount.cnt} attendance record(s) and ${payCount.cnt} payment record(s). ` +
+          `Deactivate the worker instead to preserve the financial history. ` +
+          `To force permanent deletion of all data, specify force=true.`
+        );
+      }
+
       db.prepare('DELETE FROM employees WHERE id = ?').run(id);
-      return { hardDeleted: true, message: 'Worker deleted permanently' };
+      return { hardDeleted: true, message: `Worker "${existing.name}" deleted permanently` };
     } else {
       db.prepare("UPDATE employees SET status = 'INACTIVE' WHERE id = ?").run(id);
-      return { hardDeleted: false, message: 'Worker deactivated successfully' };
+      return { hardDeleted: false, message: `Worker "${existing.name}" deactivated successfully. All history is preserved.` };
     }
   }
 }

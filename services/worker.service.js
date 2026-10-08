@@ -55,7 +55,7 @@ class WorkerService {
     const paymentRecords = db.prepare(`
       SELECT date, amount, type, payment_method, notes
       FROM payments
-      WHERE employee_id = ? AND date >= ? AND date <= ?
+      WHERE employee_id = ? AND date >= ? AND date <= ? AND deleted_at IS NULL
       ORDER BY date DESC
     `).all(worker.id, startDate, endDate);
 
