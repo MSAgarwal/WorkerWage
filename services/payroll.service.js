@@ -180,6 +180,7 @@ class PayrollService {
     let grandOtPay = 0;
     let grandTotalExtraBoxes = 0;
     let grandTotalExtraPieces = 0;
+    let grandBonus = 0;
     let grandGrossPay = 0;
     let grandAdvances = 0;
     let grandSettlements = 0;
@@ -196,6 +197,7 @@ class PayrollService {
       grandTotalExtraBoxes += workerSummary.totalExtraBoxes;
       grandTotalExtraPieces += workerSummary.totalExtraPieces;
       grandOtPay += workerSummary.otPayTotal;
+      grandBonus += workerSummary.bonusTotal;
       grandGrossPay += workerSummary.grossPayTotal;
       grandAdvances += workerSummary.totalAdvances;
       grandSettlements += workerSummary.totalSettlements;
@@ -214,6 +216,7 @@ class PayrollService {
         grandTotalExtraBoxes: Math.round(grandTotalExtraBoxes * 100) / 100,
         grandTotalExtraPieces: Math.round(grandTotalExtraPieces * 100) / 100,
         grandOtPay: Math.round(grandOtPay * 100) / 100,
+        grandBonus: Math.round(grandBonus * 100) / 100,
         grandGrossPay: Math.round(grandGrossPay * 100) / 100,
         grandAdvances: Math.round(grandAdvances * 100) / 100,
         grandSettlements: Math.round(grandSettlements * 100) / 100,

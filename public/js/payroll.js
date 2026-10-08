@@ -95,7 +95,11 @@ const PayrollModule = {
   renderGrandCards(totals) {
     if (!totals) return;
     document.getElementById('grandGrossPay').textContent = API.formatMoney(totals.grandGrossPay);
-    document.getElementById('grandBaseOtSplit').textContent = `Base: ${API.formatMoney(totals.grandBasePay)} | OT: ${API.formatMoney(totals.grandOtPay)}`;
+    const splitParts = [`Base: ${API.formatMoney(totals.grandBasePay)}`, `OT: ${API.formatMoney(totals.grandOtPay)}`];
+    if (totals.grandBonus > 0) {
+      splitParts.push(`Bonus: ${API.formatMoney(totals.grandBonus)}`);
+    }
+    document.getElementById('grandBaseOtSplit').textContent = splitParts.join(' | ');
     
     const extraBoxes = totals.grandTotalExtraBoxes || 0;
     const extraPieces = totals.grandTotalExtraPieces || 0;
@@ -191,7 +195,10 @@ const PayrollModule = {
           <td>${catCol}</td>
           <td>${API.formatMoney(w.basePayTotal)}</td>
           <td>${w.otPayTotal > 0 ? `<strong class="text-primary">${API.formatMoney(w.otPayTotal)}</strong>` : '-'}</td>
-          <td><strong>${API.formatMoney(w.grossPayTotal)}</strong></td>
+          <td>
+            <strong>${API.formatMoney(w.grossPayTotal)}</strong>
+            ${w.bonusTotal > 0 ? `<div class="text-xs text-purple" style="font-weight: 600;">🎁 +${API.formatMoney(w.bonusTotal)} bonus</div>` : ''}
+          </td>
           <td class="text-rose">${w.totalAdvances > 0 ? `-${API.formatMoney(w.totalAdvances)}` : '0'}</td>
           <td>
             <strong class="text-success" style="font-size: 0.95rem;">
@@ -199,9 +206,14 @@ const PayrollModule = {
             </strong>
           </td>
           <td>
-            <button class="btn btn-secondary btn-sm" onclick="PaymentsModule.quickAdvance(${w.employee_id}, '${this.escapeHtml(w.name)}')">
-              + Advance
-            </button>
+            <div style="display: flex; gap: 4px; justify-content: flex-end; flex-wrap: wrap;">
+              <button class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 3px 6px;" onclick="PaymentsModule.quickAdvance(${w.employee_id}, '${this.escapeHtml(w.name)}')" title="Record Advance">
+                + Adv
+              </button>
+              <button class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 3px 6px; color: #7e22ce;" onclick="PaymentsModule.quickBonus(${w.employee_id}, '${this.escapeHtml(w.name)}')" title="Award Bonus / Reward">
+                🎁 Bonus
+              </button>
+            </div>
           </td>
         </tr>
       `;

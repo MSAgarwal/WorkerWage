@@ -269,7 +269,11 @@ const WorkerPortalModule = {
 
     if (grossEl) grossEl.textContent = API.formatMoney(summary.grossPayTotal || 0);
     if (grossSubEl) {
-      grossSubEl.textContent = `Base: ${API.formatMoney(summary.basePayTotal || 0)} + OT/Boxes: ${API.formatMoney(summary.otPayTotal || 0)}`;
+      const parts = [`Base: ${API.formatMoney(summary.basePayTotal || 0)}`, `OT: ${API.formatMoney(summary.otPayTotal || 0)}`];
+      if (summary.bonusTotal > 0) {
+        parts.push(`Bonus: +${API.formatMoney(summary.bonusTotal)}`);
+      }
+      grossSubEl.textContent = parts.join(' | ');
     }
 
     if (advEl) advEl.textContent = API.formatMoney(summary.totalAdvances || 0);

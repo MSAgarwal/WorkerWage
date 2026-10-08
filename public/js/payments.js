@@ -9,33 +9,71 @@ const PaymentsModule = {
 
   bindEvents() {
     const btnOpen = document.getElementById('btnOpenAddPayment');
+    const btnBonus = document.getElementById('btnOpenAddBonus');
     const form = document.getElementById('paymentForm');
     const workerFilter = document.getElementById('paymentWorkerFilter');
+    const typeFilter = document.getElementById('paymentTypeFilter');
+    const typeSelect = document.getElementById('paymentType');
 
-    btnOpen.addEventListener('click', () => {
-      this.openPaymentModal();
-    });
+    if (btnOpen) {
+      btnOpen.addEventListener('click', () => {
+        this.openPaymentModal();
+      });
+    }
 
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      this.handleSavePayment();
-    });
+    if (btnBonus) {
+      btnBonus.addEventListener('click', () => {
+        this.openBonusModal();
+      });
+    }
 
-    workerFilter.addEventListener('change', () => {
-      this.loadPayments();
-    });
+    if (form) {
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.handleSavePayment();
+      });
+    }
+
+    if (workerFilter) {
+      workerFilter.addEventListener('change', () => {
+        this.loadPayments();
+      });
+    }
+
+    if (typeFilter) {
+      typeFilter.addEventListener('change', () => {
+        this.render();
+      });
+    }
+
+    if (typeSelect) {
+      typeSelect.addEventListener('change', (e) => {
+        this.updateNotesPlaceholder(e.target.value);
+      });
+    }
+  },
+
+  updateNotesPlaceholder(type) {
+    const notesInput = document.getElementById('paymentNotes');
+    if (!notesInput) return;
+    if (type === 'BONUS') {
+      notesInput.placeholder = 'e.g. Festival reward, Performance bonus, Attendance bonus';
+    } else if (type === 'PAYOUT') {
+      notesInput.placeholder = 'e.g. Previous month wage settlement, Cleared dues';
+    } else {
+      notesInput.placeholder = 'e.g. Emergency advance, Medical draw, Mid-week cash';
+    }
   },
 
   async loadPayments() {
     const listEl = document.getElementById('paymentsList');
-    const filterVal = document.getElementById('paymentWorkerFilter').value;
+    const filterVal = document.getElementById('paymentWorkerFilter')?.value || '';
     listEl.innerHTML = '<div class="loader-wrap"><div class="spinner"></div><p>Loading payment records...</p></div>';
 
     try {
       const res = await API.getPayments(filterVal);
       if (res.success) {
         this.payments = res.payments || [];
-        document.getElementById('paymentsCountLabel').textContent = `${this.payments.length} records`;
         this.render();
       }
     } catch (err) {
@@ -45,16 +83,37 @@ const PaymentsModule = {
 
   render() {
     const listEl = document.getElementById('paymentsList');
-    if (this.payments.length === 0) {
+    const typeFilter = document.getElementById('paymentTypeFilter')?.value || '';
+    const filtered = this.payments.filter(p => !typeFilter || p.type === typeFilter);
+
+    const countLabel = document.getElementById('paymentsCountLabel');
+    if (countLabel) {
+      if (typeFilter) {
+        countLabel.textContent = `${filtered.length} of ${this.payments.length} records`;
+      } else {
+        countLabel.textContent = `${this.payments.length} records`;
+      }
+    }
+
+    if (filtered.length === 0) {
+      let emptyMsg = 'No advances or payments recorded yet. Click "+ Record Advance / Payment" when a worker takes a cash advance or wage draw.';
+      if (typeFilter === 'BONUS') {
+        emptyMsg = '🎁 No bonus or reward records found. Click "🎁 Award Bonus / Reward" to record a festive or performance reward.';
+      } else if (typeFilter === 'ADVANCE') {
+        emptyMsg = '⚠️ No cash advances or draws recorded.';
+      } else if (typeFilter === 'PAYOUT') {
+        emptyMsg = '✅ No wage settlements recorded.';
+      }
+
       listEl.innerHTML = `
         <div class="loader-wrap">
-          <p>No advances or payments recorded yet. Click "+ Record Advance / Payment" when a worker takes a cash advance or wage draw.</p>
+          <p>${emptyMsg}</p>
         </div>
       `;
       return;
     }
 
-    listEl.innerHTML = this.payments.map(p => {
+    listEl.innerHTML = filtered.map(p => {
       let typeLabel = '💵 Wage Settlement';
       let amountClass = 'text-success';
       let sign = '';
@@ -103,6 +162,22 @@ const PaymentsModule = {
     const form = document.getElementById('paymentForm');
     form.reset();
     document.getElementById('paymentDate').value = API.getLocalDateString();
+    document.getElementById('paymentType').value = 'ADVANCE';
+    this.updateNotesPlaceholder('ADVANCE');
+
+    if (empId) {
+      document.getElementById('paymentWorkerSelect').value = empId;
+    }
+
+    App.openModal('paymentModal');
+  },
+
+  openBonusModal(empId = null) {
+    const form = document.getElementById('paymentForm');
+    form.reset();
+    document.getElementById('paymentDate').value = API.getLocalDateString();
+    document.getElementById('paymentType').value = 'BONUS';
+    this.updateNotesPlaceholder('BONUS');
 
     if (empId) {
       document.getElementById('paymentWorkerSelect').value = empId;
@@ -113,6 +188,10 @@ const PaymentsModule = {
 
   quickAdvance(empId, empName) {
     this.openPaymentModal(empId);
+  },
+
+  quickBonus(empId, empName) {
+    this.openBonusModal(empId);
   },
 
   async handleSavePayment() {

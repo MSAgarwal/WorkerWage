@@ -66,7 +66,7 @@
     </button>
     <button class="tab-btn" data-tab="tabPayments">
       <span class="tab-icon">💵</span>
-      <span class="tab-label">Advances</span>
+      <span class="tab-label">Payments</span>
     </button>
     <button class="tab-btn" data-tab="tabSettings">
       <span class="tab-icon">⚙️</span>
@@ -269,17 +269,28 @@
     <section id="tabPayments" class="tab-pane">
       <div class="pane-header">
         <div>
-          <h2>Advances & Payouts</h2>
-          <p class="text-muted">Track cash advances, weekly draws, and final wage settlements</p>
+          <h2>Advances, Payouts & Bonuses</h2>
+          <p class="text-muted">Track cash advances, weekly draws, wage settlements, and bonus rewards</p>
         </div>
-        <button id="btnOpenAddPayment" class="btn btn-primary">
-          <span>➕</span> Record Advance / Payment
-        </button>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button id="btnOpenAddBonus" class="btn btn-secondary" style="background: rgba(147, 51, 234, 0.08); color: #7e22ce; border-color: rgba(147, 51, 234, 0.25); font-weight: 600;">
+            <span>🎁</span> Award Bonus / Reward
+          </button>
+          <button id="btnOpenAddPayment" class="btn btn-primary">
+            <span>➕</span> Record Advance / Payment
+          </button>
+        </div>
       </div>
 
-      <div class="payments-filter-bar">
+      <div class="payments-filter-bar" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
         <select id="paymentWorkerFilter" class="select-input">
           <option value="">All Workers</option>
+        </select>
+        <select id="paymentTypeFilter" class="select-input">
+          <option value="">All Payment Types</option>
+          <option value="ADVANCE">⚠️ Advances Only</option>
+          <option value="PAYOUT">✅ Wage Settlements Only</option>
+          <option value="BONUS">🎁 Bonuses & Rewards Only</option>
         </select>
         <span class="text-muted" id="paymentsCountLabel">0 records</span>
       </div>
