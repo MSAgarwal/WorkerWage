@@ -5,6 +5,7 @@ const AttendanceModule = {
   records: [],
   activeFilter: 'ALL',
   searchQuery: '',
+  selectedDept: '',
 
   init() {
     this.bindEvents();
@@ -50,6 +51,14 @@ const AttendanceModule = {
       this.searchQuery = e.target.value.toLowerCase().trim();
       this.render();
     });
+
+    const deptFilter = document.getElementById('attendanceDeptFilter');
+    if (deptFilter) {
+      deptFilter.addEventListener('change', (e) => {
+        this.selectedDept = e.target.value;
+        this.render();
+      });
+    }
 
     // Filter pills
     document.querySelectorAll('.filter-pills .pill-btn').forEach(btn => {
@@ -159,12 +168,18 @@ const AttendanceModule = {
     const listEl = document.getElementById('attendanceList');
     let filtered = this.records;
 
+    // Apply department filter
+    if (this.selectedDept) {
+      filtered = filtered.filter(r => r.department === this.selectedDept);
+    }
+
     // Apply text search
     if (this.searchQuery) {
       filtered = filtered.filter(r => 
         (r.name && r.name.toLowerCase().includes(this.searchQuery)) ||
         (r.role && r.role.toLowerCase().includes(this.searchQuery)) ||
         (r.employee_code && r.employee_code.toLowerCase().includes(this.searchQuery)) ||
+        (r.department && r.department.toLowerCase().includes(this.searchQuery)) ||
         (r.work_category && r.work_category.toLowerCase().includes(this.searchQuery))
       );
     }

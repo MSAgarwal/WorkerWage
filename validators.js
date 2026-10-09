@@ -146,6 +146,20 @@ function validateEmployeeInput(body, isUpdate = false) {
     sanitized.notes = '';
   }
 
+  // Department (Multi-unit scaling)
+  if (body.department !== undefined) {
+    sanitized.department = sanitizeString(body.department, 100);
+  } else if (!isUpdate) {
+    sanitized.department = '';
+  }
+
+  // Branch (Multi-unit scaling)
+  if (body.branch !== undefined) {
+    sanitized.branch = sanitizeString(body.branch, 100);
+  } else if (!isUpdate) {
+    sanitized.branch = '';
+  }
+
   // Status (ACTIVE / INACTIVE)
   if (body.status !== undefined) {
     const st = String(body.status).trim().toUpperCase();

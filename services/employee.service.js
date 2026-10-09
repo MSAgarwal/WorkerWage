@@ -15,18 +15,42 @@ class EmployeeService {
   }
 
   /**
-   * Get all employees, optionally filtered by status
+   * Get all employees, optionally filtered by status, department, branch, search query, and pagination
    */
-  getEmployees(status) {
-    let query = 'SELECT * FROM employees';
+  getEmployees(status, filters = {}) {
+    let query = 'SELECT * FROM employees WHERE 1=1';
     const params = [];
 
     if (status && status !== 'ALL') {
-      query += ' WHERE status = ?';
+      query += ' AND status = ?';
       params.push(status);
     }
 
+    if (filters.department && String(filters.department).trim()) {
+      query += ' AND department = ?';
+      params.push(String(filters.department).trim());
+    }
+
+    if (filters.branch && String(filters.branch).trim()) {
+      query += ' AND branch = ?';
+      params.push(String(filters.branch).trim());
+    }
+
+    if (filters.search && String(filters.search).trim()) {
+      const s = `%${String(filters.search).trim()}%`;
+      query += ' AND (name LIKE ? OR employee_code LIKE ? OR phone LIKE ? OR role LIKE ? OR department LIKE ?)';
+      params.push(s, s, s, s, s);
+    }
+
     query += ' ORDER BY status ASC, name ASC';
+
+    if (filters.limit && parseInt(filters.limit, 10) > 0) {
+      const limit = parseInt(filters.limit, 10);
+      const offset = parseInt(filters.offset, 10) || 0;
+      query += ' LIMIT ? OFFSET ?';
+      params.push(limit, offset);
+    }
+
     const rows = db.prepare(query).all(...params);
     return rows.map(r => this._sanitizeEmployee(r));
   }
@@ -73,8 +97,8 @@ class EmployeeService {
         }
 
         const stmt = db.prepare(`
-          INSERT INTO employees (employee_code, name, phone, role, worker_type, daily_wage, default_ot_multiplier, default_box_rate, pin_hash, notes, status)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+          INSERT INTO employees (employee_code, name, phone, role, worker_type, daily_wage, default_ot_multiplier, default_box_rate, department, branch, pin_hash, notes, status)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
         `);
 
         const result = stmt.run(
@@ -86,6 +110,8 @@ class EmployeeService {
           data.daily_wage,
           data.default_ot_multiplier,
           data.default_box_rate,
+          data.department || '',
+          data.branch || '',
           pinHash,
           data.notes
         );
@@ -121,7 +147,7 @@ class EmployeeService {
 
     const stmt = db.prepare(`
       UPDATE employees
-      SET employee_code = ?, name = ?, phone = ?, role = ?, worker_type = ?, daily_wage = ?, default_ot_multiplier = ?, default_box_rate = ?, notes = ?, status = ?
+      SET employee_code = ?, name = ?, phone = ?, role = ?, worker_type = ?, daily_wage = ?, default_ot_multiplier = ?, default_box_rate = ?, department = ?, branch = ?, notes = ?, status = ?
       WHERE id = ?
     `);
 
@@ -134,6 +160,8 @@ class EmployeeService {
       data.daily_wage !== undefined ? data.daily_wage : existing.daily_wage,
       data.default_ot_multiplier !== undefined ? data.default_ot_multiplier : existing.default_ot_multiplier,
       data.default_box_rate !== undefined ? data.default_box_rate : existing.default_box_rate,
+      data.department !== undefined ? data.department : (existing.department || ''),
+      data.branch !== undefined ? data.branch : (existing.branch || ''),
       data.notes !== undefined ? data.notes : existing.notes,
       data.status !== undefined ? data.status : existing.status,
       id
@@ -179,6 +207,111 @@ class EmployeeService {
       db.prepare("UPDATE employees SET status = 'INACTIVE' WHERE id = ?").run(id);
       return { hardDeleted: false, message: `Worker "${existing.name}" deactivated successfully. All history is preserved.` };
     }
+  }
+
+  /**
+   * Get distinct departments across all workers for UI filtering
+   */
+  getDepartments() {
+    const rows = db.prepare("SELECT DISTINCT department FROM employees WHERE department IS NOT NULL AND TRIM(department) != '' ORDER BY department ASC").all();
+    return rows.map(r => r.department);
+  }
+
+  /**
+   * Get distinct branches across all workers for UI filtering
+   */
+  getBranches() {
+    const rows = db.prepare("SELECT DISTINCT branch FROM employees WHERE branch IS NOT NULL AND TRIM(branch) != '' ORDER BY branch ASC").all();
+    return rows.map(r => r.branch);
+  }
+
+  /**
+   * Export all workers to CSV format for external spreadsheet / HR integration
+   */
+  exportEmployeesCsv() {
+    const employees = db.prepare('SELECT * FROM employees ORDER BY status ASC, name ASC').all();
+    const headers = [
+      'Worker Code',
+      'Name',
+      'Phone',
+      'Role',
+      'Worker Type',
+      'Daily Wage',
+      'Box OT Rate',
+      'Department',
+      'Branch',
+      'Notes',
+      'Status'
+    ];
+
+    const escapeCsv = (val) => {
+      if (val === null || val === undefined) return '""';
+      const str = String(val).replace(/"/g, '""');
+      return `"${str}"`;
+    };
+
+    const rows = [headers.join(',')];
+    for (const emp of employees) {
+      rows.push([
+        escapeCsv(emp.employee_code),
+        escapeCsv(emp.name),
+        escapeCsv(emp.phone),
+        escapeCsv(emp.role),
+        escapeCsv(emp.worker_type),
+        emp.daily_wage,
+        emp.default_box_rate,
+        escapeCsv(emp.department || ''),
+        escapeCsv(emp.branch || ''),
+        escapeCsv(emp.notes || ''),
+        escapeCsv(emp.status)
+      ].join(','));
+    }
+
+    return rows.join('\r\n');
+  }
+
+  /**
+   * Bulk import workers from array of validated worker records inside an atomic transaction
+   */
+  bulkImportEmployees(records) {
+    const { withTransaction } = require('../db');
+    const { validateEmployeeInput } = require('../validators');
+
+    let created = 0;
+    let updated = 0;
+    const errors = [];
+
+    withTransaction(() => {
+      for (let i = 0; i < records.length; i++) {
+        const row = records[i];
+        const validation = validateEmployeeInput(row, false);
+        if (!validation.isValid) {
+          errors.push(`Row ${i + 1} (${row.name || 'unnamed'}): ${validation.errors.join('; ')}`);
+          continue;
+        }
+
+        const data = validation.sanitized;
+        let existing = null;
+        if (data.employee_code) {
+          existing = db.prepare('SELECT id FROM employees WHERE employee_code = ?').get(data.employee_code);
+        }
+
+        if (existing) {
+          this.updateEmployee(existing.id, data);
+          updated++;
+        } else {
+          this.createEmployee(data);
+          created++;
+        }
+      }
+    });
+
+    return {
+      total: records.length,
+      created,
+      updated,
+      errors
+    };
   }
 }
 

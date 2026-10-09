@@ -16,11 +16,12 @@ class AttendanceController {
   getAttendance(req, res, next) {
     try {
       const date = req.query.date || getLocalDateString();
+      const department = req.query.department || null;
       if (!isValidDate(date)) {
         return res.status(400).json({ error: 'Invalid date parameter. Date must be in YYYY-MM-DD format.' });
       }
 
-      const result = attendanceService.getAttendanceForDate(date);
+      const result = attendanceService.getAttendanceForDate(date, department);
       res.json({
         success: true,
         ...result

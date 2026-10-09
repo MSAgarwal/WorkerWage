@@ -8,7 +8,7 @@ class PayrollController {
    */
   getPayrollReport(req, res, next) {
     try {
-      const { startDate, endDate, employee_id } = req.query;
+      const { startDate, endDate, employee_id, department, branch } = req.query;
 
       if (startDate && !isValidDate(startDate)) {
         return res.status(400).json({ error: 'Invalid startDate parameter. Date must be in YYYY-MM-DD format.' });
@@ -28,7 +28,9 @@ class PayrollController {
       const report = payrollService.generatePayrollReport({
         startDate,
         endDate,
-        employee_id: empId
+        employee_id: empId,
+        department,
+        branch
       });
 
       res.json({
@@ -46,7 +48,7 @@ class PayrollController {
    */
   exportCsv(req, res, next) {
     try {
-      const { startDate, endDate } = req.query;
+      const { startDate, endDate, employee_id, department, branch } = req.query;
 
       if (startDate && !isValidDate(startDate)) {
         return res.status(400).json({ error: 'Invalid startDate parameter. Date must be in YYYY-MM-DD format.' });
@@ -55,7 +57,21 @@ class PayrollController {
         return res.status(400).json({ error: 'Invalid endDate parameter. Date must be in YYYY-MM-DD format.' });
       }
 
-      const { filename, content } = payrollService.generateCsvReport({ startDate, endDate });
+      let empId = null;
+      if (employee_id) {
+        empId = parseInt(employee_id, 10);
+        if (isNaN(empId) || empId <= 0) {
+          return res.status(400).json({ error: 'Invalid employee_id parameter' });
+        }
+      }
+
+      const { filename, content } = payrollService.generateCsvReport({
+        startDate,
+        endDate,
+        employee_id: empId,
+        department,
+        branch
+      });
 
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

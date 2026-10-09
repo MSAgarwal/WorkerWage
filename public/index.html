@@ -139,6 +139,9 @@
           <span class="search-icon">🔍</span>
           <input type="text" id="attendanceSearch" placeholder="Search worker or role...">
         </div>
+        <select id="attendanceDeptFilter" class="select-filter" style="padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-size: 0.9rem; font-weight: 500; min-width: 150px;">
+          <option value="">All Departments</option>
+        </select>
         <div class="filter-pills">
           <button class="pill-btn active" data-filter="ALL">All (<span id="countAll">0</span>)</button>
           <button class="pill-btn" data-filter="UNMARKED">Unmarked (<span id="countUnmarked">0</span>)</button>
@@ -163,16 +166,26 @@
       <div class="pane-header">
         <div>
           <h2>Daily Wage Workers</h2>
-          <p class="text-muted">Manage workforce, daily wage rates, and overtime rates</p>
+          <p class="text-muted">Manage workforce, daily wage rates, and departmental assignments</p>
         </div>
-        <button id="btnOpenAddWorker" class="btn btn-primary">
-          <span>➕</span> Add Worker
-        </button>
+        <div class="header-actions" style="display: flex; gap: 8px; align-items: center;">
+          <a href="/api/employees/export-csv" class="btn btn-secondary btn-sm" download="workers.csv" title="Export all workers as CSV">
+            <span>📥</span> Export CSV
+          </a>
+          <button id="btnOpenAddWorker" class="btn btn-primary">
+            <span>➕</span> Add Worker
+          </button>
+        </div>
       </div>
 
-      <div class="search-input-wrap mb-3">
-        <span class="search-icon">🔍</span>
-        <input type="text" id="workerSearch" placeholder="Search by name, role, phone...">
+      <div class="search-filter-row mb-3" style="display: flex; gap: 10px; flex-wrap: wrap;">
+        <div class="search-input-wrap" style="flex: 1; min-width: 220px;">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="workerSearch" placeholder="Search by name, role, department, phone...">
+        </div>
+        <select id="workerDeptFilter" class="select-filter" style="padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-size: 0.9rem; font-weight: 500; min-width: 160px;">
+          <option value="">All Departments</option>
+        </select>
       </div>
 
       <div id="workersList" class="workers-grid">
@@ -207,6 +220,9 @@
           <button class="range-btn" data-range="last-month">Last Month</button>
           <button class="range-btn" data-range="custom">Custom</button>
         </div>
+        <select id="payrollDeptFilter" class="select-filter" style="padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-size: 0.85rem; font-weight: 500;">
+          <option value="">All Departments</option>
+        </select>
         <div class="custom-range-inputs" id="customRangeWrap" style="display: none;">
           <input type="date" id="payrollStart" class="date-input-sm">
           <span>to</span>
@@ -860,6 +876,16 @@
             <div class="form-group flex-1">
               <label>Phone Number</label>
               <input type="tel" id="workerPhone" placeholder="Mobile number">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label>Department / Unit</label>
+              <input type="text" id="workerDepartment" placeholder="e.g. Packaging, Assembly, Logistics">
+            </div>
+            <div class="form-group flex-1">
+              <label>Branch / Plant</label>
+              <input type="text" id="workerBranch" placeholder="e.g. Main Plant, Unit 2, Warehouse">
             </div>
           </div>
           <div class="form-row">

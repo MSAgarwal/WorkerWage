@@ -168,19 +168,30 @@ class PayrollService {
   /**
    * Generate comprehensive payroll report for date range and optional worker filter
    */
-  generatePayrollReport({ startDate, endDate, employee_id }) {
+  generatePayrollReport({ startDate, endDate, employee_id, department, branch }) {
     const { start, end } = this._resolveDateRange(startDate, endDate);
 
-    let empQuery = 'SELECT * FROM employees';
+    let empQuery = 'SELECT * FROM employees WHERE 1=1';
     const empParams = [];
     if (employee_id) {
-      empQuery += ' WHERE id = ?';
+      empQuery += ' AND id = ?';
       empParams.push(employee_id);
     } else {
-      empQuery += ' WHERE status = ? ORDER BY name ASC';
+      empQuery += ' AND status = ?';
       empParams.push('ACTIVE');
     }
 
+    if (department && String(department).trim()) {
+      empQuery += ' AND department = ?';
+      empParams.push(String(department).trim());
+    }
+
+    if (branch && String(branch).trim()) {
+      empQuery += ' AND branch = ?';
+      empParams.push(String(branch).trim());
+    }
+
+    empQuery += ' ORDER BY name ASC';
     const workers = db.prepare(empQuery).all(...empParams);
 
     // Batch query optimization: Fetch all attendance & payments in a single query
@@ -292,8 +303,8 @@ class PayrollService {
   /**
    * Generate CSV content for payroll export using the exact same calculation engine
    */
-  generateCsvReport({ startDate, endDate }) {
-    const reportData = this.generatePayrollReport({ startDate, endDate });
+  generateCsvReport({ startDate, endDate, employee_id, department, branch }) {
+    const reportData = this.generatePayrollReport({ startDate, endDate, employee_id, department, branch });
     const rows = [];
 
     // Header Row

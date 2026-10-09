@@ -72,11 +72,20 @@ class AttendanceService {
   }
 
   /**
-   * Get attendance list for a specific date (merged with all active employees)
+   * Get attendance list for a specific date (merged with all active employees, optionally filtered by department)
    */
-  getAttendanceForDate(date) {
+  getAttendanceForDate(date, department = null) {
     const meta = this.getDateMeta(date);
-    const activeWorkers = db.prepare("SELECT * FROM employees WHERE status = 'ACTIVE' ORDER BY name ASC").all();
+    let workerQuery = "SELECT * FROM employees WHERE status = 'ACTIVE'";
+    const workerParams = [];
+
+    if (department && String(department).trim()) {
+      workerQuery += " AND department = ?";
+      workerParams.push(String(department).trim());
+    }
+
+    workerQuery += " ORDER BY name ASC";
+    const activeWorkers = db.prepare(workerQuery).all(...workerParams);
     const existingAttendance = db.prepare('SELECT * FROM attendance WHERE date = ?').all(date);
 
     const attMap = {};

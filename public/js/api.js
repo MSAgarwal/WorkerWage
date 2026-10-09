@@ -265,8 +265,10 @@ const API = {
   },
 
   // Attendance APIs
-  async getAttendance(date) {
-    return this.request(`/api/attendance?date=${date}`);
+  async getAttendance(date, department = '') {
+    let url = `/api/attendance?date=${date}`;
+    if (department) url += `&department=${encodeURIComponent(department)}`;
+    return this.request(url);
   },
 
   async markAttendance(record) {
@@ -295,11 +297,12 @@ const API = {
   },
 
   // Reports
-  async getPayrollReport(startDate = '', endDate = '', employeeId = '') {
+  async getPayrollReport(startDate = '', endDate = '', employeeId = '', department = '') {
     let url = '/api/reports/payroll?';
     if (startDate) url += `startDate=${startDate}&`;
     if (endDate) url += `endDate=${endDate}&`;
     if (employeeId) url += `employee_id=${employeeId}&`;
+    if (department) url += `department=${encodeURIComponent(department)}&`;
     return this.request(url);
   },
 

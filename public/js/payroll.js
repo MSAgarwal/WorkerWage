@@ -2,6 +2,7 @@
 const PayrollModule = {
   startDate: '',
   endDate: '',
+  selectedDept: '',
   reportData: null,
 
   init() {
@@ -19,6 +20,14 @@ const PayrollModule = {
       });
     });
 
+    const deptFilter = document.getElementById('payrollDeptFilter');
+    if (deptFilter) {
+      deptFilter.addEventListener('change', (e) => {
+        this.selectedDept = e.target.value;
+        this.loadReport();
+      });
+    }
+
     const btnApplyCustom = document.getElementById('btnApplyPayrollFilter');
     btnApplyCustom.addEventListener('click', () => {
       const s = document.getElementById('payrollStart').value;
@@ -32,7 +41,11 @@ const PayrollModule = {
 
     // Export CSV
     document.getElementById('btnExportCsv').addEventListener('click', () => {
-      window.location.href = `/api/reports/export-csv?startDate=${this.startDate}&endDate=${this.endDate}`;
+      let exportUrl = `/api/reports/export-csv?startDate=${this.startDate}&endDate=${this.endDate}`;
+      if (this.selectedDept) {
+        exportUrl += `&department=${encodeURIComponent(this.selectedDept)}`;
+      }
+      window.location.href = exportUrl;
     });
 
     // Print
@@ -81,7 +94,7 @@ const PayrollModule = {
     tbody.innerHTML = '<tr><td colspan="13" class="text-center"><div class="spinner" style="margin: 20px auto;"></div>Calculating wages...</td></tr>';
 
     try {
-      const res = await API.getPayrollReport(this.startDate, this.endDate);
+      const res = await API.getPayrollReport(this.startDate, this.endDate, '', this.selectedDept);
       if (res.success) {
         this.reportData = res;
         this.renderGrandCards(res.grandTotals);

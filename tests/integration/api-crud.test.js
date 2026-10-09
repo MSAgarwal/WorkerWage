@@ -334,6 +334,48 @@ describe('CRUD API & Business Workflow Integration Tests', () => {
     assert.equal(workerReport.bonusTotal >= 1000, true);
   });
 
+  it('GET /api/employees/departments, branches, and CSV export succeed', async () => {
+    await apiRequest(`/api/employees/${testWorkerId}`, 'PUT', {
+      name: 'Int Test Worker',
+      department: 'Packaging Dept',
+      branch: 'Main Factory'
+    }, authHeaders);
+
+    const deptRes = await apiRequest('/api/employees/departments', 'GET', null, authHeaders);
+    assert.equal(deptRes.status, 200);
+    assert.ok(Array.isArray(deptRes.body.departments));
+    assert.ok(deptRes.body.departments.includes('Packaging Dept'));
+
+    const branchRes = await apiRequest('/api/employees/branches', 'GET', null, authHeaders);
+    assert.equal(branchRes.status, 200);
+    assert.ok(Array.isArray(branchRes.body.branches));
+    assert.ok(branchRes.body.branches.includes('Main Factory'));
+
+    const filterRes = await apiRequest('/api/employees?department=Packaging%20Dept', 'GET', null, authHeaders);
+    assert.equal(filterRes.status, 200);
+    assert.ok(filterRes.body.employees.some(e => e.id === testWorkerId));
+
+    const csvRes = await apiRequest('/api/employees/export-csv', 'GET', null, authHeaders);
+    assert.equal(csvRes.status, 200);
+    assert.ok(csvRes.headers['content-type'].includes('text/csv'));
+    assert.ok(String(csvRes.body).includes('Worker Code,Name,Phone'));
+  });
+
+  it('POST /api/employees/bulk-import imports multiple workers atomically', async () => {
+    const bulkData = {
+      employees: [
+        { name: 'Bulk Worker 1', employee_code: 'BULK-001', daily_wage: 650, department: 'Assembly' },
+        { name: 'Bulk Worker 2', employee_code: 'BULK-002', daily_wage: 700, department: 'Assembly' }
+      ]
+    };
+    const res = await apiRequest('/api/employees/bulk-import', 'POST', bulkData, authHeaders);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.success, true);
+    assert.equal(res.body.created, 2);
+
+    db.prepare("DELETE FROM employees WHERE employee_code IN ('BULK-001', 'BULK-002')").run();
+  });
+
   it('DELETE nonexistent records returns 404', async () => {
     const resWorker = await apiRequest('/api/employees/999999', 'DELETE', null, authHeaders);
     assert.equal(resWorker.status, 404);

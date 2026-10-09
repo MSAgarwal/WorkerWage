@@ -6,6 +6,8 @@
     "start": "node server.js",
     "test": "node scripts/test-runner.js",
     "backup": "node scripts/backup.js",
+    "restore": "node scripts/restore.js",
+    "benchmark": "node scripts/benchmark.js",
     "pm2:start": "pm2 start ecosystem.config.js",
     "pm2:stop": "pm2 stop ecosystem.config.js",
     "pm2:restart": "pm2 restart ecosystem.config.js",

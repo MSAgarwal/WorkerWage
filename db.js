@@ -31,10 +31,16 @@ function hasColumn(tableName, columnName) {
   }
 }
 
+let inTransaction = false;
+
 /**
- * Database Transaction Helper (Atomic execution of multi-statement operations)
+ * Database Transaction Helper (Atomic execution of multi-statement operations, supports nested reentrancy)
  */
 function withTransaction(fn) {
+  if (inTransaction) {
+    return fn();
+  }
+  inTransaction = true;
   db.exec('BEGIN TRANSACTION;');
   try {
     const result = fn();
@@ -47,6 +53,8 @@ function withTransaction(fn) {
       // rollback error if already rolled back
     }
     throw err;
+  } finally {
+    inTransaction = false;
   }
 }
 

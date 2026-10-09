@@ -2,6 +2,7 @@
 const EmployeesModule = {
   workers: [],
   searchQuery: '',
+  selectedDept: '',
 
   init() {
     this.bindEvents();
@@ -12,6 +13,7 @@ const EmployeesModule = {
     const btnAdd = document.getElementById('btnOpenAddWorker');
     const workerForm = document.getElementById('workerForm');
     const searchInput = document.getElementById('workerSearch');
+    const deptFilter = document.getElementById('workerDeptFilter');
 
     btnAdd.addEventListener('click', () => {
       this.openWorkerModal();
@@ -26,6 +28,13 @@ const EmployeesModule = {
       this.searchQuery = e.target.value.toLowerCase().trim();
       this.render();
     });
+
+    if (deptFilter) {
+      deptFilter.addEventListener('change', (e) => {
+        this.selectedDept = e.target.value;
+        this.render();
+      });
+    }
 
     // Toggle Worker Type in modal
     document.querySelectorAll('input[name="workerType"]').forEach(r => {
@@ -67,6 +76,7 @@ const EmployeesModule = {
       const res = await API.getEmployees('ALL');
       if (res.success) {
         this.workers = res.employees || [];
+        this.populateDepartmentDropdowns();
         this.render();
         this.updatePaymentWorkerDropdown();
       }
@@ -75,15 +85,37 @@ const EmployeesModule = {
     }
   },
 
+  populateDepartmentDropdowns() {
+    const depts = Array.from(new Set(this.workers.map(w => w.department).filter(Boolean))).sort();
+    const dropdownIds = ['workerDeptFilter', 'attendanceDeptFilter', 'payrollDeptFilter'];
+
+    dropdownIds.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const currentVal = el.value;
+      let html = '<option value="">All Departments</option>';
+      depts.forEach(d => {
+        html += `<option value="${this.escapeHtml(d)}" ${d === currentVal ? 'selected' : ''}>🏢 ${this.escapeHtml(d)}</option>`;
+      });
+      el.innerHTML = html;
+    });
+  },
+
   render() {
     const container = document.getElementById('workersList');
     let filtered = this.workers;
+
+    if (this.selectedDept) {
+      filtered = filtered.filter(w => w.department === this.selectedDept);
+    }
 
     if (this.searchQuery) {
       filtered = filtered.filter(w =>
         (w.name && w.name.toLowerCase().includes(this.searchQuery)) ||
         (w.role && w.role.toLowerCase().includes(this.searchQuery)) ||
         (w.employee_code && w.employee_code.toLowerCase().includes(this.searchQuery)) ||
+        (w.department && w.department.toLowerCase().includes(this.searchQuery)) ||
+        (w.branch && w.branch.toLowerCase().includes(this.searchQuery)) ||
         (w.phone && w.phone.includes(this.searchQuery))
       );
     }
@@ -91,7 +123,7 @@ const EmployeesModule = {
     if (filtered.length === 0) {
       container.innerHTML = `
         <div class="loader-wrap" style="grid-column: 1 / -1;">
-          <p>No workers found. Click "+ Add Worker" to add your workforce.</p>
+          <p>No workers found matching the selected filters. Click "+ Add Worker" to add your workforce.</p>
         </div>
       `;
       return;
@@ -121,6 +153,7 @@ const EmployeesModule = {
             <div class="text-sm text-muted mb-2">
               <strong>${this.escapeHtml(w.role || (isManager ? 'Manager' : 'Packaging Worker'))}</strong>
               <span class="text-xs text-muted">(${this.escapeHtml(w.employee_code || '')})</span>
+              ${w.department ? ` • <span class="badge-dept">🏢 ${this.escapeHtml(w.department)}${w.branch ? ` / ${this.escapeHtml(w.branch)}` : ''}</span>` : ''}
               ${w.phone ? ` • 📞 ${this.escapeHtml(w.phone)}` : ''}
             </div>
 
@@ -183,6 +216,11 @@ const EmployeesModule = {
       document.getElementById('workerStatus').value = worker.status || 'ACTIVE';
       document.getElementById('workerNotes').value = worker.notes || '';
 
+      const deptInput = document.getElementById('workerDepartment');
+      const branchInput = document.getElementById('workerBranch');
+      if (deptInput) deptInput.value = worker.department || '';
+      if (branchInput) branchInput.value = worker.branch || '';
+
       const pinInput = document.getElementById('workerPin');
       if (pinInput) {
         pinInput.value = '';
@@ -206,6 +244,11 @@ const EmployeesModule = {
       document.getElementById('workerDefaultBoxRate').value = API.defaultBoxRate || 30;
       document.getElementById('workerStatus').value = 'ACTIVE';
 
+      const deptInput = document.getElementById('workerDepartment');
+      const branchInput = document.getElementById('workerBranch');
+      if (deptInput) deptInput.value = '';
+      if (branchInput) branchInput.value = '';
+
       const pinInput = document.getElementById('workerPin');
       if (pinInput) {
         pinInput.value = '12345';
@@ -228,6 +271,8 @@ const EmployeesModule = {
     const role = document.getElementById('workerRole').value.trim();
     let defaultBoxRate = parseFloat(document.getElementById('workerDefaultBoxRate').value);
     if (isNaN(defaultBoxRate) || defaultBoxRate < 0) defaultBoxRate = 30.0;
+    const department = document.getElementById('workerDepartment') ? document.getElementById('workerDepartment').value.trim() : '';
+    const branch = document.getElementById('workerBranch') ? document.getElementById('workerBranch').value.trim() : '';
     const phone = document.getElementById('workerPhone').value.trim();
     const status = document.getElementById('workerStatus').value;
     const pin = document.getElementById('workerPin') ? document.getElementById('workerPin').value.trim() : '';
@@ -251,6 +296,8 @@ const EmployeesModule = {
       role: role || (workerType === 'MANAGER' ? 'Manager' : 'Packaging Worker'),
       default_box_rate: defaultBoxRate,
       default_ot_multiplier: 0.0,
+      department,
+      branch,
       phone,
       status,
       notes
