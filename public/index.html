@@ -27,7 +27,7 @@
       </div>
     </div>
     <div class="nav-actions">
-      <button id="btnInstallPwa" class="btn-chip" title="Install App to Home Screen" style="display: none; background: #ecfdf5; color: #047857; border-color: #a7f3d0; font-weight: 700;">
+      <button id="btnInstallPwa" class="btn-chip btn-install-pwa" title="Install App to Home Screen" style="display: none;">
         <span>📲</span> <span class="hide-mobile">Install App</span>
       </button>
       <button id="btnManageHolidays" class="btn-chip btn-holiday-chip" title="Manage Paid Holidays">
@@ -276,7 +276,7 @@
           <p class="text-muted">Track cash advances, weekly draws, wage settlements, and bonus rewards</p>
         </div>
         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-          <button id="btnOpenAddBonus" class="btn btn-secondary" style="background: rgba(147, 51, 234, 0.08); color: #7e22ce; border-color: rgba(147, 51, 234, 0.25); font-weight: 600;">
+          <button id="btnOpenAddBonus" class="btn btn-secondary btn-bonus-header">
             <span>🎁</span> Award Bonus / Reward
           </button>
           <button id="btnOpenAddPayment" class="btn btn-primary">
@@ -484,7 +484,7 @@
         <div class="settings-card">
           <h3>🔑 Worker Passbook & Privacy Key Policy</h3>
           <p class="text-muted text-sm mb-3">Every worker has a confidential 5+ digit secret key to access their own passbook, wage slip, and attendance records on mobile. This guarantees zero peer snooping.</p>
-          <div class="worker-security-info-box" style="background: var(--bg-hover, #f8fafc); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; font-size: 0.85rem; line-height: 1.6;">
+          <div class="worker-security-info-box">
             <div>• <strong>Default Password:</strong> <code>12345</code> is automatically assigned to new or existing workers unless customized.</div>
             <div>• <strong>Worker Self-Service:</strong> Workers can change their password directly inside their mobile passbook using the <em>🔑 Change Key</em> option.</div>
             <div>• <strong>Admin Override:</strong> If a worker forgets their secret key, employer/admin can reset it anytime by editing the worker profile in the <strong>Workers</strong> tab.</div>

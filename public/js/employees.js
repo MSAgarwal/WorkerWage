@@ -103,7 +103,7 @@ const EmployeesModule = {
       const boxRate = w.default_box_rate !== undefined && w.default_box_rate !== null ? w.default_box_rate : 30;
 
       return `
-        <div class="emp-card ${isActive ? '' : 'inactive'}" style="${!isActive ? 'opacity: 0.6; background: #f8fafc;' : ''}">
+        <div class="emp-card ${isActive ? '' : 'inactive'}">
           <div>
             <div class="emp-header">
               <div>

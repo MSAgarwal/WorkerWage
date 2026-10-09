@@ -283,7 +283,7 @@ const AttendanceModule = {
         if (!isHolidayWork) {
           otControlsHtml = `
             ${categoryDropdownHtml}
-            <div class="holiday-off-box" style="background: rgba(14, 165, 233, 0.08); border: 1px solid rgba(14, 165, 233, 0.2); border-radius: 8px; padding: 8px 12px; margin-top: 10px; font-size: 0.82rem; color: #0369a1;">
+            <div class="holiday-off-box">
               <span>🌴 Paid Day Off: Full day's wage credited (₹0 Overtime)</span>
             </div>
             <div class="ot-calc-preview mt-2" id="ot-preview-${r.employee_id}">
@@ -295,12 +295,12 @@ const AttendanceModule = {
         } else if (isPiece) {
           otControlsHtml = `
             ${categoryDropdownHtml}
-            <div class="holiday-ot-active-box" style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; padding: 10px 14px; margin-top: 10px; display: flex; justify-content: space-between; align-items: center;">
+            <div class="holiday-ot-active-box">
               <div>
-                <div style="font-weight: 600; color: #047857; font-size: 0.88rem;">🎉 ${this.escapeHtml(currentCat || 'Cards & Bangles')} (Holiday Work)</div>
-                <div style="font-size: 0.78rem; color: #065f46;">Fixed Overtime Wage: <strong>+${API.formatMoney(pieceHolidayBonus)}</strong> added to full day wage</div>
+                <div class="holiday-ot-title">🎉 ${this.escapeHtml(currentCat || 'Cards & Bangles')} (Holiday Work)</div>
+                <div class="holiday-ot-desc">Fixed Overtime Wage: <strong>+${API.formatMoney(pieceHolidayBonus)}</strong> added to full day wage</div>
               </div>
-              <div style="background: #10b981; color: white; font-weight: 700; font-size: 0.82rem; padding: 4px 10px; border-radius: 6px;">
+              <div class="holiday-ot-badge">
                 +${API.formatMoney(pieceHolidayBonus)} OT
               </div>
             </div>
@@ -361,13 +361,13 @@ const AttendanceModule = {
         if (isPiece) {
           otControlsHtml = `
             ${categoryDropdownHtml}
-            <div class="piece-disabled-box" style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 10px 14px; margin-top: 8px; text-align: center;">
-              <div style="font-weight: 600; color: #475569; font-size: 0.84rem;">🃏 ${this.escapeHtml(currentCat)}</div>
-              <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px;">Overtime is currently disabled for Cards and Bangles on normal days</div>
+            <div class="piece-disabled-box">
+              <div class="piece-disabled-title">🃏 ${this.escapeHtml(currentCat)}</div>
+              <div class="piece-disabled-desc">Overtime is currently disabled for Cards and Bangles on normal days</div>
             </div>
             <div class="ot-calc-preview mt-2" id="ot-preview-${r.employee_id}">
               <span>Base: ${API.formatMoney(basePayDisplay)}</span>
-              <span>OT: <strong style="color: #64748b;">₹0 (Disabled)</strong></span>
+              <span>OT: <strong class="text-muted">₹0 (Disabled)</strong></span>
             </div>
             <input type="text" class="notes-input-mini mt-2" placeholder="Notes (e.g. Card batch completed)..." value="${this.escapeHtml(r.notes || '')}" data-emp-id="${r.employee_id}" id="notes-${r.employee_id}">
           `;
@@ -433,11 +433,11 @@ const AttendanceModule = {
         </button>
         <div class="daily-adj-inputs" id="adj-inputs-${r.employee_id}" style="display: ${hasAdj ? 'grid' : 'none'};">
           <div class="adj-field">
-            <label style="color: #10b981;">🎁 +Bonus / Allowance (₹)</label>
+            <label class="label-bonus">🎁 +Bonus / Allowance (₹)</label>
             <input type="number" min="0" step="any" class="adj-input adj-bonus" placeholder="0" value="${bonusVal > 0 ? bonusVal : ''}" data-emp-id="${r.employee_id}" id="adj-bonus-${r.employee_id}">
           </div>
           <div class="adj-field">
-            <label style="color: #ef4444;">⚠️ -Deduction / Fine (₹)</label>
+            <label class="label-deduct">⚠️ -Deduction / Fine (₹)</label>
             <input type="number" min="0" step="any" class="adj-input adj-deduct" placeholder="0" value="${deductVal > 0 ? deductVal : ''}" data-emp-id="${r.employee_id}" id="adj-deduct-${r.employee_id}">
           </div>
         </div>
@@ -971,7 +971,7 @@ const AttendanceModule = {
         } else {
           otPreviewEl.innerHTML = `
             <span>Base: ${API.formatMoney(basePay)}</span>
-            <span>OT: <strong style="color: #64748b;">₹0 (Disabled)</strong></span>
+            <span>OT: <strong class="text-muted">₹0 (Disabled)</strong></span>
           `;
         }
       } else {

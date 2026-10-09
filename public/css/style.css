@@ -51,8 +51,8 @@
   --bg-card: #151d2a;
   --bg-elevated: #1e2838;
   --text-main: #f8fafc;
-  --text-muted: #94a3b8;
-  --text-sub: #64748b;
+  --text-muted: #cbd5e1;
+  --text-sub: #94a3b8;
   --border: #232f42;
   --border-focus: #60a5fa;
 
@@ -68,6 +68,17 @@
   background-color: #182232;
   color: #f8fafc;
   border-color: #2a384e;
+}
+
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder {
+  color: #64748b;
+  opacity: 1;
+}
+
+[data-theme="dark"] select option {
+  background-color: #151d2a;
+  color: #f8fafc;
 }
 
 [data-theme="dark"] input:focus,
@@ -312,6 +323,10 @@
   background: #253347;
 }
 
+[data-theme="dark"] .box-rate-tag {
+  color: #c084fc;
+}
+
 [data-theme="dark"] .overtime-panel {
   background: #111827;
   border-color: var(--border);
@@ -554,9 +569,126 @@
   border-color: rgba(16, 185, 129, 0.3);
 }
 
+[data-theme="dark"] .text-primary { color: #60a5fa; }
 [data-theme="dark"] .text-success { color: #34d399; }
 [data-theme="dark"] .text-amber { color: #fbbf24; }
 [data-theme="dark"] .text-rose { color: #fb7185; }
+[data-theme="dark"] .text-purple { color: #c084fc; }
+[data-theme="dark"] .text-info { color: #38bdf8; }
+
+[data-theme="dark"] .stat-pill.paid-leave .stat-num { color: #38bdf8; }
+
+/* Holiday Off & Piece Overtime Boxes */
+[data-theme="dark"] .holiday-off-box {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.25);
+  color: #38bdf8;
+}
+
+[data-theme="dark"] .holiday-ot-active-box {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+[data-theme="dark"] .holiday-ot-title {
+  color: #34d399;
+}
+
+[data-theme="dark"] .holiday-ot-desc {
+  color: #a7f3d0;
+}
+
+[data-theme="dark"] .holiday-ot-badge {
+  background: #059669;
+  color: #ffffff;
+}
+
+[data-theme="dark"] .piece-disabled-box {
+  background: #111827;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .piece-disabled-title {
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .piece-disabled-desc {
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .label-bonus { color: #34d399; }
+[data-theme="dark"] .label-deduct { color: #fb7185; }
+
+/* Custom Action Buttons */
+[data-theme="dark"] .btn-install-pwa {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+[data-theme="dark"] .btn-install-pwa:hover {
+  background: rgba(16, 185, 129, 0.25);
+}
+
+[data-theme="dark"] .btn-bonus-header {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border-color: rgba(168, 85, 247, 0.3);
+}
+
+[data-theme="dark"] .btn-bonus-header:hover {
+  background: rgba(168, 85, 247, 0.25);
+}
+
+[data-theme="dark"] .btn-bonus-chip {
+  color: #c084fc !important;
+}
+
+/* Badges & Tables in Dark Mode */
+[data-theme="dark"] .badge-cat {
+  background: rgba(99, 102, 241, 0.15);
+  color: #c7d2fe;
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+[data-theme="dark"] .badge-holiday-work {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+[data-theme="dark"] .paid-leave-count {
+  color: #38bdf8;
+}
+
+[data-theme="dark"] .cat-summary-text {
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .payment-item {
+  background: var(--bg-card);
+  border-color: var(--border);
+}
+
+[data-theme="dark"] .payment-amount.text-rose { color: #fb7185; }
+[data-theme="dark"] .payment-amount.text-success { color: #34d399; }
+[data-theme="dark"] .payment-amount.text-purple { color: #c084fc; }
+
+[data-theme="dark"] .emp-card.inactive {
+  opacity: 0.55;
+  background: #111827;
+  border-color: #232f42;
+}
+
+[data-theme="dark"] .worker-security-info-box {
+  background: #111827;
+  border-color: var(--border);
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .wp-divider {
+  color: #475569;
+}
 
 [data-theme="dark"] .payroll-table th {
   background-color: #111827;
@@ -1850,6 +1982,151 @@ body {
 .text-success { color: #059669; }
 .text-amber { color: #d97706; }
 .text-rose { color: #e11d48; }
+.text-purple { color: #7c3aed; }
+.text-info { color: #0284c7; }
+
+/* Holiday Off & Piece Overtime Boxes */
+.holiday-off-box {
+  background: rgba(14, 165, 233, 0.08);
+  border: 1px solid rgba(14, 165, 233, 0.2);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  margin-top: 10px;
+  font-size: 0.82rem;
+  color: #0369a1;
+  font-weight: 600;
+}
+
+.holiday-ot-active-box {
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  margin-top: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.holiday-ot-title {
+  font-weight: 700;
+  color: #047857;
+  font-size: 0.88rem;
+}
+
+.holiday-ot-desc {
+  font-size: 0.78rem;
+  color: #065f46;
+  margin-top: 2px;
+}
+
+.holiday-ot-badge {
+  background: #10b981;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.82rem;
+  padding: 4px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.piece-disabled-box {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  margin-top: 8px;
+  text-align: center;
+}
+
+.piece-disabled-title {
+  font-weight: 700;
+  color: #334155;
+  font-size: 0.84rem;
+}
+
+.piece-disabled-desc {
+  font-size: 0.78rem;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.label-bonus {
+  color: #10b981;
+  font-weight: 700;
+}
+
+.label-deduct {
+  color: #ef4444;
+  font-weight: 700;
+}
+
+/* Custom Action Buttons */
+.btn-install-pwa {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+  font-weight: 700;
+}
+
+.btn-install-pwa:hover {
+  background: #d1fae5;
+}
+
+.btn-bonus-header {
+  background: rgba(147, 51, 234, 0.08);
+  color: #7e22ce;
+  border-color: rgba(147, 51, 234, 0.25);
+  font-weight: 600;
+}
+
+.btn-bonus-header:hover {
+  background: rgba(147, 51, 234, 0.15);
+}
+
+.btn-bonus-chip {
+  color: #7e22ce !important;
+  font-weight: 700;
+}
+
+/* Badges & Text Helpers */
+.badge-cat {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+.badge-holiday-work {
+  background: #dcfce7;
+  color: #166534;
+  font-size: 0.72rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  border: 1px solid #bbf7d0;
+}
+
+.paid-leave-count {
+  font-weight: 700;
+  color: #0284c7;
+}
+
+.cat-summary-text {
+  color: #475569;
+  font-weight: 500;
+}
+
+.emp-card.inactive {
+  opacity: 0.65;
+  background: #f8fafc;
+}
 
 /* Table Container */
 .table-container {
@@ -1924,8 +2201,12 @@ body {
   font-size: 1.1rem;
   font-weight: 800;
   font-family: var(--font-mono);
-  color: #e11d48;
+  color: var(--text-main);
 }
+
+.payment-amount.text-rose { color: #e11d48; }
+.payment-amount.text-success { color: #059669; }
+.payment-amount.text-purple { color: #7c3aed; }
 
 /* ========================================================= */
 /* Settings Layout                                           */
@@ -2029,6 +2310,11 @@ body {
   font-size: 1.5rem;
   color: var(--text-muted);
   cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.modal-close:hover {
+  color: var(--text-main);
 }
 
 .modal-body {

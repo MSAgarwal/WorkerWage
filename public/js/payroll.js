@@ -146,7 +146,7 @@ const PayrollModule = {
       } else {
         const parts = [];
         if (w.holidayWorkDays > 0) {
-          parts.push(`<div><span class="badge" style="background:#dcfce7;color:#166534;font-size:0.72rem;padding:2px 6px;border-radius:4px;font-weight:600;">🎉 ${w.holidayWorkDays}d Hol (+${API.formatMoney(w.holidayWorkDays * 200)})</span></div>`);
+          parts.push(`<div><span class="badge badge-holiday-work">🎉 ${w.holidayWorkDays}d Hol (+${API.formatMoney(w.holidayWorkDays * 200)})</span></div>`);
         }
         if (w.totalExtraPieces > 0) {
           parts.push(`<div><strong>${w.totalExtraPieces.toLocaleString()} pcs</strong> <span class="text-xs text-muted">(${(w.totalExtraPieces / 500).toFixed(1).replace('.0', '')} eq)</span></div>`);
@@ -167,7 +167,7 @@ const PayrollModule = {
       if (isManager) {
         catCol = '<span class="text-muted text-xs">Exempt</span>';
       } else if (w.categoriesSummary && w.categoriesSummary !== '-') {
-        catCol = `<span class="text-xs" style="color: #475569; font-weight: 500;">${this.escapeHtml(w.categoriesSummary)}</span>`;
+        catCol = `<span class="text-xs cat-summary-text">${this.escapeHtml(w.categoriesSummary)}</span>`;
       }
 
       return `
@@ -185,7 +185,7 @@ const PayrollModule = {
             <div class="text-xs text-muted">P:${w.presentDays} | H:${w.halfDays}</div>
           </td>
           <td>
-            <span style="font-weight: 600; color: #0284c7;">${w.paidLeaveDays}d</span>
+            <span class="paid-leave-count">${w.paidLeaveDays}d</span>
             ${w.holidayWorkDays > 0 ? `<div class="text-xs text-purple">(${w.holidayWorkDays} worked)</div>` : ''}
           </td>
           <td>
@@ -210,7 +210,7 @@ const PayrollModule = {
               <button class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 3px 6px;" onclick="PaymentsModule.quickAdvance(${w.employee_id}, '${this.escapeHtml(w.name)}')" title="Record Advance">
                 + Adv
               </button>
-              <button class="btn btn-secondary btn-sm" style="font-size: 0.72rem; padding: 3px 6px; color: #7e22ce;" onclick="PaymentsModule.quickBonus(${w.employee_id}, '${this.escapeHtml(w.name)}')" title="Award Bonus / Reward">
+              <button class="btn btn-secondary btn-sm btn-bonus-chip" style="font-size: 0.72rem; padding: 3px 6px;" onclick="PaymentsModule.quickBonus(${w.employee_id}, '${this.escapeHtml(w.name)}')" title="Award Bonus / Reward">
                 🎁 Bonus
               </button>
             </div>
