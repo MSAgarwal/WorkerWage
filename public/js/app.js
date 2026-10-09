@@ -527,6 +527,10 @@ const App = {
     } else {
       document.documentElement.removeAttribute('data-theme');
     }
+    const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+    if (metaThemeColor) {
+      metaThemeColor.setAttribute('content', theme === 'dark' ? '#0b0f19' : '#2563eb');
+    }
     const iconEl = document.getElementById('themeToggleIcon');
     const labelEl = document.getElementById('themeToggleLabel');
     if (iconEl) iconEl.textContent = theme === 'dark' ? '☀️' : '🌙';
