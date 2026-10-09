@@ -5,14 +5,20 @@
  */
 
 /**
- * Determine if work category is piece-based (cards of any type, bangles)
+ * Determine if work category is piece-based (cards, bangles, or custom piece keywords)
  * @param {string} category 
+ * @param {string[]|string} [customKeywords] Optional custom keywords list
  * @returns {boolean}
  */
-function isPieceCategory(category) {
+function isPieceCategory(category, customKeywords) {
   if (!category) return false;
   const lower = String(category).toLowerCase();
-  return lower.includes('card') || lower.includes('bangle');
+  const keywords = (customKeywords && Array.isArray(customKeywords) && customKeywords.length > 0)
+    ? customKeywords
+    : (typeof customKeywords === 'string' && customKeywords.trim()
+        ? customKeywords.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+        : ['card', 'bangle']);
+  return keywords.some(k => lower.includes(String(k).trim().toLowerCase()));
 }
 
 /**
@@ -22,15 +28,15 @@ function isPieceCategory(category) {
  * 1. Base Pay:
  *    - PRESENT: 1.0 * dailyWage
  *    - HALF_DAY: 0.5 * dailyWage
- *    - PAID_LEAVE / PAID_HOLIDAY: 1.0 * dailyWage (Tuesday weekly off or declared paid holiday)
+ *    - PAID_LEAVE / PAID_HOLIDAY: 1.0 * dailyWage (Weekly off or declared paid holiday)
  *    - ABSENT: 0
  * 2. Managers:
  *    - Exempt from packaging categories & box/piece overtime
  *    - Can receive day-based overtime (otDays * dailyWage * otMultiplier)
  * 3. Packaging Workers:
- *    - Piece categories (Cards & Bangles):
+ *    - Piece categories (Cards, Bangles, etc.):
  *      - Normal days: Overtime disabled (₹0)
- *      - Worked Paid Holidays / Tuesdays (status != ABSENT): Fixed ₹200 overtime
+ *      - Worked Paid Holidays / Weekly Offs (status != ABSENT): Configurable overtime bonus (default ₹200)
  *    - Box categories (General packing):
  *      - Extra boxes * boxRate (default ₹30/box)
  *      - If Paid Day Off and worker did NOT work (PAID_LEAVE/ABSENT), overtime is ₹0
@@ -50,7 +56,9 @@ function calculateWage(
   workerType = 'WORKER',
   workCategory = '',
   extraPieces = 0,
-  isPaidDayOff = false
+  isPaidDayOff = false,
+  pieceHolidayBonus = 200.0,
+  pieceKeywords = null
 ) {
   dailyWage = Number(dailyWage) || 0;
   bonus = Number(bonus) || 0;
@@ -81,7 +89,7 @@ function calculateWage(
   let parsedOtDays = 0;
   let parsedOtMultiplier = 0.0;
 
-  // Determine if this is holiday work on a paid holiday / Tuesday
+  // Determine if this is holiday work on a paid holiday / Weekly Off
   const isHoliday = !!isHolidayWork || (isPaidDayOff && (status === 'PRESENT' || status === 'HALF_DAY'));
 
   if (workerType === 'MANAGER') {
@@ -98,12 +106,14 @@ function calculateWage(
     parsedBoxRate = 0.0;
   } else {
     // Packaging Worker:
-    const isPiece = isPieceCategory(workCategory);
+    const isPiece = isPieceCategory(workCategory, pieceKeywords);
 
     if (isPiece) {
-      // Cards & Bangles: Fixed ₹200 on worked holidays/Tuesdays; ₹0 on normal days
+      // Piece Categories: Configurable bonus (default ₹200) on worked holidays/weekly offs; ₹0 on normal days
       if (isHoliday && status !== 'ABSENT') {
-        overtimePay = 200.0;
+        overtimePay = (pieceHolidayBonus !== undefined && pieceHolidayBonus !== null && !isNaN(Number(pieceHolidayBonus)))
+          ? Math.max(0, Number(pieceHolidayBonus))
+          : 200.0;
       } else {
         overtimePay = 0.0;
       }
@@ -111,6 +121,7 @@ function calculateWage(
       parsedBoxes = 0;
       parsedBoxRate = 0.0;
     } else {
+
       // Standard categories: extra boxes * boxRate
       if (isPaidDayOff && !isHolidayWork) {
         parsedBoxes = 0;

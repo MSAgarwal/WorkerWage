@@ -8,6 +8,7 @@ const App = {
   categoriesList: [],
 
   async init() {
+    this.initTheme();
     this.bindGlobalEvents();
     this.bindKeypad();
     this.bindAuthModeTabs();
@@ -503,72 +504,145 @@ const App = {
     }
   },
 
+  // Visual Theme Management (Dark / Light Mode)
+  initTheme() {
+    const savedTheme = localStorage.getItem('workerwage_theme') || API.themePreference || 'light';
+    this.applyTheme(savedTheme);
+
+    const btnToggle = document.getElementById('btnToggleTheme');
+    if (btnToggle) {
+      btnToggle.addEventListener('click', () => {
+        const currentTheme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        this.applyTheme(newTheme);
+        localStorage.setItem('workerwage_theme', newTheme);
+        this.showToast(`Switched to ${newTheme === 'dark' ? 'Dark' : 'Light'} theme`, 'info');
+      });
+    }
+  },
+
+  applyTheme(theme) {
+    if (theme === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+    const iconEl = document.getElementById('themeToggleIcon');
+    const labelEl = document.getElementById('themeToggleLabel');
+    if (iconEl) iconEl.textContent = theme === 'dark' ? '☀️' : '🌙';
+    if (labelEl) labelEl.textContent = theme === 'dark' ? 'Light' : 'Dark';
+    const selectEl = document.getElementById('settingTheme');
+    if (selectEl) selectEl.value = theme;
+  },
+
   // Settings Forms & Storage Management
   bindSettingsForms() {
     const generalForm = document.getElementById('settingsGeneralForm');
+    const scheduleForm = document.getElementById('settingsScheduleForm');
+    const packagingForm = document.getElementById('settingsPackagingForm');
     const otForm = document.getElementById('settingsOtForm');
     const pinForm = document.getElementById('changePinForm');
-
-    generalForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const bName = document.getElementById('settingBusinessName').value.trim();
-      const sLoc = document.getElementById('settingSiteLocation').value.trim();
-      const curr = document.getElementById('settingCurrency').value;
-
-      try {
-        const res = await API.updateSettings({
-          business_name: bName,
-          site_location: sLoc,
-          currency_symbol: curr
-        });
-        if (res.success) {
-          document.getElementById('appBusinessName').textContent = bName;
-          document.querySelectorAll('.currency-tag').forEach(el => el.textContent = curr);
-          this.showToast('Settings saved successfully', 'success');
-          // Refresh views to use new currency
-          AttendanceModule.loadAttendance();
-        }
-      } catch (err) {
-        this.showToast(`Error: ${err.message}`, 'error');
-      }
-    });
-
-    otForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const otM = document.getElementById('settingDefaultOtMult').value;
-
-      try {
-        const res = await API.updateSettings({
-          default_ot_multiplier: otM
-        });
-        if (res.success) {
-          this.showToast('Overtime multiplier defaults updated', 'success');
-        }
-      } catch (err) {
-        this.showToast(`Error: ${err.message}`, 'error');
-      }
-    });
-
-    // Packaging & Overtime Metric Settings Form
-    const packagingForm = document.getElementById('settingsPackagingForm');
     const btnAddCategory = document.getElementById('btnAddCategory');
+    const btnSaveCategories = document.getElementById('btnSaveCategories');
     const newCategoryInput = document.getElementById('newCategoryInput');
+
+    if (generalForm) {
+      generalForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const bName = document.getElementById('settingBusinessName').value.trim();
+        const sLoc = document.getElementById('settingSiteLocation').value.trim();
+        const curr = document.getElementById('settingCurrency').value;
+        const stdHrs = parseFloat(document.getElementById('settingStandardHours').value) || 8.0;
+        const theme = document.getElementById('settingTheme').value || 'light';
+
+        try {
+          const res = await API.updateSettings({
+            business_name: bName,
+            site_location: sLoc,
+            currency_symbol: curr,
+            standard_hours: stdHrs,
+            theme_preference: theme
+          });
+          if (res.success) {
+            document.getElementById('appBusinessName').textContent = bName;
+            document.querySelectorAll('.currency-tag').forEach(el => el.textContent = curr);
+            this.applyTheme(theme);
+            localStorage.setItem('workerwage_theme', theme);
+            this.showToast('Site & business details saved successfully', 'success');
+            if (this.activeTab === 'tabAttendance') {
+              AttendanceModule.loadAttendance();
+            }
+          }
+        } catch (err) {
+          this.showToast(`Error: ${err.message}`, 'error');
+        }
+      });
+    }
+
+    if (scheduleForm) {
+      scheduleForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const offDay = document.getElementById('settingWeeklyOffDay').value;
+        try {
+          const res = await API.updateSettings({
+            weekly_paid_off_day: offDay
+          });
+          if (res.success) {
+            API.weeklyPaidOffDay = offDay;
+            this.showToast(`Weekly paid off day set to "${offDay}"!`, 'success');
+            if (this.activeTab === 'tabAttendance') {
+              AttendanceModule.loadAttendance();
+            }
+          }
+        } catch (err) {
+          this.showToast(`Error: ${err.message}`, 'error');
+        }
+      });
+    }
 
     if (packagingForm) {
       packagingForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const boxRate = parseFloat(document.getElementById('settingDefaultBoxRate').value);
         const validBoxRate = (!isNaN(boxRate) && boxRate >= 0) ? boxRate : 30.0;
+        const pieceBonus = parseFloat(document.getElementById('settingHolidayPieceBonus').value);
+        const validPieceBonus = (!isNaN(pieceBonus) && pieceBonus >= 0) ? pieceBonus : 200.0;
+        const pcsPerBox = parseInt(document.getElementById('settingPiecesPerBox').value, 10);
+        const validPcsPerBox = (!isNaN(pcsPerBox) && pcsPerBox >= 1) ? pcsPerBox : 500;
+        const keywords = document.getElementById('settingPieceKeywords').value.trim() || 'card, bangle';
 
         try {
           const res = await API.updateSettings({
             default_box_rate: validBoxRate,
-            work_categories: JSON.stringify(this.categoriesList)
+            holiday_piece_bonus: validPieceBonus,
+            pieces_per_box: validPcsPerBox,
+            piece_keywords: keywords
           });
           if (res.success) {
             API.defaultBoxRate = validBoxRate;
+            API.holidayPieceBonus = validPieceBonus;
+            API.piecesPerBox = validPcsPerBox;
+            API.pieceKeywords = keywords;
+            this.showToast('Packaging & piece-rate rules saved successfully', 'success');
+            if (this.activeTab === 'tabAttendance') {
+              AttendanceModule.loadAttendance();
+            }
+          }
+        } catch (err) {
+          this.showToast(`Error: ${err.message}`, 'error');
+        }
+      });
+    }
+
+    if (btnSaveCategories) {
+      btnSaveCategories.addEventListener('click', async () => {
+        try {
+          const res = await API.updateSettings({
+            work_categories: JSON.stringify(this.categoriesList)
+          });
+          if (res.success) {
             API.workCategories = [...this.categoriesList];
-            this.showToast('Packaging & box overtime defaults saved successfully', 'success');
+            this.showToast('Work categories list saved successfully', 'success');
             if (this.activeTab === 'tabAttendance') {
               AttendanceModule.loadAttendance();
             }
@@ -601,21 +675,44 @@ const App = {
       });
     }
 
-    pinForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const currentPin = document.getElementById('currentPinInput').value;
-      const newPin = document.getElementById('newPinInput').value;
+    if (otForm) {
+      otForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const otM = parseFloat(document.getElementById('settingDefaultOtMult').value) || 0.0;
+        const dailyWage = parseFloat(document.getElementById('settingDefaultDailyWage').value) || 500.0;
 
-      try {
-        const res = await API.changePin(currentPin, newPin);
-        if (res.success) {
-          this.showToast('Admin PIN changed successfully!', 'success');
-          pinForm.reset();
+        try {
+          const res = await API.updateSettings({
+            default_ot_multiplier: otM,
+            default_daily_wage: dailyWage
+          });
+          if (res.success) {
+            API.defaultDailyWage = dailyWage;
+            this.showToast('Wage and overtime defaults updated', 'success');
+          }
+        } catch (err) {
+          this.showToast(`Error: ${err.message}`, 'error');
         }
-      } catch (err) {
-        this.showToast(`Error: ${err.message}`, 'error');
-      }
-    });
+      });
+    }
+
+    if (pinForm) {
+      pinForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const currentPin = document.getElementById('currentPinInput').value;
+        const newPin = document.getElementById('newPinInput').value;
+
+        try {
+          const res = await API.changePin(currentPin, newPin);
+          if (res.success) {
+            this.showToast('Admin PIN changed successfully!', 'success');
+            pinForm.reset();
+          }
+        } catch (err) {
+          this.showToast(`Error: ${err.message}`, 'error');
+        }
+      });
+    }
   },
 
   renderCategoryChips() {
@@ -663,12 +760,41 @@ const App = {
           document.getElementById('settingCurrency').value = s.currency_symbol;
           document.querySelectorAll('.currency-tag').forEach(el => el.textContent = s.currency_symbol);
         }
+        if (s.standard_hours) {
+          const stdEl = document.getElementById('settingStandardHours');
+          if (stdEl) stdEl.value = s.standard_hours;
+        }
+        if (s.theme_preference) {
+          const themeEl = document.getElementById('settingTheme');
+          if (themeEl) themeEl.value = s.theme_preference;
+        }
+        if (s.weekly_paid_off_day) {
+          const offDayEl = document.getElementById('settingWeeklyOffDay');
+          if (offDayEl) offDayEl.value = s.weekly_paid_off_day;
+        }
+        if (s.default_daily_wage !== undefined && s.default_daily_wage !== null) {
+          const wageEl = document.getElementById('settingDefaultDailyWage');
+          if (wageEl) wageEl.value = s.default_daily_wage;
+        }
         if (s.default_ot_multiplier !== undefined && s.default_ot_multiplier !== null) {
-          document.getElementById('settingDefaultOtMult').value = parseFloat(s.default_ot_multiplier).toFixed(2);
+          const otEl = document.getElementById('settingDefaultOtMult');
+          if (otEl) otEl.value = parseFloat(s.default_ot_multiplier).toFixed(2);
         }
         if (s.default_box_rate !== undefined && s.default_box_rate !== null) {
           const boxRateEl = document.getElementById('settingDefaultBoxRate');
           if (boxRateEl) boxRateEl.value = s.default_box_rate;
+        }
+        if (s.holiday_piece_bonus !== undefined && s.holiday_piece_bonus !== null) {
+          const pieceBonusEl = document.getElementById('settingHolidayPieceBonus');
+          if (pieceBonusEl) pieceBonusEl.value = s.holiday_piece_bonus;
+        }
+        if (s.pieces_per_box !== undefined && s.pieces_per_box !== null) {
+          const piecesPerBoxEl = document.getElementById('settingPiecesPerBox');
+          if (piecesPerBoxEl) piecesPerBoxEl.value = s.pieces_per_box;
+        }
+        if (s.piece_keywords) {
+          const pieceKwEl = document.getElementById('settingPieceKeywords');
+          if (pieceKwEl) pieceKwEl.value = s.piece_keywords;
         }
         if (s.work_categories_list && Array.isArray(s.work_categories_list)) {
           this.categoriesList = [...s.work_categories_list];

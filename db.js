@@ -245,9 +245,15 @@ function initDatabase() {
     { key: 'currency_symbol', value: '₹' },
     { key: 'default_ot_multiplier', value: '0.0' },
     { key: 'default_box_rate', value: '30.0' },
+    { key: 'default_daily_wage', value: '500.0' },
     { key: 'work_categories', value: JSON.stringify(DEFAULT_CATEGORIES) },
     { key: 'weekly_paid_off_day', value: 'Tuesday' },
-    { key: 'site_location', value: 'Main Work Site' }
+    { key: 'site_location', value: 'Main Work Site' },
+    { key: 'holiday_piece_bonus', value: '200.0' },
+    { key: 'pieces_per_box', value: '500' },
+    { key: 'piece_keywords', value: 'card, bangle' },
+    { key: 'standard_hours', value: '8.0' },
+    { key: 'theme_preference', value: 'light' }
   ];
 
   const checkSettingStmt = db.prepare('SELECT value FROM settings WHERE key = ?');

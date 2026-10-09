@@ -18,11 +18,29 @@ class PayrollService {
   }
 
   /**
+   * Helper to retrieve dynamic settings
+   */
+  _getDynamicSettings() {
+    try {
+      const rows = db.prepare("SELECT key, value FROM settings WHERE key IN ('pieces_per_box', 'piece_keywords')").all();
+      const map = {};
+      for (const r of rows) map[r.key] = r.value;
+      return {
+        piecesPerBox: (!isNaN(parseInt(map.pieces_per_box, 10)) && parseInt(map.pieces_per_box, 10) > 0) ? parseInt(map.pieces_per_box, 10) : PIECES_PER_BOX,
+        pieceKeywords: (map.piece_keywords || 'card, bangle').split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+      };
+    } catch (e) {
+      return { piecesPerBox: PIECES_PER_BOX, pieceKeywords: ['card', 'bangle'] };
+    }
+  }
+
+  /**
    * Pure worker payroll calculation engine.
    * Shared by both JSON report generation and CSV export to ensure 100% financial consistency.
    */
   calculateWorkerPayroll(worker, attRecords, payRecords) {
     const workerType = worker.worker_type || 'WORKER';
+    const dyn = this._getDynamicSettings();
 
     let presentDays = 0;
     let halfDays = 0;
@@ -51,10 +69,10 @@ class PayrollService {
       if (!isManager && a.is_holiday_work) holidayWorkDays++;
 
       if (!isManager) {
-        if (isPieceCategory(a.work_category)) {
+        if (isPieceCategory(a.work_category, dyn.pieceKeywords)) {
           const pieces = (a.extra_pieces !== undefined && a.extra_pieces !== null && a.extra_pieces > 0)
             ? a.extra_pieces
-            : ((a.extra_boxes || 0) * PIECES_PER_BOX);
+            : ((a.extra_boxes || 0) * dyn.piecesPerBox);
           totalExtraPieces += pieces;
         } else {
           if (a.extra_boxes > 0) {

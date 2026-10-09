@@ -5,31 +5,69 @@ const { NotFoundError, ValidationError } = require('../errors');
 
 class AttendanceService {
   /**
-   * Get date metadata (Tuesday Weekly Off & Paid Holidays)
+   * Helper to retrieve dynamic settings with fallbacks
+   */
+  _getDynamicSettings() {
+    try {
+      const rows = db.prepare("SELECT key, value FROM settings WHERE key IN ('weekly_paid_off_day', 'holiday_piece_bonus', 'pieces_per_box', 'piece_keywords', 'default_box_rate')").all();
+      const map = {};
+      for (const r of rows) map[r.key] = r.value;
+      return {
+        weeklyOffDay: map.weekly_paid_off_day || 'Tuesday',
+        holidayPieceBonus: (!isNaN(parseFloat(map.holiday_piece_bonus)) && parseFloat(map.holiday_piece_bonus) >= 0) ? parseFloat(map.holiday_piece_bonus) : 200.0,
+        piecesPerBox: (!isNaN(parseInt(map.pieces_per_box, 10)) && parseInt(map.pieces_per_box, 10) > 0) ? parseInt(map.pieces_per_box, 10) : 500,
+        pieceKeywords: (map.piece_keywords || 'card, bangle').split(',').map(s => s.trim().toLowerCase()).filter(Boolean),
+        defaultBoxRate: (!isNaN(parseFloat(map.default_box_rate)) && parseFloat(map.default_box_rate) >= 0) ? parseFloat(map.default_box_rate) : 30.0
+      };
+    } catch (e) {
+      return {
+        weeklyOffDay: 'Tuesday',
+        holidayPieceBonus: 200.0,
+        piecesPerBox: 500,
+        pieceKeywords: ['card', 'bangle'],
+        defaultBoxRate: 30.0
+      };
+    }
+  }
+
+  /**
+   * Get date metadata (Configurable Weekly Off & Paid Holidays)
    */
   getDateMeta(dateStr) {
     const d = new Date(dateStr + 'T00:00:00');
     const dayOfWeek = d.getDay(); // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
-    const isTuesday = dayOfWeek === 2;
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const currentDayName = dayNames[dayOfWeek];
+
+    const cfg = this._getDynamicSettings();
+    const isTuesday = dayOfWeek === 2; // backward-compatibility flag
+    const isWeeklyOff = cfg.weeklyOffDay !== 'None' && currentDayName.toLowerCase() === cfg.weeklyOffDay.toLowerCase();
+
     const holiday = db.prepare('SELECT * FROM holidays WHERE date = ?').get(dateStr);
     const isPaidHoliday = !!(holiday && holiday.is_paid);
-    const isPaidDayOff = isTuesday || isPaidHoliday;
+    const isPaidDayOff = isWeeklyOff || isPaidHoliday;
 
     let dayOffReason = '';
-    if (isTuesday) {
-      dayOffReason = 'Tuesday Weekly Off (Paid Leave)';
+    if (isWeeklyOff) {
+      dayOffReason = `${cfg.weeklyOffDay} Weekly Off (Paid Leave)`;
     } else if (isPaidHoliday) {
       dayOffReason = `Paid Holiday: ${holiday.title}`;
     }
 
     return {
       date: dateStr,
-      dayOfWeek: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek],
+      dayOfWeek: currentDayName,
       isTuesday,
+      isWeeklyOff,
+      weeklyOffDay: cfg.weeklyOffDay,
       holiday: holiday || null,
       isPaidHoliday,
       isPaidDayOff,
-      dayOffReason
+      dayOffReason,
+      holidayPieceBonus: cfg.holidayPieceBonus,
+      piecesPerBox: cfg.piecesPerBox,
+      pieceKeywords: cfg.pieceKeywords,
+      defaultBoxRate: cfg.defaultBoxRate
     };
   }
 
@@ -54,10 +92,10 @@ class AttendanceService {
 
       if (rec) {
         const otDays = rec.overtime_days || 0;
-        const isPiece = isPieceCategory(rec.work_category);
+        const isPiece = isPieceCategory(rec.work_category, meta.pieceKeywords);
         const pieces = (rec.extra_pieces !== undefined && rec.extra_pieces !== null)
           ? rec.extra_pieces
-          : (isPiece ? (rec.extra_boxes || 0) * PIECES_PER_BOX : 0);
+          : (isPiece ? (rec.extra_boxes || 0) * (meta.piecesPerBox || PIECES_PER_BOX) : 0);
 
         return {
           id: rec.id,
@@ -86,11 +124,27 @@ class AttendanceService {
           notes: rec.notes || ''
         };
       } else {
-        // Unmarked entry: Check if date is Tuesday (Weekly Off) or Paid Holiday
+        // Unmarked entry: Check if date is Weekly Off or Paid Holiday
         const workerDefaultOt = (w.default_ot_multiplier !== undefined && w.default_ot_multiplier !== null) ? w.default_ot_multiplier : 0.0;
         if (meta.isPaidDayOff) {
-          // Every Tuesday or Paid Holiday defaults to Paid Leave (full day wage)!
-          const defaultCalc = calculateWage(w.daily_wage, 'PAID_LEAVE', 0, workerDefaultOt, false, 0, 0, 0, defaultBoxRate, workerType);
+          // Every Weekly Off or Paid Holiday defaults to Paid Leave (full day wage)!
+          const defaultCalc = calculateWage(
+            w.daily_wage,
+            'PAID_LEAVE',
+            0,
+            workerDefaultOt,
+            false,
+            0,
+            0,
+            0,
+            defaultBoxRate,
+            workerType,
+            '',
+            0,
+            true,
+            meta.holidayPieceBonus,
+            meta.pieceKeywords
+          );
           return {
             id: null,
             employee_id: w.id,
@@ -235,10 +289,10 @@ class AttendanceService {
     const workerType = worker.worker_type || 'WORKER';
     const isManager = workerType === 'MANAGER';
     // Server authoritatively determines holiday work:
-    // Only valid for non-managers on actual paid days off (Tuesday or registered paid holiday) when worker attended (not ABSENT)
+    // Only valid for non-managers on actual paid days off when worker attended (not ABSENT)
     const holidayWork = (!isManager && isPaidDayOff && status !== 'ABSENT' && (status === 'PRESENT' || status === 'HALF_DAY' || isClientHolidayWork || hasBoxes || hasPieces)) ? 1 : 0;
     const effectiveCategory = isManager ? '' : (inputData.work_category ? String(inputData.work_category).trim() : '');
-    const isPiece = isPieceCategory(effectiveCategory);
+    const isPiece = isPieceCategory(effectiveCategory, dateMeta.pieceKeywords);
 
     let parsedExtraPieces = 0;
     let parsedExtraBoxes = 0;
@@ -253,7 +307,7 @@ class AttendanceService {
 
     const effectiveBoxRate = isManager ? 0.0 : ((!isNaN(parseFloat(inputData.box_rate)) && parseFloat(inputData.box_rate) >= 0)
       ? parseFloat(inputData.box_rate)
-      : (worker.default_box_rate !== undefined && worker.default_box_rate !== null ? worker.default_box_rate : 30.0));
+      : (worker.default_box_rate !== undefined && worker.default_box_rate !== null ? worker.default_box_rate : (dateMeta.defaultBoxRate || 30.0)));
 
     const otDays = parseFloat(inputData.overtime_days || 0);
     const otMult = (inputData.overtime_multiplier !== undefined && inputData.overtime_multiplier !== null && !isNaN(parseFloat(inputData.overtime_multiplier)))
@@ -273,7 +327,9 @@ class AttendanceService {
       workerType,
       effectiveCategory,
       parsedExtraPieces,
-      isPaidDayOff
+      isPaidDayOff,
+      dateMeta.holidayPieceBonus,
+      dateMeta.pieceKeywords
     );
 
     return {

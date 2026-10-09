@@ -26,6 +26,12 @@ describe('Wage Calculator Unit Tests', () => {
       assert.equal(isPieceCategory(null), false);
       assert.equal(isPieceCategory(undefined), false);
     });
+
+    it('should support dynamic custom piece keywords', () => {
+      assert.equal(isPieceCategory('tea pouch', ['pouch', 'sachet']), true);
+      assert.equal(isPieceCategory('sugar sachet', 'pouch, sachet'), true);
+      assert.equal(isPieceCategory('sweet box', 'pouch, sachet'), false);
+    });
   });
 
   describe('Base Pay Calculations', () => {
@@ -152,6 +158,24 @@ describe('Wage Calculator Unit Tests', () => {
       assert.equal(calc.basePay, 225);
       assert.equal(calc.overtimePay, 200, 'Worked holiday bangle overtime must be exactly fixed ₹200');
       assert.equal(calc.totalPay, 425);
+    });
+
+    it('supports customizable holiday piece bonus and custom piece keywords', () => {
+      const calc = calculateWage(
+        dailyWage,
+        'PRESENT',
+        0, 0, true, // isHolidayWork = true
+        0, 0, 0, 30,
+        'WORKER',
+        'Custom Sachet Pack',
+        0,
+        true, // isPaidDayOff = true
+        250,  // custom pieceHolidayBonus = 250
+        'sachet, pouch' // custom pieceKeywords
+      );
+      assert.equal(calc.basePay, 450);
+      assert.equal(calc.overtimePay, 250, 'Custom piece holiday bonus must be ₹250');
+      assert.equal(calc.totalPay, 700);
     });
 
     it('awards ₹0 overtime for Cards if ABSENT on Paid Holiday', () => {

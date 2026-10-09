@@ -202,6 +202,7 @@ const EmployeesModule = {
       titleEl.textContent = 'Add New Worker / Manager';
       idInput.value = '';
       document.getElementById('workerTypeWorker').checked = true;
+      document.getElementById('workerDailyWage').value = API.defaultDailyWage || 500;
       document.getElementById('workerDefaultBoxRate').value = API.defaultBoxRate || 30;
       document.getElementById('workerStatus').value = 'ACTIVE';
 

@@ -3,17 +3,27 @@ const API = {
   currency: '₹',
   defaultOtMult: 0.0,
   defaultBoxRate: 30.0,
+  defaultDailyWage: 500.0,
+  holidayPieceBonus: 200.0,
+  piecesPerBox: 500,
+  pieceKeywords: 'card, bangle',
+  weeklyPaidOffDay: 'Tuesday',
+  standardHours: 8.0,
+  themePreference: 'light',
   workCategories: [
     'Sp 100', 'Sp 80', 'Sp 80 kishanganj', 'Pd 80', 'Pd 100', 'S 50', 'Pd 40', 'Pd 50',
     'P 100', 'p 95', 'P card', 'Sp card', 'pd orange card', 'pd pink card', 'pd big card',
     'sp big card', 'bangles(special)'
   ],
 
-  // Check if category is piece-based (cards or bangles)
+  // Check if category is piece-based (dynamic based on pieceKeywords setting)
   isPieceCategory(cat) {
     if (!cat) return false;
     const lower = String(cat).toLowerCase();
-    return lower.includes('card') || lower.includes('bangle');
+    const keywords = this.pieceKeywords
+      ? this.pieceKeywords.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+      : ['card', 'bangle'];
+    return keywords.some(k => lower.includes(k));
   },
 
   // Timezone-safe local date string helper (YYYY-MM-DD)
@@ -182,15 +192,37 @@ const API = {
   async getSettings() {
     const res = await this.request('/api/settings');
     if (res.success && res.settings) {
-      if (res.settings.currency_symbol) this.currency = res.settings.currency_symbol;
-      if (res.settings.default_ot_multiplier !== undefined && res.settings.default_ot_multiplier !== null) {
-        this.defaultOtMult = parseFloat(res.settings.default_ot_multiplier);
+      const s = res.settings;
+      if (s.currency_symbol) this.currency = s.currency_symbol;
+      if (s.default_ot_multiplier !== undefined && s.default_ot_multiplier !== null) {
+        this.defaultOtMult = parseFloat(s.default_ot_multiplier);
       }
-      if (res.settings.default_box_rate !== undefined && res.settings.default_box_rate !== null) {
-        this.defaultBoxRate = parseFloat(res.settings.default_box_rate);
+      if (s.default_box_rate !== undefined && s.default_box_rate !== null) {
+        this.defaultBoxRate = parseFloat(s.default_box_rate);
       }
-      if (res.settings.work_categories_list && Array.isArray(res.settings.work_categories_list)) {
-        this.workCategories = res.settings.work_categories_list;
+      if (s.default_daily_wage !== undefined && s.default_daily_wage !== null) {
+        this.defaultDailyWage = parseFloat(s.default_daily_wage);
+      }
+      if (s.holiday_piece_bonus !== undefined && s.holiday_piece_bonus !== null) {
+        this.holidayPieceBonus = parseFloat(s.holiday_piece_bonus);
+      }
+      if (s.pieces_per_box !== undefined && s.pieces_per_box !== null) {
+        this.piecesPerBox = parseInt(s.pieces_per_box, 10);
+      }
+      if (s.piece_keywords) {
+        this.pieceKeywords = s.piece_keywords;
+      }
+      if (s.weekly_paid_off_day) {
+        this.weeklyPaidOffDay = s.weekly_paid_off_day;
+      }
+      if (s.standard_hours) {
+        this.standardHours = parseFloat(s.standard_hours);
+      }
+      if (s.theme_preference) {
+        this.themePreference = s.theme_preference;
+      }
+      if (s.work_categories_list && Array.isArray(s.work_categories_list)) {
+        this.workCategories = s.work_categories_list;
       }
     }
     return res;

@@ -38,6 +38,35 @@ describe('Services Unit Tests', () => {
         assert.ok(Array.isArray(settings.work_categories_list));
       }
     });
+
+    it('updates and persists custom configuration settings', () => {
+      const orig = settingsService.getSettings();
+      settingsService.updateSettings({
+        weekly_paid_off_day: 'Sunday',
+        holiday_piece_bonus: 250,
+        pieces_per_box: 600,
+        piece_keywords: 'card, bangle, pouch',
+        default_daily_wage: 650,
+        theme_preference: 'dark'
+      });
+      const updated = settingsService.getSettings();
+      assert.equal(updated.weekly_paid_off_day, 'Sunday');
+      assert.equal(updated.holiday_piece_bonus, 250);
+      assert.equal(updated.pieces_per_box, 600);
+      assert.equal(updated.piece_keywords, 'card, bangle, pouch');
+      assert.equal(updated.default_daily_wage, 650);
+      assert.equal(updated.theme_preference, 'dark');
+
+      // Restore original settings
+      settingsService.updateSettings({
+        weekly_paid_off_day: orig.weekly_paid_off_day || 'Tuesday',
+        holiday_piece_bonus: orig.holiday_piece_bonus || 200,
+        pieces_per_box: orig.pieces_per_box || 500,
+        piece_keywords: orig.piece_keywords || 'card, bangle',
+        default_daily_wage: orig.default_daily_wage || 500,
+        theme_preference: orig.theme_preference || 'light'
+      });
+    });
   });
 
   describe('SystemService', () => {

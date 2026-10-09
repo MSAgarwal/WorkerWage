@@ -105,15 +105,17 @@ const AttendanceModule = {
     const btnMarkAll = document.getElementById('btnMarkAllPresent');
     if (!banner) return;
 
+    const holidayPieceBonus = Number(API.holidayPieceBonus !== undefined ? API.holidayPieceBonus : 200);
+
     if (meta && meta.isPaidDayOff) {
       banner.style.display = 'flex';
       banner.className = `holiday-banner ${meta.isTuesday ? 'tuesday-off' : 'custom-holiday'}`;
       banner.innerHTML = `
         <div class="holiday-banner-icon">${meta.isTuesday ? '🌴' : '🎉'}</div>
         <div class="holiday-banner-text">
-          <div class="holiday-banner-title">${meta.dayOffReason}</div>
+          <div class="holiday-banner-title">${meta.dayOffReason || 'Weekly Paid Off'}</div>
           <div class="holiday-banner-desc">
-            Every worker receives their full day's paid wage today. If any worker worked today, click <strong>"Worked Today (+Overtime)"</strong> to add the fixed <strong>₹200</strong> holiday overtime pay!
+            Every worker receives their full day's paid wage today. If any worker worked today, click <strong>"Worked Today (+Overtime)"</strong> to add the fixed <strong>${API.formatMoney(holidayPieceBonus)}</strong> holiday overtime pay!
           </div>
         </div>
       `;
@@ -201,15 +203,19 @@ const AttendanceModule = {
     const isManager = r.worker_type === 'MANAGER';
     const currentCat = r.work_category || '';
     const isPiece = this.isPieceCategory(currentCat);
+    const pieceHolidayBonus = Number(API.holidayPieceBonus !== undefined ? API.holidayPieceBonus : 200);
+    const piecesPerBox = Number(API.piecesPerBox !== undefined ? API.piecesPerBox : 500);
 
     const extraBoxes = Number(r.extra_boxes || 0);
     const extraPieces = Number(r.extra_pieces !== undefined && r.extra_pieces !== null 
       ? r.extra_pieces 
-      : (isPiece && extraBoxes > 0 ? (extraBoxes >= 100 ? extraBoxes : extraBoxes * 500) : 0));
+      : (isPiece && extraBoxes > 0 ? (extraBoxes >= 100 ? extraBoxes : extraBoxes * piecesPerBox) : 0));
 
     const boxRate = Number(r.box_rate !== undefined && r.box_rate !== null ? r.box_rate : (API.defaultBoxRate || 30.0));
     const otDays = Number(r.overtime_days || 0);
     const otMult = Number(r.overtime_multiplier || 0);
+    const bonusVal = Number(r.bonus_allowance || 0);
+    const deductVal = Number(r.deduction || 0);
 
     // Live calculation breakdown preview
     let basePayDisplay = 0;
@@ -224,7 +230,7 @@ const AttendanceModule = {
       otPayDisplay = otDays * r.daily_wage * otMult;
     } else if (isPiece) {
       if (isPaidDayOff && isHolidayWork && !isAbsent) {
-        otPayDisplay = 200;
+        otPayDisplay = pieceHolidayBonus;
       } else {
         otPayDisplay = 0;
       }
@@ -236,7 +242,7 @@ const AttendanceModule = {
       }
     }
 
-    const totalDayEst = basePayDisplay + otPayDisplay;
+    const totalDayEst = Math.max(0, basePayDisplay + otPayDisplay + bonusVal - deductVal);
 
     let otControlsHtml = '';
 
@@ -253,7 +259,7 @@ const AttendanceModule = {
       `;
     } else {
       // Categories list for packaging worker dropdown
-      const categories = API.workCategories || [
+      const categories = (API.workCategories && API.workCategories.length > 0) ? API.workCategories : [
         'Sp 100', 'Sp 80', 'Sp 80 kishanganj', 'Pd 80', 'Pd 100', 'S 50', 'Pd 40', 'Pd 50',
         'P 100', 'p 95', 'P card', 'Sp card', 'pd orange card', 'pd pink card', 'pd big card',
         'sp big card', 'bangles(special)'
@@ -292,15 +298,15 @@ const AttendanceModule = {
             <div class="holiday-ot-active-box" style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; padding: 10px 14px; margin-top: 10px; display: flex; justify-content: space-between; align-items: center;">
               <div>
                 <div style="font-weight: 600; color: #047857; font-size: 0.88rem;">🎉 ${this.escapeHtml(currentCat || 'Cards & Bangles')} (Holiday Work)</div>
-                <div style="font-size: 0.78rem; color: #065f46;">Fixed Overtime Wage: <strong>+₹200</strong> added to full day wage</div>
+                <div style="font-size: 0.78rem; color: #065f46;">Fixed Overtime Wage: <strong>+${API.formatMoney(pieceHolidayBonus)}</strong> added to full day wage</div>
               </div>
               <div style="background: #10b981; color: white; font-weight: 700; font-size: 0.82rem; padding: 4px 10px; border-radius: 6px;">
-                +₹200 OT
+                +${API.formatMoney(pieceHolidayBonus)} OT
               </div>
             </div>
             <div class="ot-calc-preview mt-2" id="ot-preview-${r.employee_id}">
               <span>Holiday Base: ${API.formatMoney(basePayDisplay)}</span>
-              <span>Fixed Holiday OT: <strong>${API.formatMoney(200)}</strong></span>
+              <span>Fixed Holiday OT: <strong>${API.formatMoney(pieceHolidayBonus)}</strong></span>
             </div>
             <input type="text" class="notes-input-mini mt-2" placeholder="Notes (e.g. Holiday shift)..." value="${this.escapeHtml(r.notes || '')}" data-emp-id="${r.employee_id}" id="notes-${r.employee_id}">
           `;
@@ -414,6 +420,30 @@ const AttendanceModule = {
       }
     }
 
+    const hasAdj = bonusVal > 0 || deductVal > 0;
+    const adjLabelParts = [];
+    if (bonusVal > 0) adjLabelParts.push(`+₹${bonusVal}`);
+    if (deductVal > 0) adjLabelParts.push(`-₹${deductVal}`);
+    const adjBadgeText = adjLabelParts.length > 0 ? ` (${adjLabelParts.join(' / ')})` : '';
+
+    const dailyAdjHtml = `
+      <div class="daily-adj-section">
+        <button type="button" class="btn-toggle-adj" data-emp-id="${r.employee_id}">
+          <span>⚙️</span> <span>Adjust (+Bonus / -Fine)${adjBadgeText}</span>
+        </button>
+        <div class="daily-adj-inputs" id="adj-inputs-${r.employee_id}" style="display: ${hasAdj ? 'grid' : 'none'};">
+          <div class="adj-field">
+            <label style="color: #10b981;">🎁 +Bonus / Allowance (₹)</label>
+            <input type="number" min="0" step="any" class="adj-input adj-bonus" placeholder="0" value="${bonusVal > 0 ? bonusVal : ''}" data-emp-id="${r.employee_id}" id="adj-bonus-${r.employee_id}">
+          </div>
+          <div class="adj-field">
+            <label style="color: #ef4444;">⚠️ -Deduction / Fine (₹)</label>
+            <input type="number" min="0" step="any" class="adj-input adj-deduct" placeholder="0" value="${deductVal > 0 ? deductVal : ''}" data-emp-id="${r.employee_id}" id="adj-deduct-${r.employee_id}">
+          </div>
+        </div>
+      </div>
+    `;
+
     // Tuesday or Paid Holiday Card
     if (isPaidDayOff) {
       if (isManager) {
@@ -450,6 +480,7 @@ const AttendanceModule = {
             </div>
 
             ${otControlsHtml}
+            ${dailyAdjHtml}
 
             <!-- Visual Save Feedback -->
             <div class="card-save-status" id="save-status-${r.employee_id}">
@@ -491,6 +522,7 @@ const AttendanceModule = {
           </div>
 
           ${otControlsHtml}
+          ${dailyAdjHtml}
 
           <!-- Visual Save Feedback -->
           <div class="card-save-status" id="save-status-${r.employee_id}">
@@ -536,6 +568,7 @@ const AttendanceModule = {
         </div>
 
         ${otControlsHtml}
+        ${dailyAdjHtml}
 
         <!-- Visual Save Feedback -->
         <div class="card-save-status" id="save-status-${r.employee_id}">
@@ -627,13 +660,14 @@ const AttendanceModule = {
         const record = this.records.find(r => r.employee_id === empId);
         if (!record) return;
         const isPiece = this.isPieceCategory(record.work_category);
-        const step = isPiece ? 500 : 1;
+        const piecesPerBox = Number(API.piecesPerBox || 500);
+        const step = isPiece ? piecesPerBox : 1;
         const input = document.getElementById(`box-input-${empId}`);
         let val = (parseFloat(input.value) || 0) + step;
         input.value = val;
         if (isPiece) {
           record.extra_pieces = val;
-          record.extra_boxes = Math.round((val / 500) * 100) / 100;
+          record.extra_boxes = Math.round((val / piecesPerBox) * 100) / 100;
           this.updateWorkerAttendance(empId, { extra_pieces: val, extra_boxes: record.extra_boxes });
         } else {
           record.extra_boxes = val;
@@ -650,14 +684,15 @@ const AttendanceModule = {
         const record = this.records.find(r => r.employee_id === empId);
         if (!record) return;
         const isPiece = this.isPieceCategory(record.work_category);
-        const step = isPiece ? 500 : 1;
+        const piecesPerBox = Number(API.piecesPerBox || 500);
+        const step = isPiece ? piecesPerBox : 1;
         const input = document.getElementById(`box-input-${empId}`);
         let val = (parseFloat(input.value) || 0) - step;
         if (val < 0) val = 0;
         input.value = val;
         if (isPiece) {
           record.extra_pieces = val;
-          record.extra_boxes = Math.round((val / 500) * 100) / 100;
+          record.extra_boxes = Math.round((val / piecesPerBox) * 100) / 100;
           this.updateWorkerAttendance(empId, { extra_pieces: val, extra_boxes: record.extra_boxes });
         } else {
           record.extra_boxes = val;
@@ -674,12 +709,13 @@ const AttendanceModule = {
         const record = this.records.find(r => r.employee_id === empId);
         if (!record) return;
         const isPiece = this.isPieceCategory(record.work_category);
+        const piecesPerBox = Number(API.piecesPerBox || 500);
         const count = parseFloat(btn.dataset.count !== undefined ? btn.dataset.count : btn.dataset.boxes);
         const input = document.getElementById(`box-input-${empId}`);
         if (input) input.value = count;
         if (isPiece) {
           record.extra_pieces = count;
-          record.extra_boxes = Math.round((count / 500) * 100) / 100;
+          record.extra_boxes = Math.round((count / piecesPerBox) * 100) / 100;
           this.updateWorkerAttendance(empId, { extra_pieces: count, extra_boxes: record.extra_boxes });
         } else {
           record.extra_boxes = count;
@@ -696,17 +732,58 @@ const AttendanceModule = {
         const record = this.records.find(r => r.employee_id === empId);
         if (!record) return;
         const isPiece = this.isPieceCategory(record.work_category);
+        const piecesPerBox = Number(API.piecesPerBox || 500);
         let val = Math.max(0, parseFloat(input.value) || 0);
         input.value = val;
         if (isPiece) {
           record.extra_pieces = val;
-          record.extra_boxes = Math.round((val / 500) * 100) / 100;
+          record.extra_boxes = Math.round((val / piecesPerBox) * 100) / 100;
           this.updateWorkerAttendance(empId, { extra_pieces: val, extra_boxes: record.extra_boxes });
         } else {
           record.extra_boxes = val;
           record.extra_pieces = 0;
           this.updateWorkerAttendance(empId, { extra_boxes: val, extra_pieces: 0 });
         }
+      });
+    });
+
+    // Daily Adjustment toggle button
+    root.querySelectorAll('.btn-toggle-adj').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const empId = parseInt(btn.dataset.empId, 10);
+        const container = document.getElementById(`adj-inputs-${empId}`);
+        if (container) {
+          container.style.display = container.style.display === 'none' ? 'grid' : 'none';
+          if (container.style.display === 'grid') {
+            const firstInput = container.querySelector('.adj-bonus');
+            if (firstInput) firstInput.focus();
+          }
+        }
+      });
+    });
+
+    // Daily Bonus change
+    root.querySelectorAll('.adj-bonus').forEach(input => {
+      input.addEventListener('change', () => {
+        const empId = parseInt(input.dataset.empId, 10);
+        const record = this.records.find(r => r.employee_id === empId);
+        if (!record) return;
+        const val = Math.max(0, parseFloat(input.value) || 0);
+        record.bonus_allowance = val;
+        this.updateWorkerAttendance(empId, { bonus_allowance: val });
+      });
+    });
+
+    // Daily Deduction change
+    root.querySelectorAll('.adj-deduct').forEach(input => {
+      input.addEventListener('change', () => {
+        const empId = parseInt(input.dataset.empId, 10);
+        const record = this.records.find(r => r.employee_id === empId);
+        if (!record) return;
+        const val = Math.max(0, parseFloat(input.value) || 0);
+        record.deduction = val;
+        this.updateWorkerAttendance(empId, { deduction: val });
       });
     });
 
@@ -827,6 +904,9 @@ const AttendanceModule = {
     const isPaidDayOff = !!(this.dateMeta && this.dateMeta.isPaidDayOff);
     const isHolidayWork = !!record.is_holiday_work;
     const isPiece = this.isPieceCategory(record.work_category);
+    const pieceHolidayBonus = Number(API.holidayPieceBonus !== undefined ? API.holidayPieceBonus : 200);
+    const bonusVal = Number(record.bonus_allowance || 0);
+    const deductVal = Number(record.deduction || 0);
     let otPay = 0;
     const extraBoxes = Number(record.extra_boxes || 0);
     const boxRate = Number(record.box_rate !== undefined ? record.box_rate : (API.defaultBoxRate || 30.0));
@@ -835,7 +915,7 @@ const AttendanceModule = {
       otPay = (record.overtime_days || 0) * record.daily_wage * (record.overtime_multiplier || 0);
     } else if (isPiece) {
       if (isPaidDayOff && isHolidayWork && record.status !== 'ABSENT') {
-        otPay = 200;
+        otPay = pieceHolidayBonus;
       } else {
         otPay = 0;
       }
@@ -847,7 +927,7 @@ const AttendanceModule = {
       }
     }
 
-    const totalDay = basePay + otPay;
+    const totalDay = Math.max(0, basePay + otPay + bonusVal - deductVal);
 
     // Update Day Total badge
     const earningEl = document.getElementById(`earning-${record.employee_id}`);
@@ -881,7 +961,7 @@ const AttendanceModule = {
         if (isPaidDayOff && isHolidayWork && record.status !== 'ABSENT') {
           otPreviewEl.innerHTML = `
             <span>Holiday Base: ${API.formatMoney(basePay)}</span>
-            <span>Fixed Holiday OT: <strong>${API.formatMoney(200)}</strong></span>
+            <span>Fixed Holiday OT: <strong>${API.formatMoney(pieceHolidayBonus)}</strong></span>
           `;
         } else if (isPaidDayOff && !isHolidayWork) {
           otPreviewEl.innerHTML = `
@@ -940,7 +1020,10 @@ const AttendanceModule = {
       const isPaidDayOff = !!(this.dateMeta && this.dateMeta.isPaidDayOff);
       const isHolidayWork = !!item.is_holiday_work;
       const isPiece = this.isPieceCategory(item.work_category);
+      const pieceHolidayBonus = Number(API.holidayPieceBonus !== undefined ? API.holidayPieceBonus : 200);
       const rate = Number(item.box_rate !== undefined ? item.box_rate : (API.defaultBoxRate || 30.0));
+      const bonus = Number(item.bonus_allowance || 0);
+      const deduct = Number(item.deduction || 0);
 
       if (item.worker_type === 'MANAGER') {
         const otDays = Number(item.overtime_days || 0);
@@ -951,7 +1034,7 @@ const AttendanceModule = {
         if (item.is_holiday_work) totalHolidayWorkers++;
         if (isPiece) {
           if (isPaidDayOff && isHolidayWork && item.status !== 'ABSENT') {
-            ot = 200;
+            ot = pieceHolidayBonus;
           } else {
             ot = 0;
           }
@@ -966,7 +1049,7 @@ const AttendanceModule = {
         }
       }
 
-      totalWagesToday += (base + ot);
+      totalWagesToday += Math.max(0, base + ot + bonus - deduct);
     }
 
     this.updateStats({

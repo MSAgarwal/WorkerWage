@@ -31,6 +31,151 @@
   --font-mono: 'JetBrains Mono', monospace;
 }
 
+[data-theme="dark"] {
+  --bg-main: #0b1329;
+  --bg-card: #152238;
+  --text-main: #f1f5f9;
+  --text-muted: #94a3b8;
+  --text-sub: #64748b;
+  --border: #26354d;
+  --border-focus: #3b82f6;
+
+  --primary-light: rgba(37, 99, 235, 0.25);
+  --success-light: rgba(16, 185, 129, 0.25);
+  --warning-light: rgba(245, 158, 11, 0.25);
+  --danger-light: rgba(239, 68, 68, 0.25);
+  --purple-light: rgba(139, 92, 246, 0.25);
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.5);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.6), 0 4px 6px -4px rgb(0 0 0 / 0.6);
+}
+
+[data-theme="dark"] input,
+[data-theme="dark"] select,
+[data-theme="dark"] textarea {
+  background-color: #1e293b;
+  color: #f8fafc;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .table-container,
+[data-theme="dark"] .settings-card,
+[data-theme="dark"] .worker-card,
+[data-theme="dark"] .grand-card,
+[data-theme="dark"] .modal-card,
+[data-theme="dark"] .stat-pill,
+[data-theme="dark"] .wp-stat-card,
+[data-theme="dark"] .worker-profile-card,
+[data-theme="dark"] .server-status-box,
+[data-theme="dark"] .worker-security-info-box {
+  background-color: var(--bg-card);
+  border-color: var(--border);
+}
+
+[data-theme="dark"] .payroll-table th {
+  background-color: #1e293b;
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .payroll-table td {
+  border-bottom-color: #243447;
+}
+
+[data-theme="dark"] .payroll-table tr:hover td {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+[data-theme="dark"] .top-nav,
+[data-theme="dark"] .bottom-nav {
+  background-color: rgba(21, 34, 56, 0.95);
+  border-color: #26354d;
+}
+
+[data-theme="dark"] .date-bar,
+[data-theme="dark"] .filter-toolbar,
+[data-theme="dark"] .payroll-filter-bar,
+[data-theme="dark"] .worker-month-bar,
+[data-theme="dark"] .wp-tabs-bar {
+  background-color: #152238;
+  border-color: #26354d;
+}
+
+/* Daily Attendance Adjustment Controls (+Bonus / -Fine) */
+.daily-adj-section {
+  border-top: 1px dashed var(--border);
+  padding-top: 8px;
+  margin-top: 8px;
+}
+
+.btn-toggle-adj {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 3px 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s ease;
+}
+
+.btn-toggle-adj:hover {
+  background: var(--primary-light);
+}
+
+.daily-adj-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 8px;
+  background: var(--bg-main);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.adj-field label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.adj-input {
+  width: 100%;
+  padding: 4px 8px;
+  font-size: 0.85rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-main);
+}
+
+.adj-input.adj-bonus {
+  border-color: #10b981;
+}
+
+.adj-input.adj-deduct {
+  border-color: #ef4444;
+}
+
+.btn-theme-toggle {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-theme-toggle:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
