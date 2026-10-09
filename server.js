@@ -9,7 +9,9 @@ const { db } = require('./db');
 const { NotFoundError, errorHandler } = require('./errors');
 const { securityHeaders } = require('./middleware/security.middleware');
 const { requestLogger } = require('./middleware/logger.middleware');
+const { globalRateLimiter } = require('./middleware/rate-limit.middleware');
 const systemService = require('./services/system.service');
+const backupScheduler = require('./services/backup-scheduler.service');
 const apiRoutes = require('./routes');
 
 const app = express();
@@ -44,6 +46,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Structured Request Logging
 app.use(requestLogger);
+
+// Global API Rate Limiting (DoS and brute-force mitigation)
+app.use('/api', globalRateLimiter);
 
 // Mount Modular API Routes
 app.use('/api', apiRoutes);
@@ -88,11 +93,15 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
 
   console.log('🔒 Security: Admin PIN hashed & server-side JWT auth active');
   console.log('============================================================\n');
+
+  // Start automated background backup scheduler
+  backupScheduler.start();
 });
 
 // Graceful Shutdown
 function gracefulShutdown(signal) {
   console.log(`\n[${new Date().toISOString()}] Received ${signal}. Shutting down gracefully...`);
+  backupScheduler.stop();
   server.close(() => {
     console.log('HTTP server closed.');
     try {

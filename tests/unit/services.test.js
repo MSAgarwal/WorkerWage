@@ -4,6 +4,7 @@ const attendanceService = require('../../services/attendance.service');
 const settingsService = require('../../services/settings.service');
 const systemService = require('../../services/system.service');
 const authService = require('../../services/auth.service');
+const config = require('../../config/env');
 
 describe('Services Unit Tests', () => {
   describe('AttendanceService.getDateMeta', () => {
@@ -74,7 +75,7 @@ describe('Services Unit Tests', () => {
       const health = systemService.getHealth();
       assert.ok(health);
       assert.equal(typeof health.isHealthy, 'boolean');
-      assert.equal(health.version, '3.0.0');
+      assert.equal(health.version, config.APP_VERSION);
       assert.ok(health.database);
     });
 

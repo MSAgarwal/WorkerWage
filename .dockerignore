@@ -1,0 +1,12 @@
+node_modules
+npm-debug.log
+.git
+.github
+.env
+.env.test
+test_attendance.db*
+backups/*
+tests
+*.log
+tools/*.exe
+tools/*.zip

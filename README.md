@@ -1,9 +1,10 @@
-# 📦 WorkerWage — Employee Attendance & Packaging Overtime System (v2.0)
+# 📦 WorkerWage — Employee Attendance & Packaging Overtime System (v5.0)
 
 [![Node.js Version](https://img.shields.io/badge/node.js-v22.x-brightgreen.svg)](https://nodejs.org/)
 [![Database](https://img.shields.io/badge/database-SQLite%20(node%3Asqlite)-blue.svg)](https://nodejs.org/api/sqlite.html)
-[![Tests](https://img.shields.io/badge/tests-57%20passed%20%7C%20100%25-brightgreen.svg)]()
-[![Security](https://img.shields.io/badge/security-JWT%20%7C%20Bcrypt%20%7C%20CSP-success.svg)]()
+[![Tests](https://img.shields.io/badge/tests-108%20passed%20%7C%20100%25-brightgreen.svg)]()
+[![Security](https://img.shields.io/badge/security-JWT%20%7C%20Bcrypt%20%7C%20Rate--Limiting-success.svg)]()
+[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -29,6 +30,8 @@
 - [Connecting from a Smartphone (LAN / Hotspot)](#-connecting-from-a-smartphone-lan--hotspot)
 - [Automated Testing & CI/CD Pipeline](#-automated-testing--cicd-pipeline)
 - [Production Deployment & Backups](#-production-deployment--backups)
+- [Scaling & High Concurrency Architecture (v5.0)](#-scaling--high-concurrency-architecture-v50)
+- [Docker Container Deployment](#-docker-container-deployment)
 - [API Reference](#-api-reference)
 - [Project Directory Layout](#-project-directory-layout)
 
@@ -279,6 +282,48 @@ npm run backup
 - Flushes WAL journals using `PRAGMA wal_checkpoint(TRUNCATE)`.
 - Uses `VACUUM INTO` to create an optimized, clean backup in `backups/`.
 - Automatically retains the latest 30 backups, pruning older files.
+
+---
+
+## ⚡ Scaling & High Concurrency Architecture (v5.0)
+
+WorkerWage v5 is engineered to run seamlessly as a high-performance local server for 10 to 5,000+ workers:
+
+1. **High-Performance SQLite Pragmas**:
+   - `PRAGMA cache_size = -64000`: 64 MB in-RAM memory page cache.
+   - `PRAGMA mmap_size = 268435456`: 256 MB direct OS memory-mapped I/O.
+   - `PRAGMA temp_store = MEMORY`: Zero disk-thrashing on large sorts and report aggregations.
+   - `PRAGMA wal_autocheckpoint = 1000`: Automatic background WAL checkpointing.
+2. **Eliminated N+1 Query Bottleneck**:
+   - Replaced per-worker sequential attendance and payment queries with constant $O(1)$ batch memory HashMaps in `services/payroll.service.js`.
+3. **Sliding Window Rate Limiter**:
+   - In-memory sliding window rate limiter protects against accidental request storms and DoS traffic.
+4. **Automated Zero-Downtime Backup Scheduler**:
+   - Background service periodically flushes WAL, performs `VACUUM INTO`, and prunes snapshots every 24 hours.
+5. **Multi-Unit Scalability**:
+   - Native support for `department` and `branch` fields with composite covering indexes (`idx_employees_status_name`, `idx_attendance_date_emp`).
+
+👉 **Read the complete guide:** [docs/SCALING_GUIDE.md](file:///e:/Employee%20Attendance/docs/SCALING_GUIDE.md)
+
+---
+
+## 🐳 Docker Container Deployment
+
+Run WorkerWage in a self-contained, portable container with healthchecks and volume persistence:
+
+```bash
+# Build and run with docker-compose
+docker-compose up -d
+
+# View live container logs
+docker-compose logs -f
+
+# Verify container health status
+docker inspect --format='{{json .State.Health}}' workerwage-v5
+
+# Stop container
+docker-compose down
+```
 
 ---
 

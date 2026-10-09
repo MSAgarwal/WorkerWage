@@ -183,17 +183,46 @@ class PayrollService {
 
     const workers = db.prepare(empQuery).all(...empParams);
 
-    const attendanceStmt = db.prepare(`
-      SELECT * FROM attendance
-      WHERE employee_id = ? AND date >= ? AND date <= ?
-      ORDER BY date ASC
-    `);
+    // Batch query optimization: Fetch all attendance & payments in a single query
+    // and group by worker ID in memory, eliminating the O(2N) database roundtrips.
+    const attMap = new Map();
+    const payMap = new Map();
 
-    const paymentsStmt = db.prepare(`
-      SELECT * FROM payments
-      WHERE employee_id = ? AND date >= ? AND date <= ? AND deleted_at IS NULL
-      ORDER BY date ASC
-    `);
+    if (employee_id) {
+      const attRows = db.prepare(`
+        SELECT * FROM attendance
+        WHERE employee_id = ? AND date >= ? AND date <= ?
+        ORDER BY date ASC
+      `).all(employee_id, start, end);
+      attMap.set(Number(employee_id), attRows);
+
+      const payRows = db.prepare(`
+        SELECT * FROM payments
+        WHERE employee_id = ? AND date >= ? AND date <= ? AND deleted_at IS NULL
+        ORDER BY date ASC
+      `).all(employee_id, start, end);
+      payMap.set(Number(employee_id), payRows);
+    } else {
+      const allAttRows = db.prepare(`
+        SELECT * FROM attendance
+        WHERE date >= ? AND date <= ?
+        ORDER BY date ASC
+      `).all(start, end);
+      for (const r of allAttRows) {
+        if (!attMap.has(r.employee_id)) attMap.set(r.employee_id, []);
+        attMap.get(r.employee_id).push(r);
+      }
+
+      const allPayRows = db.prepare(`
+        SELECT * FROM payments
+        WHERE date >= ? AND date <= ? AND deleted_at IS NULL
+        ORDER BY date ASC
+      `).all(start, end);
+      for (const r of allPayRows) {
+        if (!payMap.has(r.employee_id)) payMap.set(r.employee_id, []);
+        payMap.get(r.employee_id).push(r);
+      }
+    }
 
     const report = [];
     let grandBasePay = 0;
@@ -208,8 +237,8 @@ class PayrollService {
     let grandNetPayable = 0;
 
     for (const w of workers) {
-      const attRecords = attendanceStmt.all(w.id, start, end);
-      const payRecords = paymentsStmt.all(w.id, start, end);
+      const attRecords = attMap.get(w.id) || [];
+      const payRecords = payMap.get(w.id) || [];
 
       const workerSummary = this.calculateWorkerPayroll(w, attRecords, payRecords);
 

@@ -71,4 +71,8 @@ function runBackup() {
   console.log('========================================================\n');
 }
 
-runBackup();
+if (require.main === module) {
+  runBackup();
+}
+
+module.exports = { runBackup };

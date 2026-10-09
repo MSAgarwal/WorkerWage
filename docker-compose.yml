@@ -1,0 +1,30 @@
+services:
+  workerwage:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: workerwage-v5
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - DB_PATH=/app/attendance.db
+      - AUTO_BACKUP_ENABLED=true
+      - AUTO_BACKUP_INTERVAL_HOURS=24
+      - RATE_LIMIT_WINDOW_MS=60000
+      - RATE_LIMIT_MAX_REQUESTS=300
+      - AUTH_RATE_LIMIT_MAX=12
+    volumes:
+      # Mount database and backups to host for persistence across restarts
+      - ./attendance.db:/app/attendance.db
+      - ./attendance.db-wal:/app/attendance.db-wal
+      - ./attendance.db-shm:/app/attendance.db-shm
+      - ./backups:/app/backups
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:5000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

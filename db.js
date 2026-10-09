@@ -14,6 +14,10 @@ db.exec('PRAGMA journal_mode = WAL;');
 db.exec('PRAGMA foreign_keys = ON;');
 db.exec('PRAGMA synchronous = NORMAL;');
 db.exec('PRAGMA busy_timeout = 5000;');
+db.exec('PRAGMA cache_size = -64000;'); // 64MB memory page cache
+db.exec('PRAGMA temp_store = MEMORY;');  // Fast in-memory temporary tables & sorting
+db.exec('PRAGMA mmap_size = 268435456;'); // 256MB direct memory mapping
+db.exec('PRAGMA wal_autocheckpoint = 1000;');
 
 /**
  * Check if a specific column exists in a SQLite table
@@ -218,6 +222,19 @@ function initDatabase() {
         if (!hasColumn('payments', 'deleted_by')) {
           db.exec("ALTER TABLE payments ADD COLUMN deleted_by TEXT DEFAULT NULL;");
         }
+      }
+    },
+    {
+      version: '20261010_v5_scalability_indexes_and_departments',
+      up: () => {
+        if (!hasColumn('employees', 'department')) {
+          db.exec("ALTER TABLE employees ADD COLUMN department TEXT DEFAULT '';");
+        }
+        if (!hasColumn('employees', 'branch')) {
+          db.exec("ALTER TABLE employees ADD COLUMN branch TEXT DEFAULT '';");
+        }
+        db.exec("CREATE INDEX IF NOT EXISTS idx_employees_status_name ON employees(status, name);");
+        db.exec("CREATE INDEX IF NOT EXISTS idx_attendance_date_emp ON attendance(date, employee_id);");
       }
     }
   ];
