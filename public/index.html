@@ -325,61 +325,21 @@
     <section id="tabSettings" class="tab-pane">
       <div class="pane-header">
         <div>
-          <h2>System Settings</h2>
-          <p class="text-muted">Manage laptop server storage, PIN security, and overtime defaults</p>
+          <h2>⚙️ System & Factory Settings</h2>
+          <p class="text-muted">Configure work schedules, overtime rates, categories, and admin security.</p>
         </div>
       </div>
 
       <div class="settings-grid">
-        <!-- 1. Business / Site Details -->
+        <!-- 1. Work Schedule & Weekly Off Day Settings -->
         <div class="settings-card">
-          <h3>🏢 Site & Business Details</h3>
-          <p class="text-muted text-sm mb-3">Customize business identity, currency, shift length, and appearance.</p>
-          <form id="settingsGeneralForm">
-            <div class="form-group">
-              <label>Business / Site Name *</label>
-              <input type="text" id="settingBusinessName" required>
-            </div>
-            <div class="form-group">
-              <label>Site Location / Department</label>
-              <input type="text" id="settingSiteLocation" placeholder="e.g. Workshop Unit A, Main Factory">
-            </div>
-            <div class="form-group">
-              <label>Currency Symbol</label>
-              <select id="settingCurrency">
-                <option value="₹">₹ (Indian Rupee - INR)</option>
-                <option value="$">$ (US Dollar - USD)</option>
-                <option value="€">€ (Euro - EUR)</option>
-                <option value="£">£ (British Pound - GBP)</option>
-                <option value="AED">AED (UAE Dirham)</option>
-                <option value="SAR">SAR (Saudi Riyal)</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Standard Shift Duration (Hours)</label>
-              <div class="input-with-addons">
-                <input type="number" id="settingStandardHours" min="1" max="24" step="0.5" value="8.0" required>
-                <span class="addon-suffix">hrs/day</span>
-              </div>
-            </div>
-            <div class="form-group">
-              <label>Visual Theme</label>
-              <select id="settingTheme">
-                <option value="light">☀️ Light Theme (Default)</option>
-                <option value="dark">🌙 Factory Floor Dark Mode</option>
-              </select>
-            </div>
-            <button type="submit" class="btn btn-primary">Save Business Details</button>
-          </form>
-        </div>
-
-        <!-- 2. Work Schedule & Weekly Off Day Settings -->
-        <div class="settings-card">
-          <h3>🗓️ Work Schedule & Weekly Off Day</h3>
-          <p class="text-muted text-sm mb-3">Configure which day of the week is designated as the paid weekly off for your factory.</p>
+          <div class="settings-card-header">
+            <h3>🗓️ Work Schedule & Weekly Off Day</h3>
+            <p class="card-subtitle">Set the factory's designated paid weekly off day.</p>
+          </div>
           <form id="settingsScheduleForm">
             <div class="form-group">
-              <label>Weekly Paid Off Day *</label>
+              <label for="settingWeeklyOffDay">Weekly Paid Off Day *</label>
               <select id="settingWeeklyOffDay">
                 <option value="Tuesday">Tuesday (Current Default)</option>
                 <option value="Sunday">Sunday</option>
@@ -392,132 +352,150 @@
               </select>
               <span class="helper-text">On this day, all active workers automatically receive their full day's paid wage. If a worker works on this day, overtime rules apply.</span>
             </div>
-            <button type="submit" class="btn btn-primary">Save Schedule Rules</button>
+            <button type="submit" class="btn btn-primary">
+              <span>💾</span> Save Schedule Rules
+            </button>
           </form>
         </div>
 
-        <!-- 3. Packaging Overtime & Piece Rates Settings -->
+        <!-- 2. Packaging Overtime & Piece Rates Settings -->
         <div class="settings-card">
-          <h3>📦 Packaging & Piece-Rate Rules</h3>
-          <p class="text-muted text-sm mb-3">Customize rates for extra box overtime, piece-rate ratios, and holiday overtime bonuses.</p>
+          <div class="settings-card-header">
+            <h3>📦 Packaging & Piece-Rate Rules</h3>
+            <p class="card-subtitle">Extra box overtime rates, piece-rate ratios, and holiday bonuses.</p>
+          </div>
           <form id="settingsPackagingForm">
             <div class="form-group">
-              <label>Default Overtime Rate per Extra Box (<span class="currency-tag">₹</span>)</label>
+              <label for="settingDefaultBoxRate">Extra Box Overtime Rate (<span class="currency-tag">₹</span>)</label>
               <div class="input-with-addons">
                 <input type="number" id="settingDefaultBoxRate" min="0" step="1" value="30" required>
                 <span class="addon-suffix"><span class="currency-tag">₹</span>/box</span>
               </div>
-              <span class="helper-text">Packaging workers receive this amount for each extra box packed</span>
+              <span class="helper-text">Packaging workers receive this amount for each extra box packed beyond target.</span>
             </div>
 
             <div class="form-group">
-              <label>Holiday Piece-Rate Overtime Bonus (<span class="currency-tag">₹</span>)</label>
+              <label for="settingHolidayPieceBonus">Holiday Piece-Rate Overtime Bonus (<span class="currency-tag">₹</span>)</label>
               <div class="input-with-addons">
                 <input type="number" id="settingHolidayPieceBonus" min="0" step="1" value="200" required>
                 <span class="addon-suffix"><span class="currency-tag">₹</span></span>
               </div>
-              <span class="helper-text">Fixed overtime bonus awarded to piece-rate workers who work on weekly offs/holidays</span>
+              <span class="helper-text">Fixed bonus awarded to piece-rate workers who work on weekly off or holidays.</span>
             </div>
 
             <div class="form-group">
-              <label>Pieces per Box Equivalent Ratio</label>
+              <label for="settingPiecesPerBox">Pieces per Box Equivalent Ratio</label>
               <div class="input-with-addons">
                 <input type="number" id="settingPiecesPerBox" min="1" step="1" value="500" required>
                 <span class="addon-suffix">pcs / box</span>
               </div>
-              <span class="helper-text">Standard packaging conversion (e.g. 500 cards/bangles equals 1 packed box)</span>
+              <span class="helper-text">Standard packaging conversion (e.g. 500 cards/bangles equals 1 packed box).</span>
             </div>
 
             <div class="form-group">
-              <label>Piece-Rate Category Keywords</label>
+              <label for="settingPieceKeywords">Piece-Rate Category Keywords</label>
               <input type="text" id="settingPieceKeywords" placeholder="e.g. card, bangle, pouch" value="card, bangle">
-              <span class="helper-text">Categories containing any of these keywords are treated as piece-rate items</span>
+              <span class="helper-text">Categories containing any of these keywords are treated as piece-rate items.</span>
             </div>
 
-            <button type="submit" class="btn btn-primary">Save Piece & Box Rules</button>
+            <button type="submit" class="btn btn-primary">
+              <span>💾</span> Save Piece & Box Rules
+            </button>
+          </form>
+        </div>
+
+        <!-- 3. Default Wages & Overtime Multipliers -->
+        <div class="settings-card">
+          <div class="settings-card-header">
+            <h3>⏱️ Wage & Overtime Multiplier Defaults</h3>
+            <p class="card-subtitle">Pre-filled defaults for new workers and day-based overtime rules.</p>
+          </div>
+          <form id="settingsOtForm">
+            <div class="form-group">
+              <label for="settingDefaultDailyWage">Default Daily Wage for New Workers (<span class="currency-tag">₹</span>)</label>
+              <div class="input-with-addons">
+                <input type="number" id="settingDefaultDailyWage" min="0" step="10" value="500" required>
+                <span class="addon-suffix"><span class="currency-tag">₹</span>/day</span>
+              </div>
+              <span class="helper-text">Default wage automatically pre-filled when creating new workers.</span>
+            </div>
+
+            <div class="form-group">
+              <label for="settingDefaultOtMult">Default Overtime Multiplier (0.00 to 3.00)</label>
+              <div class="input-with-addons">
+                <input type="number" id="settingDefaultOtMult" min="0" max="3" step="0.01" value="0.00" required>
+                <span class="addon-suffix">x</span>
+              </div>
+              <span class="helper-text">For managers & day workers: OT Pay = Overtime Days × Daily Wage × Multiplier.</span>
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+              <span>💾</span> Save Wage Defaults
+            </button>
           </form>
         </div>
 
         <!-- 4. Work Categories Manager -->
         <div class="settings-card">
-          <h3>🏷️ Work Categories Manager (<span id="catCountBadge">17</span>)</h3>
-          <p class="text-muted text-sm mb-3">Add, customize, or remove items in the daily attendance work categories list.</p>
+          <div class="settings-card-header">
+            <h3>🏷️ Work Categories (<span id="catCountBadge" class="cat-count-badge">17</span>)</h3>
+            <p class="card-subtitle">Manage product categories for daily attendance logs.</p>
+          </div>
           <div class="category-chips-container" id="settingCategoriesList">
             <!-- Dynamically populated chips with delete button -->
           </div>
 
           <div class="input-with-addons mt-3">
             <input type="text" id="newCategoryInput" placeholder="New product category (e.g. Sp 120, PD Box)...">
-            <button type="button" class="btn btn-secondary btn-sm" id="btnAddCategory">+ Add Category</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnAddCategory">+ Add</button>
           </div>
-          <button type="button" class="btn btn-primary mt-3" id="btnSaveCategories">Save Categories List</button>
+          <button type="button" class="btn btn-primary mt-3" id="btnSaveCategories">
+            <span>💾</span> Save Categories List
+          </button>
         </div>
 
-        <!-- 5. Default Wages & Overtime Multipliers -->
+        <!-- 5. Admin Security PIN -->
         <div class="settings-card">
-          <h3>⏱️ Wages & Overtime Multiplier Defaults</h3>
-          <p class="text-muted text-sm mb-3">Pre-fill defaults when adding new workers, and day-based overtime rates.</p>
-          <form id="settingsOtForm">
-            <div class="form-group">
-              <label>Default Daily Wage for New Workers (<span class="currency-tag">₹</span>)</label>
-              <div class="input-with-addons">
-                <input type="number" id="settingDefaultDailyWage" min="0" step="10" value="500" required>
-                <span class="addon-suffix"><span class="currency-tag">₹</span>/day</span>
-              </div>
-              <span class="helper-text">Default wage populated when adding new workers</span>
-            </div>
-
-            <div class="form-group">
-              <label>Default Overtime Multiplier (0.00 to 3.00)</label>
-              <div class="input-with-addons">
-                <input type="number" id="settingDefaultOtMult" min="0" max="3" step="0.01" value="0.00" required>
-                <span class="addon-suffix">x</span>
-              </div>
-              <span class="helper-text">For managers & day-based workers: OT Pay = Overtime Days × Daily Wage × Multiplier</span>
-            </div>
-            <button type="submit" class="btn btn-primary">Save Wage Defaults</button>
-          </form>
-        </div>
-
-        <!-- 6. Admin PIN Lock -->
-        <div class="settings-card">
-          <h3>🔒 Admin Security PIN</h3>
-          <p class="text-muted text-sm mb-3">Ensure only you as employer can view wages and mark attendance from mobile or laptop.</p>
+          <div class="settings-card-header">
+            <h3>🔒 Admin Security PIN</h3>
+            <p class="card-subtitle">Protect payroll, attendance marking, and configuration access.</p>
+          </div>
           <form id="changePinForm">
             <div class="form-group">
-              <label>Current Admin PIN</label>
+              <label for="currentPinInput">Current Admin PIN</label>
               <input type="password" id="currentPinInput" placeholder="Default: 1234" required>
             </div>
             <div class="form-group">
-              <label>New Admin PIN (4+ digits)</label>
+              <label for="newPinInput">New Admin PIN (4+ digits)</label>
               <input type="password" id="newPinInput" placeholder="Enter new PIN" minlength="4" required>
             </div>
-            <button type="submit" class="btn btn-secondary">Update Admin PIN</button>
+            <button type="submit" class="btn btn-secondary">
+              <span>🔑</span> Update Admin PIN
+            </button>
           </form>
         </div>
 
-        <!-- Worker Passbook Security & Privacy -->
+        <!-- 6. Local Server & Database Backup -->
         <div class="settings-card">
-          <h3>🔑 Worker Passbook & Privacy Key Policy</h3>
-          <p class="text-muted text-sm mb-3">Every worker has a confidential 5+ digit secret key to access their own passbook, wage slip, and attendance records on mobile. This guarantees zero peer snooping.</p>
-          <div class="worker-security-info-box">
-            <div>• <strong>Default Password:</strong> <code>12345</code> is automatically assigned to new or existing workers unless customized.</div>
-            <div>• <strong>Worker Self-Service:</strong> Workers can change their password directly inside their mobile passbook using the <em>🔑 Change Key</em> option.</div>
-            <div>• <strong>Admin Override:</strong> If a worker forgets their secret key, employer/admin can reset it anytime by editing the worker profile in the <strong>Workers</strong> tab.</div>
-            <div>• <strong>Minimum Complexity:</strong> Minimum 5 digits / characters required by security policy.</div>
+          <div class="settings-card-header">
+            <h3>💻 Local Server & Data Backup</h3>
+            <p class="card-subtitle">All attendance, wage, and worker records are stored locally on your machine.</p>
           </div>
-        </div>
 
-        <!-- Laptop Server & Database Backup -->
-        <div class="settings-card">
-          <h3>💻 Laptop Server & Database</h3>
-          <p class="text-muted text-sm mb-3">All attendance, wage, and worker records are stored locally in the SQLite database on your laptop.</p>
-          <div class="server-status-box">
+          <div class="server-status-box mb-3">
             <div><strong>Storage Engine:</strong> SQLite Local Database</div>
-            <div><strong>Laptop Server Status:</strong> <span class="badge-online">Active 🟢</span></div>
-            <div><strong>Local Storage Path:</strong> <code class="code-pill">attendance.db</code></div>
+            <div><strong>Server Status:</strong> <span class="badge-online">Active 🟢</span></div>
+            <div><strong>Database File:</strong> <code class="code-pill">attendance.db</code></div>
           </div>
-          <div class="mt-3">
+
+          <div class="worker-security-info-box mb-3">
+            <div><strong>🔑 Worker Passbook Key Policy:</strong></div>
+            <div>• Default PIN: <code>12345</code> is automatically assigned to new workers.</div>
+            <div>• Workers can change their password directly in mobile passbook (<em>🔑 Change Key</em>).</div>
+            <div>• Admin can reset any worker's secret key in the <strong>Workers</strong> tab.</div>
+          </div>
+
+          <div>
             <a href="/api/backup" id="btnDownloadBackup" class="btn btn-secondary btn-sm" download>
               <span>💾</span> Download Database Backup (.db)
             </a>

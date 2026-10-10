@@ -756,12 +756,18 @@ const App = {
       if (res.success && res.settings) {
         const s = res.settings;
         if (s.business_name) {
-          document.getElementById('settingBusinessName').value = s.business_name;
-          document.getElementById('appBusinessName').textContent = s.business_name;
+          const bEl = document.getElementById('settingBusinessName');
+          if (bEl) bEl.value = s.business_name;
+          const appBName = document.getElementById('appBusinessName');
+          if (appBName) appBName.textContent = s.business_name;
         }
-        if (s.site_location) document.getElementById('settingSiteLocation').value = s.site_location;
+        if (s.site_location) {
+          const locEl = document.getElementById('settingSiteLocation');
+          if (locEl) locEl.value = s.site_location;
+        }
         if (s.currency_symbol) {
-          document.getElementById('settingCurrency').value = s.currency_symbol;
+          const curEl = document.getElementById('settingCurrency');
+          if (curEl) curEl.value = s.currency_symbol;
           document.querySelectorAll('.currency-tag').forEach(el => el.textContent = s.currency_symbol);
         }
         if (s.standard_hours) {
