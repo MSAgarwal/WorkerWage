@@ -123,7 +123,7 @@ function calculateWage(
     } else {
 
       // Standard categories: extra boxes * boxRate
-      if (isPaidDayOff && !isHolidayWork) {
+      if (isPaidDayOff && !isHoliday) {
         parsedBoxes = 0;
         overtimePay = 0.0;
       } else {

@@ -118,9 +118,9 @@ const AttendanceModule = {
 
     if (meta && meta.isPaidDayOff) {
       banner.style.display = 'flex';
-      banner.className = `holiday-banner ${meta.isTuesday ? 'tuesday-off' : 'custom-holiday'}`;
+      banner.className = `holiday-banner ${meta.isWeeklyOff ? 'tuesday-off' : 'custom-holiday'}`;
       banner.innerHTML = `
-        <div class="holiday-banner-icon">${meta.isTuesday ? '🌴' : '🎉'}</div>
+        <div class="holiday-banner-icon">${meta.isWeeklyOff ? '🌴' : '🎉'}</div>
         <div class="holiday-banner-text">
           <div class="holiday-banner-title">${meta.dayOffReason || 'Weekly Paid Off'}</div>
           <div class="holiday-banner-desc">
@@ -469,7 +469,7 @@ const AttendanceModule = {
                 <div class="worker-name">
                   <span>${this.escapeHtml(r.name)}</span>
                   <span class="worker-badge manager-badge">👔 Manager</span>
-                  <span class="badge-holiday-tag">🌴 ${this.dateMeta.isTuesday ? 'Tue Off' : 'Holiday'}</span>
+                  <span class="badge-holiday-tag">🌴 ${this.dateMeta.isWeeklyOff ? ((this.dateMeta.weeklyOffDay ? this.dateMeta.weeklyOffDay.substring(0, 3) : 'Off') + ' Off') : 'Holiday'}</span>
                 </div>
                 <div class="worker-wage-tag">
                   Daily Rate: <span class="worker-wage-rate">${API.formatMoney(r.daily_wage)}/day</span>
@@ -511,7 +511,7 @@ const AttendanceModule = {
               <div class="worker-name">
                 <span>${this.escapeHtml(r.name)}</span>
                 <span class="worker-badge ${isManager ? 'manager-badge' : ''}">${isManager ? '👔 Manager' : this.escapeHtml(r.role || 'Worker')}</span>
-                <span class="badge-holiday-tag">🌴 ${this.dateMeta.isTuesday ? 'Tue Off' : 'Holiday'}</span>
+                <span class="badge-holiday-tag">🌴 ${this.dateMeta.isWeeklyOff ? ((this.dateMeta.weeklyOffDay ? this.dateMeta.weeklyOffDay.substring(0, 3) : 'Off') + ' Off') : 'Holiday'}</span>
               </div>
               <div class="worker-wage-tag">
                 Daily Rate: <span class="worker-wage-rate">${API.formatMoney(r.daily_wage)}/day</span>

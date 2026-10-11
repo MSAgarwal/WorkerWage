@@ -247,6 +247,10 @@ const API = {
     return this.request(`/api/holidays/${id}`, { method: 'DELETE' });
   },
 
+  async clearAllHolidays() {
+    return this.request('/api/holidays', { method: 'DELETE' });
+  },
+
   // Employee APIs
   async getEmployees(status = 'ALL') {
     return this.request(`/api/employees?status=${encodeURIComponent(status)}`);

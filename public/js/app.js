@@ -847,20 +847,47 @@ const App = {
 
   // Holiday Management
   async openHolidayModal() {
+    const offDayNameEl = document.getElementById('holidayWeeklyOffDayName');
+    if (offDayNameEl) {
+      offDayNameEl.textContent = API.weeklyPaidOffDay || 'Tuesday';
+    }
     this.openModal('holidayModal');
     await this.loadHolidays();
   },
 
   async loadHolidays() {
     const container = document.getElementById('holidaysListContainer');
+    const btnClearAll = document.getElementById('btnClearAllHolidays');
     if (!container) return;
     container.innerHTML = '<div class="spinner"></div>';
 
     try {
       const res = await API.getHolidays();
+      const offDay = API.weeklyPaidOffDay || 'Tuesday';
       if (!res.success || !res.holidays || res.holidays.length === 0) {
-        container.innerHTML = '<p class="text-muted" style="font-size: 0.85rem; padding: 12px 0;">No custom paid holidays added yet. Tuesdays are automatically paid off.</p>';
+        if (btnClearAll) btnClearAll.style.display = 'none';
+        container.innerHTML = `<p class="text-muted" style="font-size: 0.85rem; padding: 12px 0;">No custom paid holidays configured. (${offDay}s are automatically paid weekly off).</p>`;
         return;
+      }
+
+      if (btnClearAll) {
+        btnClearAll.style.display = 'inline-flex';
+        btnClearAll.onclick = async () => {
+          if (confirm('Are you sure you want to delete ALL holidays? Once deleted, they will NOT reset or return on restart.')) {
+            try {
+              const clearRes = await API.clearAllHolidays();
+              if (clearRes.success) {
+                this.showToast('All holidays cleared successfully', 'success');
+                await this.loadHolidays();
+                if (this.activeTab === 'tabAttendance') {
+                  AttendanceModule.loadAttendance();
+                }
+              }
+            } catch (err) {
+              this.showToast(`Error: ${err.message}`, 'error');
+            }
+          }
+        };
       }
 
       container.innerHTML = res.holidays.map(h => `
@@ -883,7 +910,6 @@ const App = {
               if (delRes.success) {
                 this.showToast('Holiday removed', 'success');
                 await this.loadHolidays();
-                // Refresh attendance if on attendance tab
                 if (this.activeTab === 'tabAttendance') {
                   AttendanceModule.loadAttendance();
                 }
@@ -895,6 +921,7 @@ const App = {
         });
       });
     } catch (err) {
+      if (btnClearAll) btnClearAll.style.display = 'none';
       container.innerHTML = `<p class="text-rose" style="font-size: 0.85rem;">Failed to load holidays: ${this.escapeHtml(err.message)}</p>`;
     }
   },

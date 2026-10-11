@@ -68,9 +68,8 @@ const PayrollModule = {
       customWrap.style.display = 'none';
       const day = now.getDay();
       const diffToMonday = now.getDate() - day + (day === 0 ? -6 : 1);
-      const monday = new Date(now.setDate(diffToMonday));
-      const sunday = new Date(monday);
-      sunday.setDate(monday.getDate() + 6);
+      const monday = new Date(now.getFullYear(), now.getMonth(), diffToMonday);
+      const sunday = new Date(now.getFullYear(), now.getMonth(), diffToMonday + 6);
       this.startDate = this.formatDate(monday);
       this.endDate = this.formatDate(sunday);
     } else if (type === 'last-month') {

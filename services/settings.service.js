@@ -6,7 +6,7 @@ class SettingsService {
    * Get all public/application settings (excluding secret admin keys)
    */
   getSettings() {
-    const rows = db.prepare("SELECT key, value FROM settings WHERE key NOT IN ('admin_pin', 'jwt_secret')").all();
+    const rows = db.prepare("SELECT key, value FROM settings WHERE key NOT IN ('admin_pin', 'jwt_secret', 'holidays_seeded')").all();
     const settings = {
       weekly_paid_off_day: 'Tuesday',
       default_daily_wage: '500.00',

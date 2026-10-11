@@ -54,6 +54,19 @@ class HolidayController {
       next(err);
     }
   }
+
+  /**
+   * DELETE /api/holidays
+   * Remove all holidays
+   */
+  clearAllHolidays(req, res, next) {
+    try {
+      holidayService.clearAllHolidays();
+      res.json({ success: true, message: 'All holidays cleared successfully' });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = new HolidayController();

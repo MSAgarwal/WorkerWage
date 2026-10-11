@@ -5,6 +5,7 @@ const { requireAdmin } = require('../middleware/auth.middleware');
 
 router.get('/', requireAdmin, (req, res, next) => holidayController.getHolidays(req, res, next));
 router.post('/', requireAdmin, (req, res, next) => holidayController.createHoliday(req, res, next));
+router.delete('/', requireAdmin, (req, res, next) => holidayController.clearAllHolidays(req, res, next));
 router.delete('/:id', requireAdmin, (req, res, next) => holidayController.deleteHoliday(req, res, next));
 
 module.exports = router;

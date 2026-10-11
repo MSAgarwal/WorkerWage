@@ -321,15 +321,19 @@ function initDatabase() {
     db.prepare('UPDATE settings SET value = ? WHERE key = ?').run(config.JWT_SECRET, 'jwt_secret');
   }
 
-  // Seed default holidays if table is empty
-  const countHol = db.prepare('SELECT COUNT(*) as count FROM holidays').get();
-  if (countHol && countHol.count === 0) {
-    const seedHoliday = db.prepare('INSERT OR IGNORE INTO holidays (date, title, is_paid) VALUES (?, ?, ?)');
-    seedHoliday.run('2026-10-02', 'Gandhi Jayanti', 1);
-    seedHoliday.run('2026-11-08', 'Diwali', 1);
-    seedHoliday.run('2026-12-25', 'Christmas', 1);
-    seedHoliday.run('2026-01-26', 'Republic Day', 1);
-    seedHoliday.run('2026-08-15', 'Independence Day', 1);
+  // Seed default holidays ONLY once on initial database creation (never reset if user deletes them)
+  const holidaysSeeded = checkSettingStmt.get('holidays_seeded');
+  if (!holidaysSeeded) {
+    const countHol = db.prepare('SELECT COUNT(*) as count FROM holidays').get();
+    if (countHol && countHol.count === 0) {
+      const seedHoliday = db.prepare('INSERT OR IGNORE INTO holidays (date, title, is_paid) VALUES (?, ?, ?)');
+      seedHoliday.run('2026-10-02', 'Gandhi Jayanti', 1);
+      seedHoliday.run('2026-11-08', 'Diwali', 1);
+      seedHoliday.run('2026-12-25', 'Christmas', 1);
+      seedHoliday.run('2026-01-26', 'Republic Day', 1);
+      seedHoliday.run('2026-08-15', 'Independence Day', 1);
+    }
+    insertSettingStmt.run('holidays_seeded', '1');
   }
 }
 

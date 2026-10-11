@@ -31,6 +31,16 @@ class HolidayService {
     if (result.changes === 0) {
       throw new NotFoundError('Holiday not found');
     }
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('holidays_seeded', '1')").run();
+    return true;
+  }
+
+  /**
+   * Clear all registered holidays
+   */
+  clearAllHolidays() {
+    db.prepare('DELETE FROM holidays').run();
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('holidays_seeded', '1')").run();
     return true;
   }
 }

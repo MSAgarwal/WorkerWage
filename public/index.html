@@ -963,20 +963,20 @@
       <div class="modal-body">
         <div class="holiday-note-box mb-3">
           <strong>ℹ️ Office Paid Leave Policy:</strong>
-          <div>• Every <strong>Tuesday</strong> is automatically a paid weekly off.</div>
+          <div>• Every <strong id="holidayWeeklyOffDayName">Tuesday</strong> is automatically a paid weekly off.</div>
           <div>• All custom dates listed below are <strong>Paid Holidays</strong> (workers receive their full day wage).</div>
-          <div>• Workers who come and work on a Tuesday or Holiday receive their daily wage + <strong>Overtime Pay</strong>!</div>
+          <div>• Workers who come and work on a weekly off or holiday receive their daily wage + <strong>Overtime Pay</strong>!</div>
         </div>
 
         <form id="addHolidayForm" class="mb-3">
           <h4 style="font-size: 0.9rem; font-weight: 700;">➕ Add Paid Holiday</h4>
           <div class="form-row mt-2">
             <div class="form-group flex-1">
-              <label>Date *</label>
+              <label for="holidayDateInput">Date *</label>
               <input type="date" id="holidayDateInput" required>
             </div>
             <div class="form-group flex-1">
-              <label>Holiday / Festival Name *</label>
+              <label for="holidayTitleInput">Holiday / Festival Name *</label>
               <input type="text" id="holidayTitleInput" placeholder="e.g. Diwali, Gandhi Jayanti" required>
             </div>
           </div>
@@ -985,7 +985,12 @@
 
         <hr style="border: none; border-top: 1px solid var(--border); margin: 16px 0;">
 
-        <h4 style="font-size: 0.9rem; font-weight: 700;">📅 Configured Paid Holidays</h4>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <h4 style="font-size: 0.9rem; font-weight: 700;">📅 Configured Paid Holidays</h4>
+          <button type="button" id="btnClearAllHolidays" class="btn btn-secondary btn-sm" style="display: none; color: var(--danger); font-size: 0.75rem; padding: 3px 8px;" title="Delete all holidays">
+            <span>🗑️</span> Delete All
+          </button>
+        </div>
         <div id="holidaysListContainer" class="holidays-list mt-2">
           <div class="spinner"></div>
         </div>

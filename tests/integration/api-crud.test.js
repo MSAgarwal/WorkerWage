@@ -384,6 +384,27 @@ describe('CRUD API & Business Workflow Integration Tests', () => {
     assert.equal(resHoliday.status, 404);
   });
 
+  it('DELETE /api/holidays clears all holidays and marks holidays_seeded permanently', async () => {
+    // Add a test holiday first
+    await apiRequest('/api/holidays', 'POST', { date: '2026-12-31', title: 'New Year Eve Test' }, authHeaders);
+
+    // Delete all holidays
+    const resClear = await apiRequest('/api/holidays', 'DELETE', null, authHeaders);
+    assert.equal(resClear.status, 200);
+    assert.equal(resClear.body.success, true);
+
+    // Verify empty list
+    const resList = await apiRequest('/api/holidays', 'GET', null, authHeaders);
+    assert.equal(resList.status, 200);
+    assert.ok(Array.isArray(resList.body.holidays));
+    assert.equal(resList.body.holidays.length, 0);
+
+    // Verify holidays_seeded flag was recorded in database
+    const seeded = db.prepare("SELECT value FROM settings WHERE key = 'holidays_seeded'").get();
+    assert.ok(seeded);
+    assert.equal(seeded.value, '1');
+  });
+
   it('DELETE /api/employees/:id removes worker and cascades associated records', async () => {
     const res = await apiRequest(`/api/employees/${testWorkerId}?hardDelete=true&force=true`, 'DELETE', null, authHeaders);
     assert.equal(res.status, 200);
@@ -393,3 +414,4 @@ describe('CRUD API & Business Workflow Integration Tests', () => {
     testWorkerId = null; // Prevent double cleanup in after()
   });
 });
+

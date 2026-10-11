@@ -278,6 +278,41 @@
   color: #c4b5fd;
 }
 
+[data-theme="dark"] .status-btn.selected {
+  color: #ffffff !important;
+  font-weight: 800;
+}
+
+[data-theme="dark"] .status-btn.btn-present.selected {
+  background: #059669;
+  border-color: #10b981;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
+}
+
+[data-theme="dark"] .status-btn.btn-half.selected {
+  background: #d97706;
+  border-color: #f59e0b;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
+}
+
+[data-theme="dark"] .status-btn.btn-absent.selected {
+  background: #dc2626;
+  border-color: #ef4444;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+}
+
+[data-theme="dark"] .status-btn.btn-paid-leave.selected {
+  background: #0284c7;
+  border-color: #38bdf8;
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.4);
+}
+
+[data-theme="dark"] .status-btn.btn-worked-holiday.selected {
+  background: #7c3aed;
+  border-color: #a855f7;
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.4);
+}
+
 [data-theme="dark"] .badge-holiday-tag {
   background: rgba(20, 184, 166, 0.15);
   color: #2dd4bf;
@@ -438,88 +473,241 @@
   color: var(--text-main);
 }
 
-/* Modals, Pin Keypad & Dual Auth */
+/* Modals, Popups, Pin Keypad & Dual Auth Architecture */
 [data-theme="dark"] .modal-backdrop {
   background: rgba(3, 7, 18, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
-[data-theme="dark"] .key-btn {
-  background: var(--bg-elevated);
-  border-color: var(--border);
-  color: var(--text-main);
+[data-theme="dark"] .modal-card {
+  background: #131b28;
+  border: 1px solid #28374d;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.05);
 }
 
-[data-theme="dark"] .key-btn:hover {
-  background: #253347;
+[data-theme="dark"] .modal-header {
+  background: #131b28;
+  border-bottom: 1px solid #243247;
 }
 
-[data-theme="dark"] .key-btn:active {
-  background: var(--primary-light);
-}
-
-[data-theme="dark"] .pin-input {
-  background: #111827;
+[data-theme="dark"] .modal-header h3 {
   color: #f8fafc;
-  border-color: var(--primary);
 }
 
+[data-theme="dark"] .modal-footer {
+  background: #0f1624;
+  border-top: 1px solid #243247;
+}
+
+[data-theme="dark"] .modal-close {
+  background: #1b2536;
+  border: 1px solid #2a394f;
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .modal-close:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: #ef4444;
+  color: #f87171;
+}
+
+[data-theme="dark"] .modal-card label {
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .modal-card input,
+[data-theme="dark"] .modal-card select,
+[data-theme="dark"] .modal-card textarea {
+  background-color: #182232 !important;
+  border-color: #2b3a4f !important;
+  color: #f8fafc !important;
+}
+
+[data-theme="dark"] .modal-card input:focus,
+[data-theme="dark"] .modal-card select:focus,
+[data-theme="dark"] .modal-card textarea:focus {
+  border-color: #60a5fa !important;
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.25) !important;
+}
+
+[data-theme="dark"] .modal-card .helper-text {
+  color: #94a3b8;
+}
+
+/* Dual Auth Role Tabs */
 [data-theme="dark"] .auth-role-tabs {
-  background: #111827;
-  border: 1px solid var(--border);
+  background: #0c121d;
+  border: 1px solid #243449;
 }
 
 [data-theme="dark"] .auth-role-tab {
-  color: var(--text-muted);
+  color: #94a3b8;
 }
 
 [data-theme="dark"] .auth-role-tab.active {
-  background: var(--bg-card);
-  color: var(--primary);
+  background: #1b2638;
+  color: #60a5fa;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="dark"] .lock-avatar {
+  background: rgba(59, 130, 246, 0.12);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: 50%;
+  width: 60px;
+  height: 60px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 10px;
 }
 
 [data-theme="dark"] .worker-avatar {
-  background: rgba(16, 185, 129, 0.15) !important;
+  background: rgba(16, 185, 129, 0.12) !important;
   color: #34d399 !important;
+  border: 1px solid rgba(16, 185, 129, 0.25) !important;
+  border-radius: 50%;
+  width: 60px;
+  height: 60px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 10px;
 }
 
 [data-theme="dark"] .worker-login-features {
-  background: #111827;
-  border-color: var(--border);
+  background: #0c121d;
+  border: 1px solid #243449;
 }
 
 [data-theme="dark"] .feature-item {
   color: #cbd5e1;
 }
 
+/* Numeric Pin Keypad */
+[data-theme="dark"] .pin-input {
+  background: #0c121d;
+  color: #f8fafc;
+  border: 2px solid #3b82f6;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+}
+
+[data-theme="dark"] .key-btn {
+  background: #182232;
+  border-color: #2b3a4f;
+  color: #f8fafc;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .key-btn:hover {
+  background: #233147;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+[data-theme="dark"] .key-btn:active {
+  background: rgba(59, 130, 246, 0.25);
+  border-color: #60a5fa;
+}
+
+[data-theme="dark"] .key-btn.clear {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+[data-theme="dark"] .key-btn.clear:hover {
+  background: rgba(239, 68, 68, 0.22);
+  border-color: #ef4444;
+}
+
+[data-theme="dark"] .key-btn.backspace {
+  background: #182232;
+  border-color: #2b3a4f;
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .key-btn.backspace:hover {
+  background: #233147;
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .error-msg {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+}
+
+/* Mobile Connect QR Modal */
+[data-theme="dark"] .qr-code-img {
+  background: #ffffff !important;
+  border-color: #33445d;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
 [data-theme="dark"] .url-copy-box {
-  background: #111827;
-  border: 1px solid var(--border);
+  background: #0c121d;
+  border: 1px solid #243449;
+}
+
+[data-theme="dark"] .url-copy-box code {
+  color: #60a5fa;
 }
 
 [data-theme="dark"] .btn-copy {
-  background: var(--bg-elevated);
-  border-color: var(--border);
-  color: var(--text-main);
+  background: #1e2a3c;
+  border-color: #2e415b;
+  color: #e2e8f0;
 }
 
 [data-theme="dark"] .btn-copy:hover {
-  background: #253347;
+  background: #2a3b53;
+  border-color: #60a5fa;
+  color: #60a5fa;
 }
 
 [data-theme="dark"] .connection-guide {
-  background: #111827;
-  border-color: var(--border);
+  background: #0f1624;
+  border-color: #243449;
+  color: #cbd5e1;
 }
 
+[data-theme="dark"] .connection-guide h4 {
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .connection-guide ol {
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .connection-guide strong {
+  color: #e2e8f0;
+}
+
+/* Holiday Modal */
 [data-theme="dark"] .holiday-note-box {
-  background: rgba(16, 185, 129, 0.12);
-  border-color: rgba(16, 185, 129, 0.25);
-  color: #34d399;
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.28);
+  color: #6ee7b7;
 }
 
 [data-theme="dark"] .holiday-item {
-  background: var(--bg-elevated);
-  border-color: var(--border);
+  background: #172130;
+  border-color: #28384e;
+}
+
+[data-theme="dark"] .holiday-item:hover {
+  border-color: #3b82f6;
+}
+
+[data-theme="dark"] .holiday-title {
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .holiday-date {
+  color: #94a3b8;
 }
 
 [data-theme="dark"] .holiday-badge {
@@ -528,14 +716,47 @@
   border-color: rgba(245, 158, 11, 0.3);
 }
 
+[data-theme="dark"] .btn-delete-holiday {
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+[data-theme="dark"] .btn-delete-holiday:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: #ef4444;
+}
+
+[data-theme="dark"] #btnClearAllHolidays {
+  background: rgba(239, 68, 68, 0.12) !important;
+  color: #f87171 !important;
+  border: 1px solid rgba(239, 68, 68, 0.3) !important;
+}
+
+[data-theme="dark"] #btnClearAllHolidays:hover {
+  background: rgba(239, 68, 68, 0.25) !important;
+  border-color: #ef4444 !important;
+}
+
+/* Worker Key Badge & Passbook Button */
 [data-theme="dark"] .btn-key-badge {
-  background: var(--bg-elevated);
-  border-color: var(--border);
+  background: #1c2738;
+  border-color: #2a3a50;
   color: #cbd5e1;
 }
 
 [data-theme="dark"] .btn-key-badge:hover {
   background: #253347;
+  border-color: #3b82f6;
+  color: #60a5fa;
+}
+
+[data-theme="dark"] .btn-toggle-eye {
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .btn-toggle-eye:hover {
+  color: #f8fafc;
 }
 
 /* Banner Notices */
@@ -800,20 +1021,34 @@
 }
 
 [data-theme="dark"] .payroll-table th {
-  background-color: #111827;
-  color: #cbd5e1;
-  border-bottom-color: var(--border);
+  background-color: #0e1624;
+  color: #f1f5f9;
+  border-bottom: 2px solid #243449;
+  font-weight: 700;
 }
 
 [data-theme="dark"] .payroll-table td {
-  border-bottom-color: var(--border);
+  border-bottom: 1px solid #1e2a3c;
+}
+
+[data-theme="dark"] .payroll-table tr:nth-child(even) td {
+  background-color: rgba(255, 255, 255, 0.015);
 }
 
 [data-theme="dark"] .payroll-table tbody tr:hover td {
-  background-color: rgba(255, 255, 255, 0.04);
+  background-color: rgba(59, 130, 246, 0.08);
 }
 
 /* Workers Grid Cards */
+[data-theme="dark"] .emp-card {
+  background: #131b28;
+  border: 1px solid #243247;
+}
+
+[data-theme="dark"] .emp-card:hover {
+  border-color: #3b82f6;
+}
+
 [data-theme="dark"] .emp-rate-banner {
   background: rgba(16, 185, 129, 0.12);
   border-color: rgba(16, 185, 129, 0.25);
@@ -824,13 +1059,18 @@
 }
 
 [data-theme="dark"] .type-card {
-  background: var(--bg-elevated);
-  border-color: var(--border);
+  background: #151f2e;
+  border: 2px solid #27374d;
+}
+
+[data-theme="dark"] .type-card:hover {
+  border-color: #3b82f6;
 }
 
 [data-theme="dark"] .type-option input[type="radio"]:checked + .type-card {
-  border-color: var(--primary);
-  background: rgba(59, 130, 246, 0.15);
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.16);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
 }
 
 /* Worker Passbook Portal */
@@ -2544,47 +2784,81 @@ body {
 /* ========================================================= */
 /* Modals & Keypad                                           */
 /* ========================================================= */
+/* Modals, Popups & Keypad Architecture                      */
+/* ========================================================= */
 .modal-backdrop {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(15, 23, 42, 0.7);
+  background: rgba(15, 23, 42, 0.65);
   display: none;
   align-items: center;
   justify-content: center;
   z-index: 1000;
   padding: 16px;
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .modal-backdrop.open {
   display: flex;
-  animation: fadeIn 0.15s ease-out;
+  animation: modalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .modal-card {
   background: var(--bg-card);
-  border-radius: var(--radius-lg);
-  max-width: 500px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  max-width: 520px;
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  scrollbar-width: thin;
+  animation: modalPopIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalPopIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 .modal-header {
-  padding: 16px 20px;
+  padding: 18px 24px;
   border-bottom: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  background: var(--bg-card);
+}
+
+.modal-header h3 {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: -0.01em;
+  margin: 0;
 }
 
 .modal-header-center {
   text-align: center;
-  padding: 24px 20px 10px;
+  padding: 24px 24px 10px;
 }
 
 .lock-avatar {
@@ -2593,39 +2867,53 @@ body {
 }
 
 .modal-close {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
   color: var(--text-muted);
+  font-size: 1.25rem;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  transition: color 0.15s ease;
+  line-height: 1;
+  transition: all 0.15s ease;
 }
 
 .modal-close:hover {
-  color: var(--text-main);
+  color: var(--danger);
+  background: #fee2e2;
+  border-color: #fca5a5;
 }
 
 .modal-body {
-  padding: 20px;
+  padding: 22px 24px;
 }
 
 .modal-footer {
-  padding: 14px 20px;
+  padding: 16px 24px;
   border-top: 1px solid var(--border);
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 12px;
+  background: var(--bg-card);
 }
 
-/* Numeric Pin Keypad */
+/* Numeric Pin Keypad & Dual Auth */
 .modal-pin {
-  max-width: 360px;
+  max-width: 380px;
+}
+
+.modal-auth {
+  max-width: 420px;
 }
 
 .pin-display {
   display: flex;
   justify-content: center;
-  margin: 16px 0;
+  margin: 16px 0 20px;
 }
 
 .pin-input {
@@ -2633,34 +2921,46 @@ body {
   font-size: 1.8rem;
   letter-spacing: 0.4em;
   text-align: center;
-  width: 200px;
-  padding: 8px 12px;
+  width: 220px;
+  padding: 10px 14px;
   border: 2px solid var(--primary);
-  border-radius: var(--radius-md);
+  border-radius: 12px;
   outline: none;
+  background: var(--bg-card);
+  color: var(--text-main);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+  transition: all 0.15s ease;
 }
 
 .keypad-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  max-width: 260px;
+  gap: 12px;
+  max-width: 280px;
   margin: 0 auto;
 }
 
 .key-btn {
-  height: 52px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: #f8fafc;
-  font-size: 1.25rem;
-  font-weight: 700;
+  height: 56px;
+  border-radius: 14px;
+  border: 1.5px solid var(--border);
+  background: var(--bg-elevated);
+  font-size: 1.3rem;
+  font-weight: 800;
   font-family: var(--font-main);
+  color: var(--text-main);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.1s;
+  transition: all 0.12s ease;
+  user-select: none;
+}
+
+.key-btn:hover {
+  border-color: #cbd5e1;
+  background: #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
 }
 
 .key-btn:active {
@@ -2671,45 +2971,58 @@ body {
 
 .key-btn.clear {
   color: var(--danger);
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.key-btn.clear:hover {
+  background: #fee2e2;
+  border-color: #f87171;
 }
 
 .key-btn.backspace {
-  font-size: 1rem;
+  font-size: 1.1rem;
   color: var(--text-muted);
 }
 
 .error-msg {
   color: var(--danger);
-  font-size: 0.8rem;
+  font-size: 0.82rem;
+  font-weight: 600;
   text-align: center;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   background: var(--danger-light);
-  padding: 6px;
+  border: 1px solid #fecaca;
+  padding: 8px 12px;
   border-radius: var(--radius-sm);
 }
 
 /* QR Code Preview in Modal */
 .qr-preview-wrap {
-  margin: 12px auto;
+  margin: 14px auto;
   display: flex;
   justify-content: center;
 }
 
 .qr-code-img {
-  width: 200px;
-  height: 200px;
-  border-radius: var(--radius-md);
+  width: 210px;
+  height: 210px;
+  border-radius: 14px;
   border: 2px solid var(--border);
+  background: #ffffff;
+  padding: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .url-copy-box {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  background: #f1f5f9;
-  padding: 8px 12px;
-  border-radius: var(--radius-sm);
+  gap: 10px;
+  background: var(--bg-elevated);
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
   margin-bottom: 16px;
 }
 
@@ -2723,43 +3036,52 @@ body {
 .btn-copy {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
   cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-copy:hover {
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 .connection-guide {
   text-align: left;
-  background: #f8fafc;
+  background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 12px;
-  font-size: 0.78rem;
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-size: 0.82rem;
+  line-height: 1.55;
 }
 
 .connection-guide h4 {
-  margin-bottom: 6px;
-  font-size: 0.82rem;
+  margin-bottom: 8px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--text-main);
 }
 
 .connection-guide ol {
-  padding-left: 18px;
+  padding-left: 20px;
   line-height: 1.6;
+  margin: 0;
+  color: var(--text-muted);
 }
 
-/* ========================================================= */
-/* Holiday Modal & Policy Styles                             */
-/* ========================================================= */
+/* Holiday Modal & Policy Styles */
 .holiday-note-box {
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  border-radius: var(--radius-sm);
-  padding: 10px 12px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 12px;
+  padding: 12px 16px;
   font-size: 0.82rem;
-  color: #166534;
-  line-height: 1.5;
+  color: #065f46;
+  line-height: 1.55;
 }
 
 .holidays-list {
@@ -2768,45 +3090,52 @@ body {
   gap: 8px;
   max-height: 240px;
   overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 .holiday-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
-  background: #f8fafc;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  background: var(--bg-card);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  transition: border-color 0.15s ease;
+}
+
+.holiday-item:hover {
+  border-color: #cbd5e1;
 }
 
 .holiday-item-info {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
 .holiday-badge {
-  font-size: 0.68rem;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 6px;
   background: #fef3c7;
   color: #92400e;
   border: 1px solid #fde68a;
 }
 
 .holiday-title {
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   font-weight: 700;
   color: var(--text-main);
 }
 
 .holiday-date {
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   color: var(--text-muted);
   font-family: var(--font-mono);
+  font-weight: 600;
 }
 
 /* ========================================================= */
