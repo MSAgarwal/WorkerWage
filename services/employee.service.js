@@ -173,6 +173,14 @@ class EmployeeService {
       db.prepare('UPDATE employees SET pin_hash = ? WHERE id = ?').run(pinHash, id);
     }
 
+    // Proactively synchronize today's active attendance sheet with the new worker rates/type
+    try {
+      const attendanceService = require('./attendance.service');
+      attendanceService.syncEmployeeAttendance(id);
+    } catch (e) {
+      console.warn('Could not auto-sync today attendance on employee update:', e);
+    }
+
     return this._sanitizeEmployee(db.prepare('SELECT * FROM employees WHERE id = ?').get(id));
   }
 

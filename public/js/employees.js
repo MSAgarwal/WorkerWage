@@ -201,11 +201,14 @@ const EmployeesModule = {
     const boxRateWrap = document.getElementById('wrapWorkerBoxRate');
     const notice = document.getElementById('managerExemptNotice');
 
+    const btnSave = document.getElementById('btnSaveWorker');
+
     if (workerId) {
-      const worker = this.workers.find(w => w.id === workerId);
+      const worker = this.workers.find(w => w.id == workerId);
       if (!worker) return;
       const isManager = worker.worker_type === 'MANAGER';
       titleEl.textContent = isManager ? 'Edit Manager' : 'Edit Worker';
+      if (btnSave) btnSave.textContent = 'Save Changes';
       idInput.value = worker.id;
       document.getElementById('workerName').value = worker.name;
       document.getElementById('workerCode').value = worker.employee_code || '';
@@ -238,10 +241,11 @@ const EmployeesModule = {
       }
     } else {
       titleEl.textContent = 'Add New Worker / Manager';
+      if (btnSave) btnSave.textContent = 'Save Worker';
       idInput.value = '';
       document.getElementById('workerTypeWorker').checked = true;
-      document.getElementById('workerDailyWage').value = API.defaultDailyWage || 500;
-      document.getElementById('workerDefaultBoxRate').value = API.defaultBoxRate || 30;
+      document.getElementById('workerDailyWage').value = 500;
+      document.getElementById('workerDefaultBoxRate').value = 30;
       document.getElementById('workerStatus').value = 'ACTIVE';
 
       const deptInput = document.getElementById('workerDepartment');
@@ -263,6 +267,7 @@ const EmployeesModule = {
   },
 
   async handleSaveWorker() {
+    const btnSave = document.getElementById('btnSaveWorker');
     const id = document.getElementById('workerId').value;
     const name = document.getElementById('workerName').value.trim();
     const code = document.getElementById('workerCode').value.trim();
@@ -278,7 +283,7 @@ const EmployeesModule = {
     const pin = document.getElementById('workerPin') ? document.getElementById('workerPin').value.trim() : '';
     const notes = document.getElementById('workerNotes').value.trim();
 
-    if (!name || isNaN(dailyWage)) {
+    if (!name || isNaN(dailyWage) || dailyWage < 0) {
       App.showToast('Please enter worker name and valid daily wage', 'error');
       return;
     }
@@ -306,17 +311,29 @@ const EmployeesModule = {
     if (pin) payload.pin = pin;
     if (id) payload.id = id;
 
+    if (btnSave) {
+      btnSave.disabled = true;
+      btnSave.textContent = 'Saving...';
+    }
+
     try {
       const res = await API.saveEmployee(payload);
       if (res.success) {
-        App.showToast(id ? 'Worker updated successfully!' : 'Worker added successfully!', 'success');
+        App.showToast(id ? 'Worker details updated successfully!' : 'Worker added successfully!', 'success');
         App.closeModal('workerModal');
         await this.loadWorkers();
         // Also refresh daily attendance sheet if active
-        if (AttendanceModule) AttendanceModule.loadAttendance();
+        if (typeof AttendanceModule !== 'undefined' && AttendanceModule.loadAttendance) {
+          await AttendanceModule.loadAttendance();
+        }
       }
     } catch (err) {
       App.showToast(`Error: ${err.message}`, 'error');
+    } finally {
+      if (btnSave) {
+        btnSave.disabled = false;
+        btnSave.textContent = id ? 'Save Changes' : 'Save Worker';
+      }
     }
   },
 

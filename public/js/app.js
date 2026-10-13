@@ -676,7 +676,8 @@ const App = {
     if (packagingForm) {
       packagingForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const boxRate = parseFloat(document.getElementById('settingDefaultBoxRate').value);
+        const boxRateEl = document.getElementById('settingDefaultBoxRate');
+        const boxRate = boxRateEl ? parseFloat(boxRateEl.value) : (API.defaultBoxRate || 30.0);
         const validBoxRate = (!isNaN(boxRate) && boxRate >= 0) ? boxRate : 30.0;
         const pieceBonus = parseFloat(document.getElementById('settingHolidayPieceBonus').value);
         const validPieceBonus = (!isNaN(pieceBonus) && pieceBonus >= 0) ? pieceBonus : 200.0;
@@ -696,7 +697,7 @@ const App = {
             API.holidayPieceBonus = validPieceBonus;
             API.piecesPerBox = validPcsPerBox;
             API.pieceKeywords = keywords;
-            this.showToast('Packaging & piece-rate rules saved successfully', 'success');
+            this.showToast('Piece-rate conversion & holiday rules saved', 'success');
             if (this.activeTab === 'tabAttendance') {
               AttendanceModule.loadAttendance();
             }

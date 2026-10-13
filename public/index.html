@@ -393,29 +393,20 @@
           </form>
         </div>
 
-        <!-- 2. Packaging Overtime & Piece Rates Settings -->
+        <!-- 2. Packaging Piece-Rate Conversion & Holiday Rules -->
         <div class="settings-card">
           <div class="settings-card-header">
-            <h3>📦 Packaging & Piece-Rate Rules</h3>
-            <p class="card-subtitle">Extra box overtime rates, piece-rate ratios, and holiday bonuses.</p>
+            <h3>📦 Piece-Rate Conversion & Holiday Rules</h3>
+            <p class="card-subtitle">Pieces per box ratio, keyword triggers, and holiday piece bonus. (Individual worker wages & box rates are managed in the Workers tab)</p>
           </div>
           <form id="settingsPackagingForm">
-            <div class="form-group">
-              <label for="settingDefaultBoxRate">Extra Box Overtime Rate (<span class="currency-tag">₹</span>)</label>
-              <div class="input-with-addons">
-                <input type="number" id="settingDefaultBoxRate" min="0" step="1" value="30" required>
-                <span class="addon-suffix"><span class="currency-tag">₹</span>/box</span>
-              </div>
-              <span class="helper-text">Packaging workers receive this amount for each extra box packed beyond target.</span>
-            </div>
-
             <div class="form-group">
               <label for="settingHolidayPieceBonus">Holiday Piece-Rate Overtime Bonus (<span class="currency-tag">₹</span>)</label>
               <div class="input-with-addons">
                 <input type="number" id="settingHolidayPieceBonus" min="0" step="1" value="200" required>
                 <span class="addon-suffix"><span class="currency-tag">₹</span></span>
               </div>
-              <span class="helper-text">Fixed bonus awarded to piece-rate workers who work on weekly off or holidays.</span>
+              <span class="helper-text">Fixed bonus awarded to piece-rate workers (Cards, Bangles) who work on weekly off or paid holidays.</span>
             </div>
 
             <div class="form-group">
@@ -434,38 +425,7 @@
             </div>
 
             <button type="submit" class="btn btn-primary">
-              <span>💾</span> Save Piece & Box Rules
-            </button>
-          </form>
-        </div>
-
-        <!-- 3. Default Wages & Overtime Multipliers -->
-        <div class="settings-card">
-          <div class="settings-card-header">
-            <h3>⏱️ Wage & Overtime Multiplier Defaults</h3>
-            <p class="card-subtitle">Pre-filled defaults for new workers and day-based overtime rules.</p>
-          </div>
-          <form id="settingsOtForm">
-            <div class="form-group">
-              <label for="settingDefaultDailyWage">Default Daily Wage for New Workers (<span class="currency-tag">₹</span>)</label>
-              <div class="input-with-addons">
-                <input type="number" id="settingDefaultDailyWage" min="0" step="10" value="500" required>
-                <span class="addon-suffix"><span class="currency-tag">₹</span>/day</span>
-              </div>
-              <span class="helper-text">Default wage automatically pre-filled when creating new workers.</span>
-            </div>
-
-            <div class="form-group">
-              <label for="settingDefaultOtMult">Default Overtime Multiplier (0.00 to 3.00)</label>
-              <div class="input-with-addons">
-                <input type="number" id="settingDefaultOtMult" min="0" max="3" step="0.01" value="0.00" required>
-                <span class="addon-suffix">x</span>
-              </div>
-              <span class="helper-text">For managers & day workers: OT Pay = Overtime Days × Daily Wage × Multiplier.</span>
-            </div>
-
-            <button type="submit" class="btn btn-primary">
-              <span>💾</span> Save Wage Defaults
+              <span>💾</span> Save Piece Rules
             </button>
           </form>
         </div>
@@ -877,7 +837,7 @@
             <div class="form-group flex-1" id="wrapWorkerBoxRate">
               <label>Extra Box OT Rate (<span class="currency-tag">₹</span>/box) *</label>
               <div class="input-with-addons">
-                <input type="number" id="workerDefaultBoxRate" min="0" step="1" value="30" placeholder="30">
+                <input type="number" id="workerDefaultBoxRate" min="0" step="any" value="30" placeholder="30">
                 <span class="addon-suffix">₹/box</span>
               </div>
             </div>

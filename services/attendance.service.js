@@ -93,44 +93,54 @@ class AttendanceService {
       attMap[a.employee_id] = a;
     }
 
+    const todayStr = new Date().toISOString().split('T')[0];
+
     const records = activeWorkers.map(w => {
       const rec = attMap[w.id];
       const workerType = w.worker_type || 'WORKER';
       const isManager = workerType === 'MANAGER';
-      const defaultBoxRate = (w.default_box_rate !== undefined && w.default_box_rate !== null) ? w.default_box_rate : 30.0;
+      const defaultBoxRate = isManager ? 0.0 : ((w.default_box_rate !== undefined && w.default_box_rate !== null) ? w.default_box_rate : 30.0);
 
       if (rec) {
-        const otDays = rec.overtime_days || 0;
-        const isPiece = isPieceCategory(rec.work_category, meta.pieceKeywords);
-        const pieces = (rec.extra_pieces !== undefined && rec.extra_pieces !== null)
-          ? rec.extra_pieces
-          : (isPiece ? (rec.extra_boxes || 0) * (meta.piecesPerBox || PIECES_PER_BOX) : 0);
+        let currentRec = rec;
+        // If this is today's attendance and worker rates have changed, sync on the fly so edits are instantly remembered!
+        if (date === todayStr && (rec.daily_wage_snapshot !== w.daily_wage || (!isManager && rec.box_rate !== defaultBoxRate))) {
+          const synced = this.syncEmployeeAttendance(w.id, date);
+          if (synced) currentRec = synced;
+        }
+
+        const otDays = currentRec.overtime_days || 0;
+        const isPiece = isPieceCategory(currentRec.work_category, meta.pieceKeywords);
+        const pieces = (currentRec.extra_pieces !== undefined && currentRec.extra_pieces !== null)
+          ? currentRec.extra_pieces
+          : (isPiece ? (currentRec.extra_boxes || 0) * (meta.piecesPerBox || PIECES_PER_BOX) : 0);
 
         return {
-          id: rec.id,
+          id: currentRec.id,
           employee_id: w.id,
           employee_code: w.employee_code,
           name: w.name,
           role: w.role,
           worker_type: workerType,
           phone: w.phone,
-          date: rec.date,
-          status: rec.status,
+          date: currentRec.date,
+          status: currentRec.status,
           is_marked: true,
-          daily_wage: rec.daily_wage_snapshot,
-          base_pay: rec.base_pay,
-          work_category: isManager ? '' : (rec.work_category || ''),
-          extra_boxes: isManager ? 0 : (rec.extra_boxes || 0),
+          daily_wage: currentRec.daily_wage_snapshot,
+          base_pay: currentRec.base_pay,
+          work_category: isManager ? '' : (currentRec.work_category || ''),
+          extra_boxes: isManager ? 0 : (currentRec.extra_boxes || 0),
           extra_pieces: isManager ? 0 : pieces,
-          box_rate: isManager ? 0 : ((rec.box_rate !== undefined && rec.box_rate !== null) ? rec.box_rate : defaultBoxRate),
+          box_rate: isManager ? 0 : ((currentRec.box_rate !== undefined && currentRec.box_rate !== null) ? currentRec.box_rate : defaultBoxRate),
+          default_box_rate: defaultBoxRate,
           overtime_days: otDays,
-          overtime_multiplier: rec.overtime_multiplier,
-          overtime_pay: rec.overtime_pay,
-          is_holiday_work: isManager ? false : (rec.is_holiday_work === 1),
-          bonus_allowance: rec.bonus_allowance,
-          deduction: rec.deduction,
-          total_pay: rec.total_pay,
-          notes: rec.notes || ''
+          overtime_multiplier: currentRec.overtime_multiplier,
+          overtime_pay: currentRec.overtime_pay,
+          is_holiday_work: isManager ? false : (currentRec.is_holiday_work === 1),
+          bonus_allowance: currentRec.bonus_allowance,
+          deduction: currentRec.deduction,
+          total_pay: currentRec.total_pay,
+          notes: currentRec.notes || ''
         };
       } else {
         // Unmarked entry: Check if date is Weekly Off or Paid Holiday
@@ -314,9 +324,11 @@ class AttendanceService {
       parsedExtraPieces = 0;
     }
 
-    const effectiveBoxRate = isManager ? 0.0 : ((!isNaN(parseFloat(inputData.box_rate)) && parseFloat(inputData.box_rate) >= 0)
-      ? parseFloat(inputData.box_rate)
-      : (worker.default_box_rate !== undefined && worker.default_box_rate !== null ? worker.default_box_rate : (dateMeta.defaultBoxRate || 30.0)));
+    const effectiveBoxRate = isManager ? 0.0 : ((worker.default_box_rate !== undefined && worker.default_box_rate !== null)
+      ? worker.default_box_rate
+      : ((!isNaN(parseFloat(inputData.box_rate)) && parseFloat(inputData.box_rate) >= 0)
+          ? parseFloat(inputData.box_rate)
+          : (dateMeta.defaultBoxRate || 30.0)));
 
     const otDays = parseFloat(inputData.overtime_days || 0);
     const otMult = (inputData.overtime_multiplier !== undefined && inputData.overtime_multiplier !== null && !isNaN(parseFloat(inputData.overtime_multiplier)))
@@ -492,6 +504,83 @@ class AttendanceService {
     });
 
     return count;
+  }
+
+  /**
+   * Synchronize an employee's attendance record with their updated profile rates
+   * (e.g. daily wage, default box rate, worker type) for today's active date.
+   */
+  syncEmployeeAttendance(employeeId, targetDate = null) {
+    const worker = db.prepare('SELECT * FROM employees WHERE id = ?').get(employeeId);
+    if (!worker) return null;
+
+    const date = targetDate || new Date().toISOString().split('T')[0];
+    const rec = db.prepare('SELECT * FROM attendance WHERE employee_id = ? AND date = ?').get(employeeId, date);
+    if (!rec) return null;
+
+    const dateMeta = this.getDateMeta(date);
+    const workerType = worker.worker_type || 'WORKER';
+    const isManager = workerType === 'MANAGER';
+    const boxRate = isManager ? 0.0 : ((worker.default_box_rate !== undefined && worker.default_box_rate !== null) ? worker.default_box_rate : 30.0);
+
+    const inputData = {
+      employee_id: employeeId,
+      date: rec.date,
+      status: rec.status,
+      work_category: isManager ? '' : (rec.work_category || ''),
+      extra_boxes: isManager ? 0 : (rec.extra_boxes || 0),
+      extra_pieces: isManager ? 0 : (rec.extra_pieces || 0),
+      box_rate: boxRate,
+      overtime_days: rec.overtime_days || 0,
+      overtime_multiplier: isManager ? (worker.default_ot_multiplier || 0) : 0,
+      is_holiday_work: isManager ? 0 : (rec.is_holiday_work || 0),
+      bonus_allowance: rec.bonus_allowance || 0,
+      deduction: rec.deduction || 0,
+      notes: rec.notes || ''
+    };
+
+    const { calc, holidayWork, effectiveCategory, notes } = this._prepareAttendanceData(worker, date, inputData, dateMeta);
+
+    const updateStmt = db.prepare(`
+      UPDATE attendance
+      SET
+        daily_wage_snapshot = ?,
+        base_pay = ?,
+        work_category = ?,
+        extra_boxes = ?,
+        extra_pieces = ?,
+        box_rate = ?,
+        overtime_days = ?,
+        overtime_multiplier = ?,
+        overtime_pay = ?,
+        is_holiday_work = ?,
+        bonus_allowance = ?,
+        deduction = ?,
+        total_pay = ?,
+        notes = ?,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `);
+
+    updateStmt.run(
+      calc.dailyWage,
+      calc.basePay,
+      effectiveCategory,
+      calc.extraBoxes,
+      calc.extraPieces,
+      calc.boxRate,
+      calc.overtimeDays,
+      calc.overtimeMultiplier,
+      calc.overtimePay,
+      holidayWork,
+      calc.bonusAllowance,
+      calc.deduction,
+      calc.totalPay,
+      notes,
+      rec.id
+    );
+
+    return db.prepare('SELECT * FROM attendance WHERE id = ?').get(rec.id);
   }
 }
 

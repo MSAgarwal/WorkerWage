@@ -226,7 +226,7 @@ const AttendanceModule = {
       ? r.extra_pieces 
       : (isPiece && extraBoxes > 0 ? (extraBoxes >= 100 ? extraBoxes : extraBoxes * piecesPerBox) : 0));
 
-    const boxRate = Number(r.box_rate !== undefined && r.box_rate !== null ? r.box_rate : (API.defaultBoxRate || 30.0));
+    const boxRate = Number(r.default_box_rate !== undefined && r.default_box_rate !== null ? r.default_box_rate : (r.box_rate !== undefined && r.box_rate !== null ? r.box_rate : (API.defaultBoxRate || 30.0)));
     const otDays = Number(r.overtime_days || 0);
     const otMult = Number(r.overtime_multiplier || 0);
     const bonusVal = Number(r.bonus_allowance || 0);
@@ -843,7 +843,7 @@ const AttendanceModule = {
         work_category: isManager ? '' : (record.work_category || ''),
         extra_boxes: isManager ? 0 : parseFloat(record.extra_boxes || 0),
         extra_pieces: isManager ? 0 : parseFloat(record.extra_pieces || 0),
-        box_rate: isManager ? 0 : parseFloat(record.box_rate !== undefined ? record.box_rate : (API.defaultBoxRate || 30.0)),
+        box_rate: isManager ? 0 : parseFloat(record.default_box_rate !== undefined && record.default_box_rate !== null ? record.default_box_rate : (record.box_rate !== undefined ? record.box_rate : (API.defaultBoxRate || 30.0))),
         overtime_days: parseFloat(record.overtime_days || 0),
         overtime_multiplier: parseFloat(record.overtime_multiplier || 0),
         is_holiday_work: isManager ? 0 : (record.is_holiday_work ? 1 : 0),
@@ -924,7 +924,7 @@ const AttendanceModule = {
     const deductVal = Number(record.deduction || 0);
     let otPay = 0;
     const extraBoxes = Number(record.extra_boxes || 0);
-    const boxRate = Number(record.box_rate !== undefined ? record.box_rate : (API.defaultBoxRate || 30.0));
+    const boxRate = Number(record.default_box_rate !== undefined && record.default_box_rate !== null ? record.default_box_rate : (record.box_rate !== undefined ? record.box_rate : (API.defaultBoxRate || 30.0)));
 
     if (isManager) {
       otPay = (record.overtime_days || 0) * record.daily_wage * (record.overtime_multiplier || 0);
@@ -1036,7 +1036,7 @@ const AttendanceModule = {
       const isHolidayWork = !!item.is_holiday_work;
       const isPiece = this.isPieceCategory(item.work_category);
       const pieceHolidayBonus = Number(API.holidayPieceBonus !== undefined ? API.holidayPieceBonus : 200);
-      const rate = Number(item.box_rate !== undefined ? item.box_rate : (API.defaultBoxRate || 30.0));
+      const rate = Number(item.default_box_rate !== undefined && item.default_box_rate !== null ? item.default_box_rate : (item.box_rate !== undefined ? item.box_rate : (API.defaultBoxRate || 30.0)));
       const bonus = Number(item.bonus_allowance || 0);
       const deduct = Number(item.deduction || 0);
 
@@ -1096,7 +1096,7 @@ const AttendanceModule = {
       status: targetStatus,
       work_category: r.work_category || '',
       extra_boxes: 0,
-      box_rate: r.box_rate || API.defaultBoxRate || 30.0,
+      box_rate: r.default_box_rate !== undefined ? r.default_box_rate : (r.box_rate || API.defaultBoxRate || 30.0),
       overtime_days: 0,
       overtime_multiplier: 0.0,
       is_holiday_work: 0,
