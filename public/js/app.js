@@ -107,10 +107,37 @@ const App = {
 
     // Modal Close Buttons
     document.querySelectorAll('[data-close]').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
         const modalId = btn.dataset.close;
         this.closeModal(modalId);
       });
+    });
+
+    // Close modal when clicking outside the card on the backdrop overlay
+    document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+      backdrop.addEventListener('click', (e) => {
+        if (e.target === backdrop) {
+          // Do not dismiss pinModal if locked
+          if (backdrop.id === 'pinModal' && !this.isUnlocked && this.currentRole !== 'worker') {
+            return;
+          }
+          this.closeModal(backdrop.id);
+        }
+      });
+    });
+
+    // ESC key closes any open modal
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        const openModals = document.querySelectorAll('.modal-backdrop.open');
+        openModals.forEach(m => {
+          if (m.id === 'pinModal' && !this.isUnlocked && this.currentRole !== 'worker') {
+            return;
+          }
+          this.closeModal(m.id);
+        });
+      }
     });
 
     // Copy URL Button in Mobile Connect Modal
@@ -865,13 +892,32 @@ const App = {
 
   // Modal Helpers
   openModal(modalId) {
-    const modal = document.getElementById(modalId);
-    if (modal) modal.classList.add('open');
+    if (!modalId) return;
+    const modal = (typeof modalId === 'string') ? document.getElementById(modalId) : modalId;
+    if (modal) {
+      modal.classList.add('open');
+      modal.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+      const focusEl = modal.querySelector('input:not([type="hidden"]), select, textarea');
+      if (focusEl) {
+        setTimeout(() => focusEl.focus(), 120);
+      }
+    } else {
+      console.warn('Modal not found:', modalId);
+    }
   },
 
   closeModal(modalId) {
-    const modal = document.getElementById(modalId);
-    if (modal) modal.classList.remove('open');
+    if (!modalId) return;
+    const modal = (typeof modalId === 'string') ? document.getElementById(modalId) : modalId;
+    if (modal) {
+      modal.classList.remove('open');
+      modal.style.display = 'none';
+      const anyOpen = document.querySelectorAll('.modal-backdrop.open');
+      if (!anyOpen || anyOpen.length === 0) {
+        document.body.style.overflow = '';
+      }
+    }
   },
 
   // Toast Notification Helper

@@ -3102,12 +3102,6 @@ body {
   border-radius: 12px;
   border: 1px solid rgba(37, 99, 235, 0.25);
 }
-  font-size: 0.78rem;
-  font-weight: 800;
-  padding: 2px 9px;
-  border-radius: 12px;
-  border: 1px solid rgba(37, 99, 235, 0.25);
-}
 
 /* ========================================================= */
 /* Modals & Keypad                                           */
@@ -3131,7 +3125,7 @@ body {
 }
 
 .modal-backdrop.open {
-  display: flex;
+  display: flex !important;
   animation: modalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
