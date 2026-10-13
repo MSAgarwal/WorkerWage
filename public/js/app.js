@@ -637,7 +637,6 @@ const App = {
     const themeForm = document.getElementById('settingsThemeForm');
     const scheduleForm = document.getElementById('settingsScheduleForm');
     const packagingForm = document.getElementById('settingsPackagingForm');
-    const otForm = document.getElementById('settingsOtForm');
     const pinForm = document.getElementById('changePinForm');
     const btnAddCategory = document.getElementById('btnAddCategory');
     const btnSaveCategories = document.getElementById('btnSaveCategories');
@@ -676,9 +675,6 @@ const App = {
     if (packagingForm) {
       packagingForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const boxRateEl = document.getElementById('settingDefaultBoxRate');
-        const boxRate = boxRateEl ? parseFloat(boxRateEl.value) : (API.defaultBoxRate || 30.0);
-        const validBoxRate = (!isNaN(boxRate) && boxRate >= 0) ? boxRate : 30.0;
         const pieceBonus = parseFloat(document.getElementById('settingHolidayPieceBonus').value);
         const validPieceBonus = (!isNaN(pieceBonus) && pieceBonus >= 0) ? pieceBonus : 200.0;
         const pcsPerBox = parseInt(document.getElementById('settingPiecesPerBox').value, 10);
@@ -687,13 +683,11 @@ const App = {
 
         try {
           const res = await API.updateSettings({
-            default_box_rate: validBoxRate,
             holiday_piece_bonus: validPieceBonus,
             pieces_per_box: validPcsPerBox,
             piece_keywords: keywords
           });
           if (res.success) {
-            API.defaultBoxRate = validBoxRate;
             API.holidayPieceBonus = validPieceBonus;
             API.piecesPerBox = validPcsPerBox;
             API.pieceKeywords = keywords;
@@ -749,26 +743,6 @@ const App = {
       });
     }
 
-    if (otForm) {
-      otForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const otM = parseFloat(document.getElementById('settingDefaultOtMult').value) || 0.0;
-        const dailyWage = parseFloat(document.getElementById('settingDefaultDailyWage').value) || 500.0;
-
-        try {
-          const res = await API.updateSettings({
-            default_ot_multiplier: otM,
-            default_daily_wage: dailyWage
-          });
-          if (res.success) {
-            API.defaultDailyWage = dailyWage;
-            this.showToast('Wage and overtime defaults updated', 'success');
-          }
-        } catch (err) {
-          this.showToast(`Error: ${err.message}`, 'error');
-        }
-      });
-    }
 
     if (pinForm) {
       pinForm.addEventListener('submit', async (e) => {
@@ -854,18 +828,6 @@ const App = {
         if (s.weekly_paid_off_day) {
           const offDayEl = document.getElementById('settingWeeklyOffDay');
           if (offDayEl) offDayEl.value = s.weekly_paid_off_day;
-        }
-        if (s.default_daily_wage !== undefined && s.default_daily_wage !== null) {
-          const wageEl = document.getElementById('settingDefaultDailyWage');
-          if (wageEl) wageEl.value = s.default_daily_wage;
-        }
-        if (s.default_ot_multiplier !== undefined && s.default_ot_multiplier !== null) {
-          const otEl = document.getElementById('settingDefaultOtMult');
-          if (otEl) otEl.value = parseFloat(s.default_ot_multiplier).toFixed(2);
-        }
-        if (s.default_box_rate !== undefined && s.default_box_rate !== null) {
-          const boxRateEl = document.getElementById('settingDefaultBoxRate');
-          if (boxRateEl) boxRateEl.value = s.default_box_rate;
         }
         if (s.holiday_piece_bonus !== undefined && s.holiday_piece_bonus !== null) {
           const pieceBonusEl = document.getElementById('settingHolidayPieceBonus');

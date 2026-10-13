@@ -194,15 +194,6 @@ const API = {
     if (res.success && res.settings) {
       const s = res.settings;
       if (s.currency_symbol) this.currency = s.currency_symbol;
-      if (s.default_ot_multiplier !== undefined && s.default_ot_multiplier !== null) {
-        this.defaultOtMult = parseFloat(s.default_ot_multiplier);
-      }
-      if (s.default_box_rate !== undefined && s.default_box_rate !== null) {
-        this.defaultBoxRate = parseFloat(s.default_box_rate);
-      }
-      if (s.default_daily_wage !== undefined && s.default_daily_wage !== null) {
-        this.defaultDailyWage = parseFloat(s.default_daily_wage);
-      }
       if (s.holiday_piece_bonus !== undefined && s.holiday_piece_bonus !== null) {
         this.holidayPieceBonus = parseFloat(s.holiday_piece_bonus);
       }

@@ -9,23 +9,21 @@ class AttendanceService {
    */
   _getDynamicSettings() {
     try {
-      const rows = db.prepare("SELECT key, value FROM settings WHERE key IN ('weekly_paid_off_day', 'holiday_piece_bonus', 'pieces_per_box', 'piece_keywords', 'default_box_rate')").all();
+      const rows = db.prepare("SELECT key, value FROM settings WHERE key IN ('weekly_paid_off_day', 'holiday_piece_bonus', 'pieces_per_box', 'piece_keywords')").all();
       const map = {};
       for (const r of rows) map[r.key] = r.value;
       return {
         weeklyOffDay: map.weekly_paid_off_day || 'Tuesday',
         holidayPieceBonus: (!isNaN(parseFloat(map.holiday_piece_bonus)) && parseFloat(map.holiday_piece_bonus) >= 0) ? parseFloat(map.holiday_piece_bonus) : 200.0,
         piecesPerBox: (!isNaN(parseInt(map.pieces_per_box, 10)) && parseInt(map.pieces_per_box, 10) > 0) ? parseInt(map.pieces_per_box, 10) : 500,
-        pieceKeywords: (map.piece_keywords || 'card, bangle').split(',').map(s => s.trim().toLowerCase()).filter(Boolean),
-        defaultBoxRate: (!isNaN(parseFloat(map.default_box_rate)) && parseFloat(map.default_box_rate) >= 0) ? parseFloat(map.default_box_rate) : 30.0
+        pieceKeywords: (map.piece_keywords || 'card, bangle').split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
       };
     } catch (e) {
       return {
         weeklyOffDay: 'Tuesday',
         holidayPieceBonus: 200.0,
         piecesPerBox: 500,
-        pieceKeywords: ['card', 'bangle'],
-        defaultBoxRate: 30.0
+        pieceKeywords: ['card', 'bangle']
       };
     }
   }
@@ -66,8 +64,7 @@ class AttendanceService {
       dayOffReason,
       holidayPieceBonus: cfg.holidayPieceBonus,
       piecesPerBox: cfg.piecesPerBox,
-      pieceKeywords: cfg.pieceKeywords,
-      defaultBoxRate: cfg.defaultBoxRate
+      pieceKeywords: cfg.pieceKeywords
     };
   }
 
@@ -328,7 +325,7 @@ class AttendanceService {
       ? worker.default_box_rate
       : ((!isNaN(parseFloat(inputData.box_rate)) && parseFloat(inputData.box_rate) >= 0)
           ? parseFloat(inputData.box_rate)
-          : (dateMeta.defaultBoxRate || 30.0)));
+          : 30.0));
 
     const otDays = parseFloat(inputData.overtime_days || 0);
     const otMult = (inputData.overtime_multiplier !== undefined && inputData.overtime_multiplier !== null && !isNaN(parseFloat(inputData.overtime_multiplier)))
