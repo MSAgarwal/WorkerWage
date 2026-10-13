@@ -504,44 +504,110 @@ const App = {
     }
   },
 
-  // Visual Theme Management (Dark / Light Mode)
+  // Visual Theme Management (Dark / Light Mode / System)
   initTheme() {
-    const savedTheme = localStorage.getItem('workerwage_theme') || API.themePreference || 'light';
-    this.applyTheme(savedTheme);
+    const savedTheme = localStorage.getItem('workerwage_theme');
+    const serverTheme = (window.API && window.API.themePreference);
+    let initialPref = savedTheme || serverTheme || 'system';
 
+    // Apply the initial theme
+    this.applyTheme(initialPref, false);
+
+    // 1. Top navigation theme toggle button
     const btnToggle = document.getElementById('btnToggleTheme');
     if (btnToggle) {
       btnToggle.addEventListener('click', () => {
-        const currentTheme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-        this.applyTheme(newTheme);
-        localStorage.setItem('workerwage_theme', newTheme);
-        this.showToast(`Switched to ${newTheme === 'dark' ? 'Dark' : 'Light'} theme`, 'info');
+        this.toggleTheme();
+      });
+    }
+
+    // 2. Auth / Login modal theme toggle button
+    const btnAuthToggle = document.getElementById('btnAuthThemeToggle');
+    if (btnAuthToggle) {
+      btnAuthToggle.addEventListener('click', () => {
+        this.toggleTheme();
+      });
+    }
+
+    // 3. Settings dropdown live change listener
+    const selectEl = document.getElementById('settingTheme');
+    if (selectEl) {
+      selectEl.addEventListener('change', (e) => {
+        const selected = e.target.value;
+        this.setThemePreference(selected);
+        const name = selected === 'dark' ? 'Dark' : selected === 'light' ? 'Light' : 'System Default';
+        this.showToast(`Switched to ${name} theme`, 'info');
+      });
+    }
+
+    // 4. Listen to OS system theme changes
+    if (window.matchMedia) {
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        const curPref = localStorage.getItem('workerwage_theme') || (window.API && window.API.themePreference) || 'system';
+        if (curPref === 'system') {
+          this.applyTheme('system', false);
+        }
       });
     }
   },
 
-  applyTheme(theme) {
-    if (theme === 'dark') {
+  toggleTheme() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const newTheme = isDark ? 'light' : 'dark';
+    this.setThemePreference(newTheme);
+    this.showToast(`Switched to ${newTheme === 'dark' ? 'Dark' : 'Light'} theme`, 'info');
+  },
+
+  async setThemePreference(theme) {
+    localStorage.setItem('workerwage_theme', theme);
+    this.applyTheme(theme, true);
+    if (this.isUnlocked) {
+      try {
+        await API.updateSettings({ theme_preference: theme });
+      } catch (err) {
+        console.warn('Could not persist theme to server:', err);
+      }
+    }
+  },
+
+  applyTheme(theme, updateSelect = true) {
+    let resolvedMode = theme;
+    if (theme === 'system') {
+      resolvedMode = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+    }
+
+    if (resolvedMode === 'dark') {
       document.documentElement.setAttribute('data-theme', 'dark');
+      document.body.setAttribute('data-theme', 'dark');
     } else {
       document.documentElement.removeAttribute('data-theme');
+      document.body.removeAttribute('data-theme');
     }
+
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
-      metaThemeColor.setAttribute('content', theme === 'dark' ? '#0b0f19' : '#2563eb');
+      metaThemeColor.setAttribute('content', resolvedMode === 'dark' ? '#090d16' : '#2563eb');
     }
+
     const iconEl = document.getElementById('themeToggleIcon');
     const labelEl = document.getElementById('themeToggleLabel');
-    if (iconEl) iconEl.textContent = theme === 'dark' ? '☀️' : '🌙';
-    if (labelEl) labelEl.textContent = theme === 'dark' ? 'Light' : 'Dark';
-    const selectEl = document.getElementById('settingTheme');
-    if (selectEl) selectEl.value = theme;
+    if (iconEl) iconEl.textContent = resolvedMode === 'dark' ? '☀️' : '🌙';
+    if (labelEl) labelEl.textContent = resolvedMode === 'dark' ? 'Light' : 'Dark';
+
+    const authIconEl = document.getElementById('authThemeToggleIcon');
+    if (authIconEl) authIconEl.textContent = resolvedMode === 'dark' ? '☀️' : '🌙';
+
+    if (updateSelect) {
+      const selectEl = document.getElementById('settingTheme');
+      if (selectEl && selectEl.value !== theme) {
+        selectEl.value = theme;
+      }
+    }
   },
 
   // Settings Forms & Storage Management
   bindSettingsForms() {
-    const generalForm = document.getElementById('settingsGeneralForm');
+    const themeForm = document.getElementById('settingsThemeForm');
     const scheduleForm = document.getElementById('settingsScheduleForm');
     const packagingForm = document.getElementById('settingsPackagingForm');
     const otForm = document.getElementById('settingsOtForm');
@@ -550,36 +616,12 @@ const App = {
     const btnSaveCategories = document.getElementById('btnSaveCategories');
     const newCategoryInput = document.getElementById('newCategoryInput');
 
-    if (generalForm) {
-      generalForm.addEventListener('submit', async (e) => {
+    if (themeForm) {
+      themeForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const bName = document.getElementById('settingBusinessName').value.trim();
-        const sLoc = document.getElementById('settingSiteLocation').value.trim();
-        const curr = document.getElementById('settingCurrency').value;
-        const stdHrs = parseFloat(document.getElementById('settingStandardHours').value) || 8.0;
         const theme = document.getElementById('settingTheme').value || 'light';
-
-        try {
-          const res = await API.updateSettings({
-            business_name: bName,
-            site_location: sLoc,
-            currency_symbol: curr,
-            standard_hours: stdHrs,
-            theme_preference: theme
-          });
-          if (res.success) {
-            document.getElementById('appBusinessName').textContent = bName;
-            document.querySelectorAll('.currency-tag').forEach(el => el.textContent = curr);
-            this.applyTheme(theme);
-            localStorage.setItem('workerwage_theme', theme);
-            this.showToast('Site & business details saved successfully', 'success');
-            if (this.activeTab === 'tabAttendance') {
-              AttendanceModule.loadAttendance();
-            }
-          }
-        } catch (err) {
-          this.showToast(`Error: ${err.message}`, 'error');
-        }
+        await this.setThemePreference(theme);
+        this.showToast('Theme preference saved successfully!', 'success');
       });
     }
 
@@ -777,6 +819,9 @@ const App = {
         if (s.theme_preference) {
           const themeEl = document.getElementById('settingTheme');
           if (themeEl) themeEl.value = s.theme_preference;
+          if (!localStorage.getItem('workerwage_theme')) {
+            this.applyTheme(s.theme_preference, true);
+          }
         }
         if (s.weekly_paid_off_day) {
           const offDayEl = document.getElementById('settingWeeklyOffDay');

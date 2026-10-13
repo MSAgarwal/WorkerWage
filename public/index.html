@@ -11,6 +11,19 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Attendance">
+  <script>
+    (function() {
+      try {
+        var saved = localStorage.getItem('workerwage_theme');
+        var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (saved === 'dark' || ((!saved || saved === 'system') && prefersDark)) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        } else {
+          document.documentElement.removeAttribute('data-theme');
+        }
+      } catch (e) {}
+    })();
+  </script>
   <link rel="stylesheet" href="/css/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -331,7 +344,29 @@
       </div>
 
       <div class="settings-grid">
-        <!-- 1. Work Schedule & Weekly Off Day Settings -->
+        <!-- 1. Appearance & Theme Settings -->
+        <div class="settings-card">
+          <div class="settings-card-header">
+            <h3>🎨 Appearance & Display Theme</h3>
+            <p class="card-subtitle">Choose dark mode, light mode, or follow system default.</p>
+          </div>
+          <form id="settingsThemeForm">
+            <div class="form-group">
+              <label for="settingTheme">Display Theme *</label>
+              <select id="settingTheme">
+                <option value="light">☀️ Light Mode (Clean & Bright)</option>
+                <option value="dark">🌙 Dark Mode (Eye-friendly & High-contrast)</option>
+                <option value="system">💻 System Default (Auto-detect Device)</option>
+              </select>
+              <span class="helper-text">Theme preference applies instantly across all pages, passbooks, popups, and device sessions.</span>
+            </div>
+            <button type="submit" class="btn btn-primary">
+              <span>💾</span> Save Theme Preference
+            </button>
+          </form>
+        </div>
+
+        <!-- 2. Work Schedule & Weekly Off Day Settings -->
         <div class="settings-card">
           <div class="settings-card-header">
             <h3>🗓️ Work Schedule & Weekly Off Day</h3>
@@ -660,15 +695,20 @@
   <!-- ======================================================== -->
   <div id="pinModal" class="modal-backdrop">
     <div class="modal-card modal-auth">
-      <!-- Role Toggle Tabs -->
-      <div class="auth-role-tabs">
-        <button type="button" class="auth-role-tab active" id="tabModeWorker">
-          <span class="auth-role-icon">📦</span>
-          <span>Worker Passbook</span>
-        </button>
-        <button type="button" class="auth-role-tab" id="tabModeAdmin">
-          <span class="auth-role-icon">👔</span>
-          <span>Employer Admin</span>
+      <!-- Auth Top Header Bar (Role Tabs + Instant Theme Toggle) -->
+      <div class="auth-top-bar">
+        <div class="auth-role-tabs">
+          <button type="button" class="auth-role-tab active" id="tabModeWorker">
+            <span class="auth-role-icon">📦</span>
+            <span>Worker Passbook</span>
+          </button>
+          <button type="button" class="auth-role-tab" id="tabModeAdmin">
+            <span class="auth-role-icon">👔</span>
+            <span>Employer Admin</span>
+          </button>
+        </div>
+        <button type="button" id="btnAuthThemeToggle" class="btn-theme-toggle-compact" title="Toggle Dark / Light Mode" aria-label="Toggle theme">
+          <span class="auth-theme-icon" id="authThemeToggleIcon">🌙</span>
         </button>
       </div>
 
