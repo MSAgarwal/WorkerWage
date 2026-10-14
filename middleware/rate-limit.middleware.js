@@ -30,13 +30,15 @@ class SlidingWindowRateLimiter {
         this.hits.set(key, valid);
       }
     }
+    // Hard bound memory footprint (max 10,000 active keys)
+    if (this.hits.size > 10000) {
+      const keysToDelete = Array.from(this.hits.keys()).slice(0, 2000);
+      for (const k of keysToDelete) this.hits.delete(k);
+    }
   }
 
   getClientKey(req) {
-    const forwarded = req.headers['x-forwarded-for'];
-    if (forwarded) {
-      return forwarded.split(',')[0].trim();
-    }
+    // Rely on Express proxy resolution (req.ip) rather than reading untrusted headers directly (SEC-02)
     return req.ip || (req.socket && req.socket.remoteAddress) || '127.0.0.1';
   }
 

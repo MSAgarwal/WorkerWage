@@ -66,7 +66,7 @@ describe('Worker Passbook & RBAC Security Integration Tests', () => {
     assert.equal(resShortPin.status, 400);
     assert.ok(resShortPin.body.details.some(d => d.includes('at least 5 digits')));
 
-    // Create worker 2 (Manager) without explicit PIN (defaults to '12345')
+    // Create worker 2 (Manager) without explicit PIN (requires credential setup)
     const res2 = await apiRequest('/api/employees', 'POST', {
       name: 'Anil Factory Manager',
       employee_code: 'TESTEMP02',
@@ -76,6 +76,7 @@ describe('Worker Passbook & RBAC Security Integration Tests', () => {
     }, { Authorization: `Bearer ${adminToken}` });
     assert.equal(res2.status, 201);
     worker2 = res2.body.employee;
+    assert.equal(worker2.has_pin, false, 'Worker created without PIN must have has_pin = false');
 
     // Record attendance and advance for worker 1
     const attRes = await apiRequest('/api/attendance', 'POST', {
@@ -137,8 +138,18 @@ describe('Worker Passbook & RBAC Security Integration Tests', () => {
     assert.equal(resPhone.status, 200);
     assert.equal(resPhone.body.worker.employee_code, 'TESTEMP01');
 
-    // Authenticate worker 2 with default pin '12345'
-    const resWorker2 = await apiRequest('/api/auth/worker-login', 'POST', { identifier: 'TESTEMP02', pin: '12345' });
+    // Worker 2 without initialized PIN must be rejected with 403 (AUTH-01)
+    const resWorker2NoPin = await apiRequest('/api/auth/worker-login', 'POST', { identifier: 'TESTEMP02', pin: '12345' });
+    assert.equal(resWorker2NoPin.status, 403);
+    assert.ok(resWorker2NoPin.body.error.includes('credential setup required'));
+
+    // Admin initializes individual PIN for worker 2
+    const updateRes = await apiRequest(`/api/employees/${worker2.id}`, 'PUT', { pin: '54321' }, { Authorization: `Bearer ${adminToken}` });
+    assert.equal(updateRes.status, 200);
+    assert.equal(updateRes.body.employee.has_pin, true);
+
+    // Worker 2 authenticates successfully with their initialized PIN
+    const resWorker2 = await apiRequest('/api/auth/worker-login', 'POST', { identifier: 'TESTEMP02', pin: '54321' });
     assert.equal(resWorker2.status, 200);
     assert.equal(resWorker2.body.worker.id, worker2.id);
   });

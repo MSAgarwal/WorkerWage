@@ -143,7 +143,10 @@ const EmployeesModule = {
                 <span class="worker-badge ${isManager ? 'manager-badge' : ''}">${isManager ? '👔 Manager' : '📦 Packaging Worker'}</span>
               </div>
               <div style="display: flex; align-items: center; gap: 6px;">
-                <span class="btn-key-badge" title="Passbook protected by 5+ digit secret key (changeable in Edit)">🔑 Key Protected</span>
+                ${w.has_pin
+                  ? '<span class="btn-key-badge" title="Passbook protected by 5+ digit secret key (changeable in Edit)">🔑 Key Protected</span>'
+                  : '<span class="badge" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); font-size: 0.72rem; padding: 2px 6px; border-radius: 4px; font-weight: 600;" title="Worker must be assigned a PIN before accessing passbook">⚠️ PIN Setup Required</span>'
+                }
                 <span class="badge ${isActive ? 'text-success' : 'text-muted'}" style="font-weight: 700; font-size: 0.75rem;">
                   ${isActive ? '🟢 Active' : '⚪ Inactive'}
                 </span>
@@ -255,8 +258,8 @@ const EmployeesModule = {
 
       const pinInput = document.getElementById('workerPin');
       if (pinInput) {
-        pinInput.value = '12345';
-        pinInput.placeholder = 'e.g. 12345 (Default: 12345)';
+        pinInput.value = '';
+        pinInput.placeholder = 'Set 5+ digit PIN (or leave blank for setup required)';
       }
 
       if (boxRateWrap) boxRateWrap.style.display = 'block';

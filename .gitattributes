@@ -1,0 +1,17 @@
+# Exclude operational data and secrets from git archive (DATA-01)
+.git* export-ignore
+.env export-ignore
+.env.* export-ignore
+*.db export-ignore
+*.db-wal export-ignore
+*.db-shm export-ignore
+*.sqlite export-ignore
+*.sqlite3 export-ignore
+backups/ export-ignore
+logs/ export-ignore
+scratch/ export-ignore
+tools/ export-ignore
+data/ export-ignore
+dist/ export-ignore
+release/ export-ignore
+node_modules/ export-ignore

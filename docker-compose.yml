@@ -3,24 +3,23 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: workerwage-v5
+    container_name: workerwage-v6
     restart: unless-stopped
     ports:
       - "5000:5000"
     environment:
       - NODE_ENV=production
       - PORT=5000
-      - DB_PATH=/app/attendance.db
+      - DB_PATH=/app/data/attendance.db
       - AUTO_BACKUP_ENABLED=true
       - AUTO_BACKUP_INTERVAL_HOURS=24
       - RATE_LIMIT_WINDOW_MS=60000
       - RATE_LIMIT_MAX_REQUESTS=300
       - AUTH_RATE_LIMIT_MAX=12
+      - TRUST_PROXY=loopback, linklocal, uniquelocal
     volumes:
-      # Mount database and backups to host for persistence across restarts
-      - ./attendance.db:/app/attendance.db
-      - ./attendance.db-wal:/app/attendance.db-wal
-      - ./attendance.db-shm:/app/attendance.db-shm
+      # Persist SQLite via dedicated data directory rather than fragile individual file mounts (REL-01)
+      - ./data:/app/data
       - ./backups:/app/backups
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:5000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]

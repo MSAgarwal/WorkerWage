@@ -209,10 +209,10 @@ const WorkerPortalModule = {
     } catch (err) {
       console.error('Failed to load worker passbook:', err);
       if (attBody) {
-        attBody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-rose">Error loading passbook: ${err.message}</td></tr>`;
+        attBody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-rose">Error loading passbook: ${this.escapeHtml(err.message)}</td></tr>`;
       }
       if (payBody) {
-        payBody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-rose">Error loading advances: ${err.message}</td></tr>`;
+        payBody.innerHTML = `<tr><td colspan="5" class="text-center py-4 text-rose">Error loading advances: ${this.escapeHtml(err.message)}</td></tr>`;
       }
     }
   },
@@ -316,7 +316,7 @@ const WorkerPortalModule = {
       }
 
       // Work category & Box overtime details
-      let catDisplay = rec.work_category ? `<span class="badge-cat">${rec.work_category}</span>` : '<span class="text-muted">-</span>';
+      let catDisplay = rec.work_category ? `<span class="badge-cat">${this.escapeHtml(rec.work_category)}</span>` : '<span class="text-muted">-</span>';
       let boxDisplay = '<span class="text-muted">-</span>';
 
       if (rec.extra_boxes > 0) {
@@ -328,7 +328,7 @@ const WorkerPortalModule = {
       }
 
       const totalPay = API.formatMoney(rec.total_pay || 0);
-      const notes = rec.notes ? rec.notes : '<span class="text-muted">-</span>';
+      const notes = rec.notes ? this.escapeHtml(rec.notes) : '<span class="text-muted">-</span>';
 
       html += `
         <tr>
@@ -377,8 +377,8 @@ const WorkerPortalModule = {
       }
 
       const amountFormatted = `${sign}${API.formatMoney(p.amount)}`;
-      const methodLabel = p.payment_method ? p.payment_method.toUpperCase() : 'CASH';
-      const notes = p.notes ? p.notes : '<span class="text-muted">-</span>';
+      const methodLabel = p.payment_method ? this.escapeHtml(p.payment_method.toUpperCase()) : 'CASH';
+      const notes = p.notes ? this.escapeHtml(p.notes) : '<span class="text-muted">-</span>';
 
       html += `
         <tr>
@@ -466,5 +466,15 @@ const WorkerPortalModule = {
         submitBtn.textContent = 'Update Key';
       }
     }
+  },
+
+  escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 };

@@ -169,7 +169,7 @@ WorkerWage utilizes Node 22 native `node:sqlite` configured for high concurrency
 ### Method 1: Windows One-Click Launcher (Recommended)
 Double-click:
 ```text
-start_server.bat
+Start-Server.bat
 ```
 The script automatically verifies your local IP, starts the Node server, and launches your default browser at `http://localhost:5000`.
 
@@ -182,11 +182,15 @@ cd WorkerWage
 # 2. Install dependencies
 npm install
 
-# 3. Start the application
+# 3. Configure environment (optional)
+cp .env.example .env
+
+# 4. Start the application
 npm start
 ```
 
-Default Admin PIN: **`1234`** *(Change this immediately in Settings $\rightarrow$ Security)*
+> **Security Note on Admin PIN**:
+> Configure `DEFAULT_ADMIN_PIN` in `.env` prior to first run. If left unset, the system generates an initial access PIN (`1234`), which should be immediately updated in **Settings $\rightarrow$ Security**.
 
 ---
 
@@ -227,7 +231,7 @@ Run the test suite:
 npm test
 ```
 
-### Test Suite Coverage (57 Tests, 0 Failures):
+### Test Suite Coverage (118 Tests Across 29 Suites, 0 Failures):
 - **Wage Calculator Engine** (`tests/unit/wage-calculator.test.js`):
   - PRESENT, HALF_DAY, ABSENT, PAID_LEAVE wage formulas.
   - Cards & Bangles ₹0 normal day overtime vs. fixed ₹200 worked holiday overtime.
@@ -238,22 +242,29 @@ npm test
   - ISO date validation (`isValidDate`) including leap year boundaries.
   - XSS HTML entity encoding (`sanitizeString`).
   - Worker, attendance, payment, holiday, and PIN change validation rules.
-- **Authentication & Security** (`tests/integration/api-auth.test.js`):
-  - Unauthorized 401 blocking.
-  - Bcrypt PIN verification and JWT issuance.
-  - Session verification and Bearer token parsing.
-- **Health & Diagnostics** (`tests/integration/api-health.test.js`):
-  - `GET /api/health` integrity check verification.
-  - 404 structured JSON error handling for unknown endpoints.
+- **Database Safe Restoration** (`tests/unit/restore.test.js` - DB-01):
+  - Independent pre-restoration validation.
+  - Corruption rejection and atomic safety backup preservation.
+  - Fresh-connection post-restoration verification.
+- **Services Unit Tests** (`tests/unit/services.test.js`):
+  - Dynamic settings, Tuesday paid off detection, system diagnostics.
+- **Rate Limiting & Authentication Store** (`tests/unit/rate-limit.test.js` - SEC-02, AUTH-02):
+  - Bounded memory management and sliding window enforcement.
+- **Worker Passbook & RBAC Security** (`tests/integration/api-worker.test.js` - AUTH-01):
+  - Minimum 5-digit PIN enforcement.
+  - Explicit credential setup requirement (no shared default PIN).
+  - RBAC endpoint protection and passbook privacy isolation.
+- **v6 Security Hardening** (`tests/integration/security-v6.test.js` - SEC-01, SEC-02):
+  - Explicit CORS origin allowlist and rogue tunnel rejection.
+  - Cross-site cookie CSRF protection on state-changing endpoints.
 - **Full Operational Lifecycle** (`tests/integration/api-crud.test.js`):
   - Worker creation with duplicate code 409 prevention.
   - Attendance recording with packaging box overtime computation.
   - Atomic batch attendance updates inside database transactions.
   - Advance payment recording and payroll report calculation.
-  - Worker cascade deletion.
 
 ### GitHub Actions CI
-Automated CI is configured in `.github/workflows/ci.yml`, running tests on Node 20.x and 22.x on every push and pull request.
+Automated CI is configured in `.github/workflows/ci.yml`, running tests on Node 22.x and 24.x LTS on every push and pull request.
 
 ---
 

@@ -7,6 +7,10 @@ const config = require('./config/env');
 const { DEFAULT_CATEGORIES } = require('./config/constants');
 
 const DB_PATH = config.DB_PATH;
+const dbDir = path.dirname(DB_PATH);
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+}
 const db = new DatabaseSync(DB_PATH);
 
 // Optimize database for reliability, concurrency, and durability
@@ -217,8 +221,6 @@ function initDatabase() {
         if (!hasColumn('employees', 'pin_hash')) {
           db.exec('ALTER TABLE employees ADD COLUMN pin_hash TEXT;');
         }
-        const defaultHash = bcrypt.hashSync('12345', 10);
-        db.prepare('UPDATE employees SET pin_hash = ? WHERE pin_hash IS NULL').run(defaultHash);
       }
     },
     {
@@ -243,6 +245,19 @@ function initDatabase() {
         }
         db.exec("CREATE INDEX IF NOT EXISTS idx_employees_status_name ON employees(status, name);");
         db.exec("CREATE INDEX IF NOT EXISTS idx_attendance_date_emp ON attendance(date, employee_id);");
+      }
+    },
+    {
+      version: '20261014_require_worker_credential_setup',
+      up: () => {
+        // Invalidate insecure default '12345' credentials to enforce credential setup (AUTH-01)
+        const rows = db.prepare('SELECT id, pin_hash FROM employees WHERE pin_hash IS NOT NULL').all();
+        const updateStmt = db.prepare('UPDATE employees SET pin_hash = NULL WHERE id = ?');
+        for (const r of rows) {
+          if (r.pin_hash && bcrypt.compareSync('12345', r.pin_hash)) {
+            updateStmt.run(r.id);
+          }
+        }
       }
     }
   ];

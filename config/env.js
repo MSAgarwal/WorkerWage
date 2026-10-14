@@ -21,7 +21,9 @@ const config = {
   RATE_LIMIT_MAX_REQUESTS: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) || 300,
   AUTH_RATE_LIMIT_MAX: parseInt(process.env.AUTH_RATE_LIMIT_MAX, 10) || 12,
   AUTO_BACKUP_ENABLED: process.env.AUTO_BACKUP_ENABLED !== 'false' && process.env.NODE_ENV !== 'test',
-  AUTO_BACKUP_INTERVAL_HOURS: parseInt(process.env.AUTO_BACKUP_INTERVAL_HOURS, 10) || 24
+  AUTO_BACKUP_INTERVAL_HOURS: parseInt(process.env.AUTO_BACKUP_INTERVAL_HOURS, 10) || 24,
+  TRUST_PROXY: process.env.TRUST_PROXY || null,
+  COOKIE_SECURE: process.env.COOKIE_SECURE === 'true'
 };
 
 module.exports = config;

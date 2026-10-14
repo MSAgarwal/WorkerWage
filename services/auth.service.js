@@ -66,19 +66,17 @@ class AuthService {
       return { success: false, statusCode: 404, error: 'Active worker not found. Please verify your Worker Code (e.g. EMP001) or phone number.' };
     }
 
-    // Verify worker secret key
-    let pinValid = false;
-    if (worker.pin_hash) {
-      pinValid = bcrypt.compareSync(cleanPin, worker.pin_hash);
-    } else {
-      // Default initial password for existing workers before pin was set: '12345'
-      pinValid = (cleanPin === '12345');
-      if (pinValid) {
-        const hashed = bcrypt.hashSync(cleanPin, 10);
-        db.prepare('UPDATE employees SET pin_hash = ? WHERE id = ?').run(hashed, worker.id);
-      }
+    // Verify worker secret key (AUTH-01: Explicit individual credentials required, no shared fallback)
+    if (!worker.pin_hash) {
+      recordAuthFailure(clientIp);
+      return {
+        success: false,
+        statusCode: 403,
+        error: 'Worker credential setup required. Please contact administrator to initialize your PIN.'
+      };
     }
 
+    const pinValid = bcrypt.compareSync(cleanPin, worker.pin_hash);
     if (!pinValid) {
       recordAuthFailure(clientIp);
       return { success: false, statusCode: 401, error: 'Incorrect Passbook password. Please enter your 5+ digit worker secret key.' };

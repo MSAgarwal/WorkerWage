@@ -1,24 +1,32 @@
 # Dependencies
 node_modules/
 
-# Environment Variables & Secrets
+# Environment Variables & Secrets (Preserve .env.example)
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
-# SQLite Databases & Ephemeral Storage
+# SQLite Databases & Ephemeral Storage (DATA-01)
 *.db
 *.db-shm
 *.db-wal
 *.sqlite
 *.sqlite3
 test_*.db
+data/
+*.pre_restore_*
 
-# Backups & Logs
+# Backups & Logs (DATA-01)
 backups/
 logs/
 *.log
 npm-debug.log*
+
+# Release Packaging & Dist
+dist/
+release/
+*.zip
+*.tar.gz
 
 # Scratch & Temporary
 scratch/

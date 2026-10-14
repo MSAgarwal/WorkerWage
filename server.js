@@ -7,7 +7,7 @@ const QRCode = require('qrcode');
 const config = require('./config/env');
 const { db } = require('./db');
 const { NotFoundError, errorHandler } = require('./errors');
-const { securityHeaders } = require('./middleware/security.middleware');
+const { securityHeaders, csrfProtection } = require('./middleware/security.middleware');
 const { requestLogger } = require('./middleware/logger.middleware');
 const { globalRateLimiter } = require('./middleware/rate-limit.middleware');
 const systemService = require('./services/system.service');
@@ -17,21 +17,59 @@ const apiRoutes = require('./routes');
 const app = express();
 const PORT = config.PORT;
 
-// Trust reverse proxy headers (Cloudflare, tunnels, load balancers)
-app.set('trust proxy', 1);
+// Trust reverse proxy settings based on configuration (SEC-02 / REL-01)
+if (config.TRUST_PROXY) {
+  app.set('trust proxy', config.TRUST_PROXY === 'true' ? 1 : config.TRUST_PROXY);
+} else if (config.NODE_ENV === 'production') {
+  app.set('trust proxy', 'loopback, linklocal, uniquelocal');
+} else {
+  app.set('trust proxy', false);
+}
 
 // Security Headers
 app.use(securityHeaders);
 
-// Core Middleware: CORS for Local, LAN, and Cloudflare Tunnels
+// Explicit CORS Policy (SEC-01)
+const configuredOrigins = new Set(
+  (config.ALLOWED_ORIGINS || []).map(o => String(o).trim().replace(/\/$/, '')).filter(Boolean)
+);
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true; // Same-origin or non-browser client
+  const normalized = origin.trim().replace(/\/$/, '');
+
+  // 1. Explicitly approved origin
+  if (configuredOrigins.has(normalized)) {
+    return true;
+  }
+
+  // 2. Local development and private LAN (allowed in dev and test modes)
+  if (config.NODE_ENV !== 'production' || config.IS_TEST) {
+    try {
+      const parsed = new URL(normalized);
+      const host = parsed.hostname;
+      if (
+        host === 'localhost' ||
+        host === '127.0.0.1' ||
+        host === '::1' ||
+        host === systemService.getLocalNetworkIp() ||
+        /^192\.168\.\d+\.\d+$/.test(host) ||
+        /^10\.\d+\.\d+\.\d+$/.test(host) ||
+        /^172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+$/.test(host)
+      ) {
+        return true;
+      }
+    } catch (e) {
+      return false;
+    }
+  }
+
+  return false;
+}
+
 const corsOptions = {
-  origin: config.ALLOWED_ORIGINS || function(origin, callback) {
-    if (!origin) return callback(null, true);
-    // Allow loopback, private LAN addresses, and Cloudflare tunnel origins
-    if (
-      /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$/.test(origin) ||
-      /^https?:\/\/([a-zA-Z0-9-]+\.)*trycloudflare\.com(:\d+)?$/.test(origin)
-    ) {
+  origin(origin, callback) {
+    if (isAllowedOrigin(origin)) {
       return callback(null, true);
     }
     return callback(new Error('Cross-origin request blocked by CORS policy'));
@@ -40,6 +78,7 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 app.use(cookieParser());
+app.use(csrfProtection(isAllowedOrigin));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));

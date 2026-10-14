@@ -13,6 +13,61 @@ function securityHeaders(req, res, next) {
   next();
 }
 
+/**
+ * CSRF Protection for Cookie-Authenticated State-Changing Requests (SEC-01)
+ * Protects against cross-site request forgery when using ambient cookie sessions.
+ */
+function csrfProtection(isAllowedOrigin) {
+  return (req, res, next) => {
+    const stateChangingMethods = ['POST', 'PUT', 'DELETE', 'PATCH'];
+    if (!stateChangingMethods.includes(req.method)) {
+      return next();
+    }
+
+    // Explicit Bearer tokens are not vulnerable to ambient cookie CSRF
+    const hasBearerAuth = req.headers.authorization && req.headers.authorization.startsWith('Bearer ');
+    if (hasBearerAuth) {
+      return next();
+    }
+
+    // Public unauthenticated endpoints do not possess ambient session state
+    if (req.path === '/auth/verify' || req.path === '/auth/worker-login') {
+      return next();
+    }
+
+    // Only apply if session cookies (admin_token or worker_token) are present
+    const hasAuthCookie = req.cookies && (req.cookies.admin_token || req.cookies.worker_token);
+    if (!hasAuthCookie) {
+      return next();
+    }
+
+    // Modern browsers: Sec-Fetch-Site protection
+    const secFetchSite = req.headers['sec-fetch-site'];
+    if (secFetchSite && secFetchSite === 'cross-site') {
+      return res.status(403).json({
+        success: false,
+        error: 'Cross-site request blocked by CSRF policy',
+        code: 'CSRF_BLOCKED'
+      });
+    }
+
+    // Validate Origin header if present
+    const origin = req.headers['origin'];
+    if (origin && typeof isAllowedOrigin === 'function') {
+      if (!isAllowedOrigin(origin)) {
+        return res.status(403).json({
+          success: false,
+          error: 'Invalid request origin',
+          code: 'INVALID_ORIGIN'
+        });
+      }
+    }
+
+    next();
+  };
+}
+
 module.exports = {
-  securityHeaders
+  securityHeaders,
+  csrfProtection
 };

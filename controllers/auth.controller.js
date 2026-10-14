@@ -16,8 +16,11 @@ class AuthController {
         return res.status(result.statusCode || 401).json({ error: result.error });
       }
 
+      const isSecure = req.secure || req.headers['x-forwarded-proto'] === 'https' || (process.env.COOKIE_SECURE === 'true');
+
       res.cookie('admin_token', result.token, {
         httpOnly: true,
+        secure: isSecure,
         sameSite: 'lax',
         maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
       });
@@ -40,15 +43,18 @@ class AuthController {
     try {
       const { identifier, pin, password } = req.body;
       const workerPin = pin || password;
-      const clientIp = req.ip || req.connection?.remoteAddress || 'unknown';
+      const clientIp = req.ip || (req.socket && req.socket.remoteAddress) || 'unknown';
 
       const result = authService.verifyWorkerLogin(identifier, workerPin, clientIp);
       if (!result.success) {
         return res.status(result.statusCode || 401).json({ error: result.error });
       }
 
+      const isSecure = req.secure || req.headers['x-forwarded-proto'] === 'https' || (process.env.COOKIE_SECURE === 'true');
+
       res.cookie('worker_token', result.token, {
         httpOnly: true,
+        secure: isSecure,
         sameSite: 'lax',
         maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
       });
@@ -92,8 +98,9 @@ class AuthController {
    * Clear both admin and worker authentication cookies
    */
   logout(req, res) {
-    res.clearCookie('admin_token');
-    res.clearCookie('worker_token');
+    const isSecure = req.secure || req.headers['x-forwarded-proto'] === 'https' || (process.env.COOKIE_SECURE === 'true');
+    res.clearCookie('admin_token', { httpOnly: true, secure: isSecure, sameSite: 'lax' });
+    res.clearCookie('worker_token', { httpOnly: true, secure: isSecure, sameSite: 'lax' });
     return res.json({ success: true, message: 'Logged out successfully' });
   }
 

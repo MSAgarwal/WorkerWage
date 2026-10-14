@@ -183,7 +183,7 @@ function validateEmployeeInput(body, isUpdate = false) {
       sanitized.pin = pinStr;
     }
   } else if (!isUpdate) {
-    sanitized.pin = '12345';
+    sanitized.pin = null;
   }
 
   return {

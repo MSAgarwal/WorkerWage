@@ -71,8 +71,8 @@ class EmployeeService {
   createEmployee(data) {
     const { withTransaction } = require('../db');
 
-    const pinToHash = data.pin && String(data.pin).trim() ? String(data.pin).trim() : '12345';
-    const pinHash = bcrypt.hashSync(pinToHash, 10);
+    const pinToHash = data.pin && String(data.pin).trim() ? String(data.pin).trim() : null;
+    const pinHash = pinToHash ? bcrypt.hashSync(pinToHash, 10) : null;
 
     let newEmpId;
     try {

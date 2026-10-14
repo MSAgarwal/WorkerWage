@@ -1,17 +1,37 @@
 const jwt = require('jsonwebtoken');
 const { getJwtSecret } = require('../db');
 
-// In-memory rate limiter store for PIN attempts
+// In-memory rate limiter store for PIN attempts (AUTH-02: Bounded with automatic sweep)
 const authAttempts = new Map(); // ip -> { count, firstAttempt, lockedUntil }
 const AUTH_MAX_ATTEMPTS = 5;
 const AUTH_WINDOW_MS = 60 * 1000; // 1 minute window
 const AUTH_LOCK_MS = 2 * 60 * 1000; // 2 minutes lockout
+const MAX_AUTH_STORE_SIZE = 5000; // Hard memory bound
+
+function cleanupAuthAttempts() {
+  const now = Date.now();
+  for (const [ip, record] of authAttempts.entries()) {
+    if (now - record.firstAttempt > AUTH_WINDOW_MS && (!record.lockedUntil || now > record.lockedUntil)) {
+      authAttempts.delete(ip);
+    }
+  }
+  if (authAttempts.size > MAX_AUTH_STORE_SIZE) {
+    const keysToDelete = Array.from(authAttempts.keys()).slice(0, 1000);
+    for (const k of keysToDelete) authAttempts.delete(k);
+  }
+}
+
+// Sweep stale attempt tracking every 60 seconds
+const authCleanupTimer = setInterval(cleanupAuthAttempts, 60 * 1000);
+if (authCleanupTimer.unref) {
+  authCleanupTimer.unref();
+}
 
 /**
  * Middleware: Rate limiter for PIN authentication (brute-force protection)
  */
 function checkAuthRateLimit(req, res, next) {
-  const clientIp = req.ip || req.connection?.remoteAddress || 'unknown';
+  const clientIp = req.ip || (req.socket && req.socket.remoteAddress) || 'unknown';
   const now = Date.now();
   const record = authAttempts.get(clientIp);
 
@@ -37,6 +57,9 @@ function checkAuthRateLimit(req, res, next) {
  * Record a failed authentication attempt for rate limiting
  */
 function recordAuthFailure(clientIp) {
+  if (authAttempts.size >= MAX_AUTH_STORE_SIZE) {
+    cleanupAuthAttempts();
+  }
   const now = Date.now();
   const record = authAttempts.get(clientIp) || { count: 0, firstAttempt: now, lockedUntil: 0 };
   record.count += 1;
@@ -141,5 +164,7 @@ module.exports = {
   recordAuthFailure,
   recordAuthSuccess,
   requireAdmin,
-  requireWorkerOrAdmin
+  requireWorkerOrAdmin,
+  cleanupAuthAttempts,
+  authAttempts
 };
